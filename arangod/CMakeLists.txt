@@ -539,6 +539,7 @@ set(LIB_ARANGO_V8SERVER_SOURCES
   V8Server/v8-collection-util.cpp
   V8Server/v8-collection.cpp
   V8Server/v8-dispatcher.cpp
+  V8Server/v8-foxx.cpp
   V8Server/v8-general-graph.cpp
   V8Server/v8-query.cpp
   V8Server/v8-replication.cpp

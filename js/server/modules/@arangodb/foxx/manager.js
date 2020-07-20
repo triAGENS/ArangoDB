@@ -46,6 +46,7 @@ const actions = require('@arangodb/actions');
 const isZipBuffer = require('@arangodb/util').isZipBuffer;
 const codeFrame = require('@arangodb/util').codeFrame;
 const internal  = require('internal');
+const { executeFoxxLocked } = internal;
 
 const SYSTEM_SERVICE_MOUNTS = [
   '/_admin/aardvark', // Admin interface.
@@ -211,9 +212,11 @@ function triggerSelfHeal () {
 
 function selfHeal () {
   const dirname = FoxxService.rootBundlePath();
-  if (!fs.exists(dirname)) {
-    fs.makeDirectoryRecursive(dirname);
-  }
+  executeFoxxLocked(() => {
+    if (!fs.exists(dirname)) {
+      fs.makeDirectoryRecursive(dirname);
+    }
+  });
 
   const serviceCollection = utils.getStorage();
   const bundleCollection = utils.getBundleStorage();
@@ -230,55 +233,56 @@ function selfHeal () {
   if (!GLOBAL_SERVICE_MAP.has(db._name())) {
     initLocalServiceMap();
   }
-  const localServiceMap = GLOBAL_SERVICE_MAP.get(db._name());
-  for (const [mount, checksum, rev, bundleExists] of serviceDefinitions) {
-    const bundlePath = FoxxService.bundlePath(mount);
-    const basePath = FoxxService.basePath(mount);
-    knownBundlePaths.push(bundlePath);
-    knownServicePaths.push(basePath);
+  executeFoxxLocked(() => {
+    const localServiceMap = GLOBAL_SERVICE_MAP.get(db._name());
+    for (const [mount, checksum, rev, bundleExists] of serviceDefinitions) {
+      const bundlePath = FoxxService.bundlePath(mount);
+      const basePath = FoxxService.basePath(mount);
+      knownBundlePaths.push(bundlePath);
+      knownServicePaths.push(basePath);
 
-    if (!localServiceMap.has(mount) || localServiceMap.get(mount)._rev !== rev) {
-      modified = true;
-    }
-
-    const hasBundle = fs.exists(bundlePath);
-    const hasFolder = fs.exists(basePath);
-    if (!hasBundle && hasFolder) {
-      createServiceBundle(mount);
-    } else if (hasBundle && !hasFolder) {
-      extractServiceBundle(bundlePath, basePath);
-      modified = true;
-    }
-    const isInstalled = hasBundle || hasFolder;
-    const localChecksum = isInstalled ? safeChecksum(mount) : null;
-
-    if (!checksum) {
-      // pre-3.2 service, can't self-heal this
-      continue;
-    }
-
-    if (checksum === localChecksum) {
-      if (!bundleExists) {
-        try {
-          bundleCollection._binaryInsert({_key: checksum}, bundlePath);
-        } catch (e) {
-          console.warnStack(e, `Failed to store missing service bundle for service at "${mount}"`);
-        }
+      if (!localServiceMap.has(mount) || localServiceMap.get(mount)._rev !== rev) {
+        modified = true;
       }
-    } else if (bundleExists) {
-      try {
-        if (fs.exists(bundlePath)) {
-          fs.remove(bundlePath);
-        }
-        bundleCollection._binaryDocument(checksum, bundlePath);
+
+      const hasBundle = fs.exists(bundlePath);
+      const hasFolder = fs.exists(basePath);
+      if (!hasBundle && hasFolder) {
+        createServiceBundle(mount);
+      } else if (hasBundle && !hasFolder) {
         extractServiceBundle(bundlePath, basePath);
         modified = true;
-      } catch (e) {
-        console.errorStack(e, `Failed to load service bundle for service at "${mount}"`);
+      }
+      const isInstalled = hasBundle || hasFolder;
+      const localChecksum = isInstalled ? safeChecksum(mount) : null;
+
+      if (!checksum) {
+        // pre-3.2 service, can't self-heal this
+        continue;
+      }
+
+      if (checksum === localChecksum) {
+        if (!bundleExists) {
+          try {
+            bundleCollection._binaryInsert({_key: checksum}, bundlePath);
+          } catch (e) {
+            console.warnStack(e, `Failed to store missing service bundle for service at "${mount}"`);
+          }
+        }
+      } else if (bundleExists) {
+        try {
+          if (fs.exists(bundlePath)) {
+            fs.remove(bundlePath);
+          }
+          bundleCollection._binaryDocument(checksum, bundlePath);
+          extractServiceBundle(bundlePath, basePath);
+          modified = true;
+        } catch (e) {
+          console.errorStack(e, `Failed to load service bundle for service at "${mount}"`);
+        }
       }
     }
-  }
-
+  });
   modified = cleanupOrphanedServices(
     knownServicePaths,
     knownBundlePaths
@@ -290,46 +294,47 @@ function selfHeal () {
 function cleanupOrphanedServices (knownServicePaths, knownBundlePaths) {
   let modified = false;
 
-  function traverseServices (basePath) {
-    if (!fs.isDirectory(basePath)) {
-      return;
-    }
-    for (const relPath of fs.list(basePath)) {
-      const absPath = path.resolve(basePath, relPath);
-      if (relPath.toUpperCase() !== 'APP') {
-        traverseServices(absPath);
-      } else if (!knownServicePaths.includes(absPath)) {
-        modified = true;
-        try {
-          fs.removeDirectoryRecursive(absPath, true);
-          console.debug(`Deleted orphaned service folder ${absPath}`);
-        } catch (e) {
-          console.warnStack(e, `Failed to delete orphaned service folder ${absPath}`);
+  executeFoxxLocked(() => {
+    function traverseServices (basePath) {
+      if (!fs.isDirectory(basePath)) {
+        return;
+      }
+      for (const relPath of fs.list(basePath)) {
+        const absPath = path.resolve(basePath, relPath);
+        if (relPath.toUpperCase() !== 'APP') {
+          traverseServices(absPath);
+        } else if (!knownServicePaths.includes(absPath)) {
+          modified = true;
+          try {
+            fs.removeDirectoryRecursive(absPath, true);
+            console.debug(`Deleted orphaned service folder ${absPath}`);
+          } catch (e) {
+            console.warnStack(e, `Failed to delete orphaned service folder ${absPath}`);
+          }
         }
       }
     }
-  }
-
-  const servicesRoot = FoxxService.rootPath();
-  for (const name of fs.list(servicesRoot)) {
-    if (name === '_appbundles') {
-      continue;
+    const servicesRoot = FoxxService.rootPath();
+    for (const name of fs.list(servicesRoot)) {
+      if (name === '_appbundles') {
+        continue;
+      }
+      traverseServices(path.resolve(servicesRoot, name));
     }
-    traverseServices(path.resolve(servicesRoot, name));
-  }
 
-  const bundlesRoot = FoxxService.rootBundlePath();
-  for (const relPath of fs.list(bundlesRoot)) {
-    const absPath = path.resolve(bundlesRoot, relPath);
-    if (!knownBundlePaths.includes(absPath)) {
-      try {
-        fs.remove(absPath);
-        console.debug(`Deleted orphaned service bundle ${absPath}`);
-      } catch (e) {
-        console.warnStack(e, `Failed to delete orphaned service bundle ${absPath}`);
+    const bundlesRoot = FoxxService.rootBundlePath();
+    for (const relPath of fs.list(bundlesRoot)) {
+      const absPath = path.resolve(bundlesRoot, relPath);
+      if (!knownBundlePaths.includes(absPath)) {
+        try {
+          fs.remove(absPath);
+          console.debug(`Deleted orphaned service bundle ${absPath}`);
+        } catch (e) {
+          console.warnStack(e, `Failed to delete orphaned service bundle ${absPath}`);
+        }
       }
     }
-  }
+  });
 
   return modified;
 }
@@ -343,59 +348,61 @@ function startup () {
 
 function commitLocalState (replace) {
   let modified = false;
-  const rootPath = FoxxService.rootPath();
-  const collection = utils.getStorage();
-  const bundleCollection = utils.getBundleStorage();
-  for (const relPath of fs.listTree(rootPath)) {
-    if (!relPath) {
-      continue;
-    }
-    const basename = path.basename(relPath);
-    if (basename.toUpperCase() !== 'APP') {
-      continue;
-    }
-    const mount = '/' + path.dirname(relPath).split(path.sep).join('/');
-    const basePath = FoxxService.basePath(mount);
-    if (!fs.list(basePath).length) {
-      continue;
-    }
-    const bundlePath = FoxxService.bundlePath(mount);
-    if (!fs.exists(bundlePath)) {
-      createServiceBundle(mount, bundlePath);
-    }
-    const serviceDefinition = db._query(aql`
-      FOR service IN ${collection}
-      FILTER service.mount == ${mount}
-      RETURN service
-    `).next();
-    if (!serviceDefinition) {
-      try {
-        const service = FoxxService.create({mount});
-        service.updateChecksum();
-        if (!bundleCollection.exists(service.checksum)) {
-          bundleCollection._binaryInsert({_key: service.checksum}, bundlePath);
-        }
-        collection.save(service.toJSON());
-        modified = true;
-      } catch (e) {
-        console.errorStack(e);
+  executeFoxxLocked(() => {
+    const rootPath = FoxxService.rootPath();
+    const collection = utils.getStorage();
+    const bundleCollection = utils.getBundleStorage();
+    for (const relPath of fs.listTree(rootPath)) {
+      if (!relPath) {
+        continue;
       }
-    } else {
-      const checksum = safeChecksum(mount);
-      if (!serviceDefinition.checksum || (replace && serviceDefinition.checksum !== checksum)) {
-        if (!bundleCollection.exists(checksum)) {
-          bundleCollection._binaryInsert({_key: checksum}, bundlePath);
-        }
-        collection.update(serviceDefinition._key, {checksum});
-        modified = true;
-      } else if (serviceDefinition.checksum === checksum) {
-        if (!bundleCollection.exists(checksum)) {
-          bundleCollection._binaryInsert({_key: checksum}, bundlePath);
+      const basename = path.basename(relPath);
+      if (basename.toUpperCase() !== 'APP') {
+        continue;
+      }
+      const mount = '/' + path.dirname(relPath).split(path.sep).join('/');
+      const basePath = FoxxService.basePath(mount);
+      if (!fs.list(basePath).length) {
+        continue;
+      }
+      const bundlePath = FoxxService.bundlePath(mount);
+      if (!fs.exists(bundlePath)) {
+        createServiceBundle(mount, bundlePath);
+      }
+      const serviceDefinition = db._query(aql`
+        FOR service IN ${collection}
+        FILTER service.mount == ${mount}
+        RETURN service
+      `).next();
+      if (!serviceDefinition) {
+        try {
+          const service = FoxxService.create({mount});
+          service.updateChecksum();
+          if (!bundleCollection.exists(service.checksum)) {
+            bundleCollection._binaryInsert({_key: service.checksum}, bundlePath);
+          }
+          collection.save(service.toJSON());
           modified = true;
+        } catch (e) {
+          console.errorStack(e);
+        }
+      } else {
+        const checksum = safeChecksum(mount);
+        if (!serviceDefinition.checksum || (replace && serviceDefinition.checksum !== checksum)) {
+          if (!bundleCollection.exists(checksum)) {
+            bundleCollection._binaryInsert({_key: checksum}, bundlePath);
+          }
+          collection.update(serviceDefinition._key, {checksum});
+          modified = true;
+        } else if (serviceDefinition.checksum === checksum) {
+          if (!bundleCollection.exists(checksum)) {
+            bundleCollection._binaryInsert({_key: checksum}, bundlePath);
+            modified = true;
+          }
         }
       }
     }
-  }
+  });
   if (modified) {
     propagateSelfHeal();
     reloadRouting();
@@ -502,28 +509,27 @@ function reloadInstalledService (mount, runSetup) {
 function loadInstalledService (serviceDefinition) {
   const mount = serviceDefinition.mount;
   if (!mount.startsWith('/_')) {
-    if (
-      !fs.exists(FoxxService.bundlePath(mount)) ||
-      !fs.exists(FoxxService.basePath(mount))
-    ) {
-      throw new ArangoError({
-        errorNum: errors.ERROR_SERVICE_FILES_MISSING.code,
-        errorMessage: dd`
-          ${errors.ERROR_SERVICE_FILES_MISSING.message}
-          Mount: ${mount}
-        `
-      });
-    }
-    const checksum = serviceDefinition.checksum;
-    if (checksum && checksum !== safeChecksum(mount)) {
-      throw new ArangoError({
-        errorNum: errors.ERROR_SERVICE_FILES_OUTDATED.code,
-        errorMessage: dd`
-          ${errors.ERROR_SERVICE_FILES_OUTDATED.message}
-          Mount: ${mount}
-        `
-      });
-    }
+    executeFoxxLocked(() => {
+      if (!fs.exists(FoxxService.bundlePath(mount)) || !fs.exists(FoxxService.basePath(mount))) {
+        throw new ArangoError({
+          errorNum: errors.ERROR_SERVICE_FILES_MISSING.code,
+          errorMessage: dd`
+            ${errors.ERROR_SERVICE_FILES_MISSING.message}
+            Mount: ${mount}
+          `
+        });
+      }
+      const checksum = serviceDefinition.checksum;
+      if (checksum && checksum !== safeChecksum(mount)) {
+        throw new ArangoError({
+          errorNum: errors.ERROR_SERVICE_FILES_OUTDATED.code,
+          errorMessage: dd`
+            ${errors.ERROR_SERVICE_FILES_OUTDATED.message}
+            Mount: ${mount}
+          `
+        });
+      }
+    });
   }
   return FoxxService.create(serviceDefinition);
 }
@@ -531,98 +537,103 @@ function loadInstalledService (serviceDefinition) {
 // Misc?
 
 function patchManifestFile (servicePath, patchData) {
-  const filename = path.join(servicePath, 'manifest.json');
-  let manifest;
-  try {
-    const rawManifest = fs.readFileSync(filename, 'utf-8');
-    manifest = JSON.parse(rawManifest);
-  } catch (e) {
-    throw Object.assign(
-      new ArangoError({
-        errorNum: errors.ERROR_MALFORMED_MANIFEST_FILE.code,
-        errorMessage: dd`
-          ${errors.ERROR_MALFORMED_MANIFEST_FILE.message}
-          File: ${filename}
-        `
-      }), {cause: e}
-    );
-  }
-  Object.assign(manifest, patchData);
-  fs.writeFileSync(filename, JSON.stringify(manifest, null, 2));
+  executeFoxxLocked(() => {
+    const filename = path.join(servicePath, 'manifest.json');
+    let manifest;
+    try {
+      const rawManifest = fs.readFileSync(filename, 'utf-8');
+      manifest = JSON.parse(rawManifest);
+    } catch (e) {
+      throw Object.assign(
+        new ArangoError({
+          errorNum: errors.ERROR_MALFORMED_MANIFEST_FILE.code,
+          errorMessage: dd`
+            ${errors.ERROR_MALFORMED_MANIFEST_FILE.message}
+            File: ${filename}
+          `
+        }), {cause: e}
+      );
+    }
+    Object.assign(manifest, patchData);
+    fs.writeFileSync(filename, JSON.stringify(manifest, null, 2));
+  });
 }
 
 function _prepareService (serviceInfo, legacy = false) {
-  const tempServicePath = utils.joinLastPath(fs.getTempFile('services', false));
-  const tempBundlePath = utils.joinLastPath(fs.getTempFile('bundles', false));
-  try {
-    if (isZipBuffer(serviceInfo)) {
-      // Buffer (zip)
-      const tempFile = fs.getTempFile('bundles', false);
-      fs.writeFileSync(tempFile, serviceInfo);
-      extractServiceBundle(tempFile, tempServicePath);
-      fs.move(tempFile, tempBundlePath);
-    } else if (serviceInfo instanceof Buffer) {
-      // Buffer (js)
-      _buildServiceBundleFromScript(tempServicePath, tempBundlePath, serviceInfo);
-    } else if (/^https?:/i.test(serviceInfo)) {
-      // Remote path
-      const tempFile = downloadServiceBundleFromRemote(serviceInfo);
-      try {
-        _buildServiceFromFile(tempServicePath, tempBundlePath, tempFile);
-      } finally {
-        fs.remove(tempFile);
-      }
-    } else if (fs.exists(serviceInfo)) {
-      // Local path
-      if (fs.isDirectory(serviceInfo)) {
-        utils.zipDirectory(serviceInfo, tempBundlePath);
-        extractServiceBundle(tempBundlePath, tempServicePath);
-      } else {
-        _buildServiceFromFile(tempServicePath, tempBundlePath, serviceInfo);
-      }
-    } else {
-      const info = !internal.isFoxxApiDisabled() && store.installationInfo(serviceInfo);  //disable foxx store
-      if (!info) {
-        throw new ArangoError({
-          errorNum: errors.ERROR_SERVICE_SOURCE_NOT_FOUND.code,
-          errorMessage: dd`
-            ${errors.ERROR_SERVICE_SOURCE_NOT_FOUND.message}
-            Location: ${serviceInfo}
-          `
-        });
-      }
-      const storeBundle = downloadServiceBundleFromRemote(info.url);
-      try {
-        extractServiceBundle(storeBundle, tempServicePath);
-      } finally {
-        try {
-          fs.remove(storeBundle);
-        } catch (e) {
-          console.warnStack(e, `Cannot remove temporary file "${storeBundle}"`);
-        }
-      }
-      patchManifestFile(tempServicePath, info.manifest);
-      utils.zipDirectory(tempServicePath, tempBundlePath);
-    }
-    if (legacy) {
-      patchManifestFile(tempServicePath, {engines: {arangodb: '^2.8.0'}});
-      if (fs.exists(tempBundlePath)) {
-        fs.remove(tempBundlePath);
-      }
-      utils.zipDirectory(tempServicePath, tempBundlePath);
-    }
-    return {
-      tempServicePath,
-      tempBundlePath
-    };
-  } catch (e) {
+  return executeFoxxLocked(() => {
+    const tempServicePath = utils.joinLastPath(fs.getTempFile('services', false));
+    const tempBundlePath = utils.joinLastPath(fs.getTempFile('bundles', false));
     try {
-      fs.removeDirectoryRecursive(tempServicePath, true);
-    } catch (e2) {}
-    throw e;
-  }
+      if (isZipBuffer(serviceInfo)) {
+        // Buffer (zip)
+        const tempFile = fs.getTempFile('bundles', false);
+        fs.writeFileSync(tempFile, serviceInfo);
+        extractServiceBundle(tempFile, tempServicePath);
+        fs.move(tempFile, tempBundlePath);
+      } else if (serviceInfo instanceof Buffer) {
+        // Buffer (js)
+        _buildServiceBundleFromScript(tempServicePath, tempBundlePath, serviceInfo);
+      } else if (/^https?:/i.test(serviceInfo)) {
+        // Remote path
+        const tempFile = downloadServiceBundleFromRemote(serviceInfo);
+        try {
+          _buildServiceFromFile(tempServicePath, tempBundlePath, tempFile);
+        } finally {
+          fs.remove(tempFile);
+        }
+      } else if (fs.exists(serviceInfo)) {
+        // Local path
+        if (fs.isDirectory(serviceInfo)) {
+          utils.zipDirectory(serviceInfo, tempBundlePath);
+          extractServiceBundle(tempBundlePath, tempServicePath);
+        } else {
+          _buildServiceFromFile(tempServicePath, tempBundlePath, serviceInfo);
+        }
+      } else {
+        const info = !internal.isFoxxApiDisabled() && store.installationInfo(serviceInfo);  //disable foxx store
+        if (!info) {
+          throw new ArangoError({
+            errorNum: errors.ERROR_SERVICE_SOURCE_NOT_FOUND.code,
+            errorMessage: dd`
+              ${errors.ERROR_SERVICE_SOURCE_NOT_FOUND.message}
+              Location: ${serviceInfo}
+            `
+          });
+        }
+        const storeBundle = downloadServiceBundleFromRemote(info.url);
+        try {
+          extractServiceBundle(storeBundle, tempServicePath);
+        } finally {
+          try {
+            fs.remove(storeBundle);
+          } catch (e) {
+            console.warnStack(e, `Cannot remove temporary file "${storeBundle}"`);
+          }
+        }
+        patchManifestFile(tempServicePath, info.manifest);
+        utils.zipDirectory(tempServicePath, tempBundlePath);
+      }
+      if (legacy) {
+        patchManifestFile(tempServicePath, {engines: {arangodb: '^2.8.0'}});
+        if (fs.exists(tempBundlePath)) {
+          fs.remove(tempBundlePath);
+        }
+        utils.zipDirectory(tempServicePath, tempBundlePath);
+      }
+      return {
+        tempServicePath,
+        tempBundlePath
+      };
+    } catch (e) {
+      try {
+        fs.removeDirectoryRecursive(tempServicePath, true);
+      } catch (e2) {}
+      throw e;
+    }
+  });
 }
 
+// Caller needs to make sure this is executed in FoxxLocked context
 function _buildServiceFromFile (tempServicePath, tempBundlePath, filePath) {
   try {
     extractServiceBundle(filePath, tempServicePath);
@@ -633,6 +644,7 @@ function _buildServiceFromFile (tempServicePath, tempBundlePath, filePath) {
   fs.copyFile(filePath, tempBundlePath);
 }
 
+// Caller needs to make sure this is executed in FoxxLocked context
 function _buildServiceBundleFromScript (tempServicePath, tempBundlePath, jsBuffer) {
   const manifest = JSON.stringify({main: 'index.js'}, null, 4);
   fs.makeDirectoryRecursive(tempServicePath);
@@ -754,12 +766,14 @@ function _uninstall (mount, options = {}) {
 // Service bundle manipulation
 
 function createServiceBundle (mount, bundlePath = FoxxService.bundlePath(mount)) {
-  const servicePath = FoxxService.basePath(mount);
-  if (fs.exists(bundlePath)) {
-    fs.remove(bundlePath);
-  }
-  fs.makeDirectoryRecursive(path.dirname(bundlePath));
-  utils.zipDirectory(servicePath, bundlePath);
+  executeFoxxLocked(() => {
+    const servicePath = FoxxService.basePath(mount);
+    if (fs.exists(bundlePath)) {
+      fs.remove(bundlePath);
+    }
+    fs.makeDirectoryRecursive(path.dirname(bundlePath));
+    utils.zipDirectory(servicePath, bundlePath);
+  });
 }
 
 function downloadServiceBundleFromRemote (url) {
@@ -810,12 +824,13 @@ function extractServiceBundle (archive, targetPath) {
       `
     });
   }
-
-  let basePath = path.dirname(path.resolve(tempFolder, manifestPath));
-  if (fs.exists(targetPath)) {
-    fs.removeDirectoryRecursive(targetPath, true);
-  }
-  fs.move(basePath, targetPath);
+  executeFoxxLocked(() => {
+    let basePath = path.dirname(path.resolve(tempFolder, manifestPath));
+    if (fs.exists(targetPath)) {
+      fs.removeDirectoryRecursive(targetPath, true);
+    }
+    fs.move(basePath, targetPath);
+  });
 
   if (manifestPath.endsWith('/manifest.json') || manifestPath.endsWith('\\manifest.json')) {
     // service basePath is a subfolder of tempFolder
@@ -838,20 +853,22 @@ function install (serviceInfo, mount, options = {}) {
       `
     });
   }
-  const tempPaths = _prepareService(serviceInfo, options.legacy);
-  const tempService = FoxxService.create({
-    mount,
-    basePath: tempPaths.tempServicePath,
-    noisy: true,
-    options: {
-      development: options.development,
-      configuration: options.configuration,
-      dependencies: options.dependencies
-    }
-  });
-  _install(tempService, tempPaths.tempBundlePath, {
-    setup: options.setup !== false,
-    force: options.force === true
+  executeFoxxLocked(() => {
+    const tempPaths = _prepareService(serviceInfo, options.legacy);
+    const tempService = FoxxService.create({
+      mount,
+      basePath: tempPaths.tempServicePath,
+      noisy: true,
+      options: {
+        development: options.development,
+        configuration: options.configuration,
+        dependencies: options.dependencies
+      }
+    });
+    _install(tempService, tempPaths.tempBundlePath, {
+      setup: options.setup !== false,
+      force: options.force === true
+    });
   });
   selfHeal();
   propagateSelfHeal();
@@ -862,7 +879,9 @@ function install (serviceInfo, mount, options = {}) {
 
 function uninstall (mount, options = {}) {
   ensureFoxxInitialized();
-  const oldService = _uninstall(mount, options);
+  const oldService = executeFoxxLocked(() => {
+    return _uninstall(mount, options);
+  });
   selfHeal();
   propagateSelfHeal();
   reloadRouting();
@@ -885,24 +904,26 @@ function replace (serviceInfo, mount, options = {}) {
   } else {
     utils.validateMount(mount);
   }
-  const tempPaths = _prepareService(serviceInfo, options.legacy);
-  const tempService = FoxxService.create({
-    mount,
-    basePath: tempPaths.tempServicePath,
-    noisy: true,
-    options: {
-      development: options.development,
-      configuration: options.configuration,
-      dependencies: options.dependencies
-    }
-  });
-  _uninstall(mount, {
-    teardown: options.teardown !== false,
-    force: true
-  });
-  _install(tempService, tempPaths.tempBundlePath, {
-    setup: options.setup !== false,
-    force: true
+  executeFoxxLocked(() => {
+    const tempPaths = _prepareService(serviceInfo, options.legacy);
+    const tempService = FoxxService.create({
+      mount,
+      basePath: tempPaths.tempServicePath,
+      noisy: true,
+      options: {
+        development: options.development,
+        configuration: options.configuration,
+        dependencies: options.dependencies
+      }
+    });
+    _uninstall(mount, {
+      teardown: options.teardown !== false,
+      force: true
+    });
+    _install(tempService, tempPaths.tempBundlePath, {
+      setup: options.setup !== false,
+      force: true
+    });
   });
   selfHeal();
   propagateSelfHeal();
@@ -929,25 +950,26 @@ function upgrade (serviceInfo, mount, options = {}) {
     }
     utils.validateMount(mount);
   }
-
-  const tempPaths = _prepareService(serviceInfo, options.legacy);
-  const tempService = FoxxService.create({
-    mount,
-    basePath: tempPaths.tempServicePath,
-    noisy: true,
-    options: {
-      development: options.development,
-      configuration: Object.assign({}, old.configuration, options.configuration),
-      dependencies: Object.assign({}, old.dependencies, options.dependencies)
-    }
-  });
-  _uninstall(mount, {
-    teardown: options.teardown === true,
-    force: true
-  });
-  _install(tempService, tempPaths.tempBundlePath, {
-    setup: options.setup !== false,
-    force: true
+  executeFoxxLocked(() => {
+    const tempPaths = _prepareService(serviceInfo, options.legacy);
+    const tempService = FoxxService.create({
+      mount,
+      basePath: tempPaths.tempServicePath,
+      noisy: true,
+      options: {
+        development: options.development,
+        configuration: Object.assign({}, old.configuration, options.configuration),
+        dependencies: Object.assign({}, old.dependencies, options.dependencies)
+      }
+    });
+    _uninstall(mount, {
+      teardown: options.teardown === true,
+      force: true
+    });
+    _install(tempService, tempPaths.tempBundlePath, {
+      setup: options.setup !== false,
+      force: true
+    });
   });
   selfHeal();
   propagateSelfHeal();

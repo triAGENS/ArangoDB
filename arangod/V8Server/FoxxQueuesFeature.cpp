@@ -68,4 +68,8 @@ void FoxxQueuesFeature::validateOptions(std::shared_ptr<ProgramOptions> options)
   }
 }
 
+basics::ReadWriteLock& FoxxQueuesFeature::fileSystemLock() {
+  return _fileSystemLock;
+}
+
 }  // namespace arangodb

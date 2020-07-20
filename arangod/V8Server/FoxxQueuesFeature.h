@@ -25,7 +25,14 @@
 
 #include "ApplicationFeatures/ApplicationFeature.h"
 
+#include "Basics/ReadWriteLock.h"
+
 namespace arangodb {
+namespace basics {
+
+template<class LockType>
+class WriteLocker;
+}
 
 class FoxxQueuesFeature final : public application_features::ApplicationFeature {
  public:
@@ -43,9 +50,15 @@ class FoxxQueuesFeature final : public application_features::ApplicationFeature 
     return _pollInterval;
   }
 
+  // Caller can get this lock
+  // Caller needs to make sure to release this lock after use.
+  arangodb::basics::ReadWriteLock& fileSystemLock();
+
  private:
   double _pollInterval;
   bool _enabled;
+
+  arangodb::basics::ReadWriteLock _fileSystemLock;
 };
 
 }  // namespace arangodb

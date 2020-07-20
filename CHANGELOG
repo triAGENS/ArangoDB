@@ -6,6 +6,10 @@ devel
 
 * Make sure cluster statistics in web UI work in case a coordinator is down.
 
+* Secured Foxx installations / updates against race conditions in cluster. There is a chance that
+  self-healing and installation of two foxx apps overlap, which could cause a Foxx App to be temporarily
+  removed after installation, however it would be reinstalled after one additional self heal round, so
+  there is only a small time-span where the App is not available right after installation.
 * Updated arangosync to 0.7.8.
 
 * Fixed hotbackup upload and download with encryption at rest key indirection.
