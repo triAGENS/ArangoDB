@@ -165,7 +165,7 @@ bool ExecutionBlock::isInSplicedSubquery() const noexcept {
   return _isInSplicedSubquery;
 }
 
-void ExecutionBlock::traceExecuteBegin(AqlCallStack const& stack, std::string const& clientId) {
+void ExecutionBlock::traceExecuteBegin(AqlCallStack const& stack, AqlCallList const& clientCall, std::string const& clientId) {
   if (_profile >= PROFILE_LEVEL_BLOCKS) {
     if (_execNodeStats.runtime >= 0.0) {
       _execNodeStats.runtime -= currentSteadyClockValue();
@@ -178,6 +178,7 @@ void ExecutionBlock::traceExecuteBegin(AqlCallStack const& stack, std::string co
       LOG_TOPIC("1e717", INFO, Logger::QUERIES)
           << "[query#" << queryId << "] "
           << "execute type=" << node->getTypeString()
+          << "call=" << clientCall.toString()
           << " callStack= " << stack.toString() << " this=" << (uintptr_t)this
           << " id=" << node->id() << (clientId.empty() ? "" : " clientId=" + clientId);
     }

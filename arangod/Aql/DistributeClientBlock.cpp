@@ -166,11 +166,11 @@ auto DistributeClientBlock::popJoinedBlock()
   return {newBlock, skipRes};
 }
 
-auto DistributeClientBlock::execute(AqlCallStack callStack, ExecutionState upstreamState)
+auto DistributeClientBlock::execute(AqlCallStack const& callStack, AqlCallList clientCall, ExecutionState upstreamState)
     -> std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> {
   TRI_ASSERT(_executor != nullptr);
   // Make sure we actually have data before you call execute
-  TRI_ASSERT(hasDataFor(callStack.peek()));
+  TRI_ASSERT(hasDataFor(clientCall.peekNextCall()));
   if (!_executorHasMore) {
     // This cast is guaranteed, we create this a couple lines above and only
     // this executor is used here.
@@ -183,7 +183,7 @@ auto DistributeClientBlock::execute(AqlCallStack callStack, ExecutionState upstr
     casted->injectConstantBlock(block, skipped);
     _executorHasMore = true;
   }
-  auto [state, skipped, result] = _executor->execute(callStack);
+  auto [state, skipped, result] = _executor->execute(callStack, std::move(clientCall));
 
   // We have all data locally cannot wait here.
   TRI_ASSERT(state != ExecutionState::WAITING);

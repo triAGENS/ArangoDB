@@ -76,18 +76,6 @@ SingleRowFetcherHelper<passBlocksThrough>::SingleRowFetcherHelper(
 template <::arangodb::aql::BlockPassthrough passBlocksThrough>
 SingleRowFetcherHelper<passBlocksThrough>::~SingleRowFetcherHelper() = default;
 
-template <::arangodb::aql::BlockPassthrough passBlocksThrough>
-std::pair<arangodb::aql::ExecutionState, arangodb::aql::SharedAqlItemBlockPtr>
-SingleRowFetcherHelper<passBlocksThrough>::fetchBlock(size_t const atMost) {
-  size_t const remainingRows = _blockSize - _curIndexInBlock;
-  size_t const to = _curRowIndex + (std::min)(atMost, remainingRows);
-
-  bool const done = to >= _nrItems;
-
-  ExecutionState const state = done ? ExecutionState::DONE : ExecutionState::HASMORE;
-  SingleRowFetcherHelper<passBlocksThrough>::_upstreamState = state;
-  return {state, _itemBlock->slice(_curRowIndex, to)};
-}
 
 // -----------------------------------------
 // - SECTION ALLROWSFETCHER                -

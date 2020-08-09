@@ -32,6 +32,7 @@ namespace arangodb {
 namespace aql {
 
 struct AqlCall;
+class AqlCallList;
 class AqlCallStack;
 enum class ExecutionState;
 class ExecutionBlock;
@@ -70,7 +71,7 @@ class DistributeClientBlock {
 
   auto hasDataFor(AqlCall const& call) -> bool;
 
-  auto execute(AqlCallStack callStack, ExecutionState upstreamState)
+  auto execute(AqlCallStack const& callStack, AqlCallList clientCall, ExecutionState upstreamState)
       -> std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr>;
 
  private:

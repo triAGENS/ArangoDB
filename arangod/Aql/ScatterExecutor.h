@@ -56,7 +56,7 @@ class ScatterExecutor {
     auto addBlock(SharedAqlItemBlockPtr block, SkipResult skipped) -> void;
     auto hasDataFor(AqlCall const& call) -> bool;
 
-    auto execute(AqlCallStack callStack, ExecutionState upstreamState)
+    auto execute(AqlCallStack const& callStack, AqlCallList clientCall, ExecutionState upstreamState)
         -> std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr>;
 
    private:

@@ -112,16 +112,17 @@ std::pair<arangodb::aql::ExecutionState, Result> WaitingExecutionBlockMock::shut
   return std::make_pair(state, res);
 }
 
-std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> WaitingExecutionBlockMock::execute(AqlCallStack stack) {
-  traceExecuteBegin(stack);
-  auto res = executeWithoutTrace(stack);
+std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> WaitingExecutionBlockMock::execute(AqlCallStack const& stack, arangodb::aql::AqlCallList clientCall) {
+  traceExecuteBegin(stack, clientCall);
+  auto res = executeWithoutTrace(stack, std::move(clientCall));
   traceExecuteEnd(res);
   return res;
 }
 
 std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> WaitingExecutionBlockMock::executeWithoutTrace(
-    AqlCallStack stack) {
-  auto myCall = stack.peek();
+    AqlCallStack const& stack, arangodb::aql::AqlCallList clientCall) {
+
+  auto const& myCall = clientCall.peekNextCall();
 
   TRI_ASSERT(!(myCall.getOffset() == 0 && myCall.softLimit == AqlCall::Limit{0u}));
   TRI_ASSERT(!(myCall.hasSoftLimit() && myCall.fullCount));
@@ -140,19 +141,19 @@ std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> WaitingExecutionBl
   }
   SkipResult localSkipped;
   while (true) {
-    auto [state, skipped, result] = _blockData.execute(stack, ExecutionState::DONE);
+    auto [state, skipped, result] = _blockData.execute(stack, clientCall, ExecutionState::DONE);
     // We loop here if we only skip
     localSkipped.merge(skipped, false);
     bool shouldReturn = state == ExecutionState::DONE || result != nullptr;
 
     if (result != nullptr && !result->hasShadowRows()) {
       // Count produced rows
-      auto& modCall = stack.modifyTopCall();
+      auto& modCall = clientCall.modifyNextCall();
       modCall.didProduce(result->size());
     }
 
     if (!skipped.nothingSkipped()) {
-      auto& modCall = stack.modifyTopCall();
+      auto& modCall = clientCall.modifyNextCall();
       modCall.didSkip(skipped.getSkipCount());
       // Reset the internal counter.
       // We reuse the call to upstream
@@ -169,12 +170,12 @@ std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> WaitingExecutionBl
         // We do not have anything to do for this call
         // But let us only do this on top-level queries
 
-        auto call = stack.peek();
+        auto const& call = clientCall.peekNextCall();
         if (call.hasHardLimit() && call.getLimit() == 0) {
           // We are in fullCount/fastForward phase now.
           while (state == ExecutionState::HASMORE) {
             auto [nextState, nextSkipped, nextResult] =
-                _blockData.execute(stack, ExecutionState::DONE);
+                _blockData.execute(stack, clientCall, ExecutionState::DONE);
             state = nextState;
             // We are disallowed to have any result here.
             TRI_ASSERT(nextResult == nullptr);
@@ -184,7 +185,7 @@ std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> WaitingExecutionBl
       }
       // We want to "lie" on upstream if we have hit a softLimit exactly on the last row
       if (state == ExecutionState::DONE && _shouldLieOnLastRow) {
-        auto const& call = stack.peek();
+        auto const& call = clientCall.peekNextCall();
         if (call.hasSoftLimit() && call.getLimit() == 0 && call.getOffset() == 0) {
           state = ExecutionState::HASMORE;
         }

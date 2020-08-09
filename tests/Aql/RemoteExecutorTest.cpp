@@ -116,23 +116,30 @@ class DeSerializeAqlCallStackTest : public ::testing::TestWithParam<AqlCallStack
  public:
   DeSerializeAqlCallStackTest() = default;
 
-  void SetUp() override { aqlCallStack = GetParam(); }
+  void SetUp() override {
+    aqlCallStack = GetParam();
+    queryStack = aqlCallStack;
+    clientCall = queryStack.popCall();
+    TRI_ASSERT(queryStack.subqueryLevel() + 1 == aqlCallStack.subqueryLevel());
+  }
 
  protected:
-  AqlCallStack aqlCallStack{AqlCallList{AqlCall{}}};
+  AqlCallStack aqlCallStack{};
+  AqlCallStack queryStack{};
+  AqlCallList clientCall{AqlCall{}};
 };
 
 auto const testingAqlCallStacks = ::testing::ValuesIn(std::array{
-    AqlCallStack{AqlCallList{AqlCall{}}},
-    AqlCallStack{AqlCallList{AqlCall{3, false, AqlCall::Infinity{}}}},
-    AqlCallStack{AqlCallStack{AqlCallList{AqlCall{}}},
+    AqlCallStack{AqlCallStack::emptyStack(), AqlCallList{AqlCall{}}},
+    AqlCallStack{AqlCallStack::emptyStack(), AqlCallList{AqlCall{3, false, AqlCall::Infinity{}}}},
+    AqlCallStack{AqlCallStack{AqlCallStack::emptyStack(), AqlCallList{AqlCall{}}},
                  AqlCallList{AqlCall{3, false, AqlCall::Infinity{}}}},
-    AqlCallStack{AqlCallStack{AqlCallStack{AqlCallList{AqlCall{1}}}, AqlCallList{AqlCall{2}}},
+    AqlCallStack{AqlCallStack{AqlCallStack{AqlCallStack::emptyStack(), AqlCallList{AqlCall{1}}}, AqlCallList{AqlCall{2}}},
                  AqlCallList{AqlCall{3}}},
-    AqlCallStack{AqlCallStack{AqlCallStack{AqlCallList{AqlCall{3}}}, AqlCallList{AqlCall{2}}},
+    AqlCallStack{AqlCallStack{AqlCallStack{AqlCallStack::emptyStack(), AqlCallList{AqlCall{3}}}, AqlCallList{AqlCall{2}}},
                  AqlCallList{AqlCall{1}}},
-    AqlCallStack{AqlCallList{AqlCall{3, false, AqlCall::Infinity{}}, AqlCall{}}},
-    AqlCallStack{AqlCallStack{AqlCallList{AqlCall{}, AqlCall{3, false, AqlCall::Infinity{}}}},
+    AqlCallStack{AqlCallStack::emptyStack(), AqlCallList{AqlCall{3, false, AqlCall::Infinity{}}, AqlCall{}}},
+    AqlCallStack{AqlCallStack{AqlCallStack::emptyStack(), AqlCallList{AqlCall{}, AqlCall{3, false, AqlCall::Infinity{}}}},
                  AqlCallList{AqlCall{3, false, AqlCall::Infinity{}}, AqlCall{}}}});
 
 TEST_P(DeSerializeAqlCallStackTest, testSuite) {

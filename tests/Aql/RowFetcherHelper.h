@@ -77,8 +77,6 @@ class SingleRowFetcherHelper
 
   size_t totalSkipped() const { return _totalSkipped; }
 
-  std::pair<arangodb::aql::ExecutionState, arangodb::aql::SharedAqlItemBlockPtr> fetchBlock(size_t atMost) override;
-
   arangodb::aql::AqlItemBlockManager& itemBlockManager() {
     return _itemBlockManager;
   }

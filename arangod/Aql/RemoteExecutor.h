@@ -67,7 +67,7 @@ class ExecutionBlockImpl<RemoteExecutor> : public ExecutionBlock {
 
   std::pair<ExecutionState, Result> shutdown(int errorCode) override;
 
-  std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> execute(AqlCallStack stack) override;
+  std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> execute(AqlCallStack const& stack, AqlCallList clientCall) override;
 
   [[nodiscard]] auto api() const noexcept -> Api;
 
@@ -88,13 +88,13 @@ class ExecutionBlockImpl<RemoteExecutor> : public ExecutionBlock {
 
   std::pair<ExecutionState, size_t> skipSomeWithoutTrace(size_t atMost);
 
-  auto executeWithoutTrace(AqlCallStack stack)
+  auto executeWithoutTrace(AqlCallStack stack, AqlCallList clientCall)
       -> std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr>;
 
-  auto executeViaOldApi(AqlCallStack stack)
+  auto executeViaOldApi(AqlCallStack const& stack)
       -> std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr>;
 
-  auto executeViaNewApi(AqlCallStack stack)
+  auto executeViaNewApi(AqlCallStack const& stack)
       -> std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr>;
 
   [[nodiscard]] auto deserializeExecuteCallResultBody(velocypack::Slice) const

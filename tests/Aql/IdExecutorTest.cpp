@@ -284,8 +284,8 @@ TEST_F(IdExecutionBlockTest, test_initialize_cursor_get) {
     {
       // Test first call, executor is done, cannot skip and does not return
       AqlCall call{};
-      AqlCallStack stack(AqlCallList{std::move(call)});
-      auto const& [state, skipped, block] = testee.execute(stack);
+      auto const& [state, skipped, block] =
+          testee.execute(AqlCallStack::emptyStack(), AqlCallList{std::move(call)});
       EXPECT_EQ(state, ExecutionState::DONE);
       EXPECT_EQ(skipped.getSkipCount(), 0);
       EXPECT_EQ(block, nullptr);
@@ -299,8 +299,8 @@ TEST_F(IdExecutionBlockTest, test_initialize_cursor_get) {
     {
       // Test second call, executor needs to return the row
       AqlCall call{};
-      AqlCallStack stack(AqlCallList{std::move(call)});
-      auto const& [state, skipped, block] = testee.execute(stack);
+      auto const& [state, skipped, block] =
+          testee.execute(AqlCallStack::emptyStack(), AqlCallList{std::move(call)});
       EXPECT_EQ(state, ExecutionState::DONE);
       EXPECT_EQ(skipped.getSkipCount(), 0);
       ASSERT_NE(block, nullptr);
@@ -329,8 +329,8 @@ TEST_F(IdExecutionBlockTest, test_initialize_cursor_skip) {
       // Test first call, executor is done, cannot skip and does not return
       AqlCall call{};
       call.offset = 10;
-      AqlCallStack stack(AqlCallList{std::move(call)});
-      auto const& [state, skipped, block] = testee.execute(stack);
+      auto const& [state, skipped, block] =
+          testee.execute(AqlCallStack::emptyStack(), AqlCallList{std::move(call)});
       EXPECT_EQ(state, ExecutionState::DONE);
       EXPECT_EQ(skipped.getSkipCount(), 0);
       EXPECT_EQ(block, nullptr);
@@ -345,8 +345,8 @@ TEST_F(IdExecutionBlockTest, test_initialize_cursor_skip) {
       // Test second call, executor needs to skip the row
       AqlCall call{};
       call.offset = 10;
-      AqlCallStack stack(AqlCallList{std::move(call)});
-      auto const& [state, skipped, block] = testee.execute(stack);
+      auto const& [state, skipped, block] =
+          testee.execute(AqlCallStack::emptyStack(), AqlCallList{std::move(call)});
       EXPECT_EQ(state, ExecutionState::DONE);
       EXPECT_EQ(skipped.getSkipCount(), 1);
       ASSERT_EQ(block, nullptr);
@@ -372,8 +372,8 @@ TEST_F(IdExecutionBlockTest, test_initialize_cursor_fullCount) {
       AqlCall call{};
       call.hardLimit = 0u;
       call.fullCount = true;
-      AqlCallStack stack(AqlCallList{std::move(call)});
-      auto const& [state, skipped, block] = testee.execute(stack);
+      auto const& [state, skipped, block] =
+          testee.execute(AqlCallStack::emptyStack(), AqlCallList{std::move(call)});
       EXPECT_EQ(state, ExecutionState::DONE);
       EXPECT_EQ(skipped.getSkipCount(), 0);
       EXPECT_EQ(block, nullptr);
@@ -389,8 +389,8 @@ TEST_F(IdExecutionBlockTest, test_initialize_cursor_fullCount) {
       AqlCall call{};
       call.hardLimit = 0u;
       call.fullCount = true;
-      AqlCallStack stack(AqlCallList{std::move(call)});
-      auto const& [state, skipped, block] = testee.execute(stack);
+      auto const& [state, skipped, block] =
+          testee.execute(AqlCallStack::emptyStack(), AqlCallList{std::move(call)});
       EXPECT_EQ(state, ExecutionState::DONE);
       EXPECT_EQ(skipped.getSkipCount(), 1);
       ASSERT_EQ(block, nullptr);
@@ -449,8 +449,7 @@ TEST_P(BlockOverloadTest, test_hardlimit_const_fetcher) {
     AqlCall call{};
     call.hardLimit = 3u;
     call.fullCount = useFullCount();
-    AqlCallStack stack(AqlCallList{std::move(call)});
-    auto const& [state, skipped, block] = testee.execute(stack);
+    auto const& [state, skipped, block] = testee.execute(AqlCallStack::emptyStack(), AqlCallList{std::move(call)});
     EXPECT_EQ(state, ExecutionState::DONE);
     if (useFullCount()) {
       EXPECT_EQ(skipped.getSkipCount(), 4);
@@ -463,8 +462,7 @@ TEST_P(BlockOverloadTest, test_hardlimit_const_fetcher) {
   {
     // Validate that additional upstream-rows are gone.
     AqlCall call{};
-    AqlCallStack stack(AqlCallList{std::move(call)});
-    auto const& [state, skipped, block] = testee.execute(stack);
+    auto const& [state, skipped, block] = testee.execute(AqlCallStack::emptyStack(), AqlCallList{std::move(call)});
     EXPECT_EQ(state, ExecutionState::DONE);
     EXPECT_EQ(skipped.getSkipCount(), 0);
     EXPECT_EQ(block, nullptr);
@@ -492,10 +490,11 @@ TEST_P(BlockOverloadTest, test_hardlimit_const_fetcher_shadow_rows_at_end) {
     call.hardLimit = 3u;
     call.fullCount = useFullCount();
     // First put enough fetch all subquery call onto the stack
-    AqlCallStack stack(AqlCallList{AqlCall{}});
+    AqlCallStack stack;
     stack.pushCall(AqlCallList{AqlCall{}});
-    stack.pushCall(AqlCallList{std::move(call)});
-    auto const& [state, skipped, block] = testee.execute(stack);
+    stack.pushCall(AqlCallList{AqlCall{}});
+
+    auto const& [state, skipped, block] = testee.execute(stack, AqlCallList{std::move(call)});
     EXPECT_EQ(state, ExecutionState::DONE);
     if (useFullCount()) {
       EXPECT_EQ(skipped.getSkipCount(), 2);
@@ -508,10 +507,10 @@ TEST_P(BlockOverloadTest, test_hardlimit_const_fetcher_shadow_rows_at_end) {
     // Validate that additional upstream-rows are gone.
     AqlCall call{};
     // First put enough fetch all subquery call onto the stack
-    AqlCallStack stack(AqlCallList{AqlCall{}});
+    AqlCallStack stack;
     stack.pushCall(AqlCallList{AqlCall{}});
-    stack.pushCall(AqlCallList{std::move(call)});
-    auto const& [state, skipped, block] = testee.execute(stack);
+    stack.pushCall(AqlCallList{AqlCall{}});
+    auto const& [state, skipped, block] = testee.execute(stack, AqlCallList{std::move(call)});
     EXPECT_EQ(state, ExecutionState::DONE);
     EXPECT_EQ(skipped.getSkipCount(), 0);
     EXPECT_EQ(block, nullptr);
@@ -539,10 +538,10 @@ TEST_P(BlockOverloadTest, test_hardlimit_const_fetcher_shadow_rows_in_between) {
     call.hardLimit = 2u;
     call.fullCount = useFullCount();
     // First put enough fetch all subquery call onto the stack
-    AqlCallStack stack(AqlCallList{AqlCall{}});
+    AqlCallStack stack;
     stack.pushCall(AqlCallList{AqlCall{}});
-    stack.pushCall(AqlCallList{std::move(call)});
-    auto const& [state, skipped, block] = testee.execute(stack);
+    stack.pushCall(AqlCallList{AqlCall{}});
+    auto const& [state, skipped, block] = testee.execute(stack, AqlCallList{std::move(call)});
     EXPECT_EQ(state, ExecutionState::HASMORE);
     if (useFullCount()) {
       EXPECT_EQ(skipped.getSkipCount(), 1);
@@ -557,10 +556,10 @@ TEST_P(BlockOverloadTest, test_hardlimit_const_fetcher_shadow_rows_in_between) {
     auto expectedOutputBlock = buildBlock<1>(itemBlockManager, {{5}, {6}}, {{1, 0}});
     AqlCall call{};
     // First put enough fetch all subquery call onto the stack
-    AqlCallStack stack(AqlCallList{AqlCall{}});
+    AqlCallStack stack;
     stack.pushCall(AqlCallList{AqlCall{}});
-    stack.pushCall(AqlCallList{std::move(call)});
-    auto const& [state, skipped, block] = testee.execute(stack);
+    stack.pushCall(AqlCallList{AqlCall{}});
+    auto const& [state, skipped, block] = testee.execute(stack, AqlCallList{std::move(call)});
     EXPECT_EQ(state, ExecutionState::DONE);
     EXPECT_EQ(skipped.getSkipCount(), 0);
     asserthelper::ValidateBlocksAreEqual(block, expectedOutputBlock);
@@ -589,10 +588,10 @@ TEST_P(BlockOverloadTest, test_hardlimit_const_fetcher_consecutive_shadow_rows) 
     AqlCall call{};
     call.hardLimit = 2u;
     call.fullCount = useFullCount();
-    AqlCallStack stack(AqlCallList{AqlCall{}});
+    AqlCallStack stack;
     stack.pushCall(AqlCallList{AqlCall{}});
-    stack.pushCall(AqlCallList{std::move(call)});
-    auto const& [state, skipped, block] = testee.execute(stack);
+    stack.pushCall(AqlCallList{AqlCall{}});
+    auto const& [state, skipped, block] = testee.execute(stack, AqlCallList{std::move(call)});
     EXPECT_EQ(state, ExecutionState::HASMORE);
     if (useFullCount()) {
       EXPECT_EQ(skipped.getSkipCount(), 1);
@@ -608,10 +607,10 @@ TEST_P(BlockOverloadTest, test_hardlimit_const_fetcher_consecutive_shadow_rows) 
     call.hardLimit = 2u;
     call.fullCount = useFullCount();
     // First put enough fetch all subquery call onto the stack
-    AqlCallStack stack(AqlCallList{AqlCall{}});
+    AqlCallStack stack;
     stack.pushCall(AqlCallList{AqlCall{}});
-    stack.pushCall(AqlCallList{std::move(call)});
-    auto const& [state, skipped, block] = testee.execute(stack);
+    stack.pushCall(AqlCallList{AqlCall{}});
+    auto const& [state, skipped, block] = testee.execute(stack, AqlCallList{std::move(call)});
     EXPECT_EQ(state, ExecutionState::HASMORE);
     EXPECT_EQ(skipped.getSkipCount(), 0);
     asserthelper::ValidateBlocksAreEqual(block, expectedOutputBlock);
@@ -623,10 +622,10 @@ TEST_P(BlockOverloadTest, test_hardlimit_const_fetcher_consecutive_shadow_rows) 
     call.hardLimit = 2u;
     call.fullCount = useFullCount();
     // First put enough fetch all subquery call onto the stack
-    AqlCallStack stack(AqlCallList{AqlCall{}});
+    AqlCallStack stack;
     stack.pushCall(AqlCallList{AqlCall{}});
-    stack.pushCall(AqlCallList{std::move(call)});
-    auto const& [state, skipped, block] = testee.execute(stack);
+    stack.pushCall(AqlCallList{AqlCall{}});
+    auto const& [state, skipped, block] = testee.execute(stack, AqlCallList{std::move(call)});
     EXPECT_EQ(state, ExecutionState::DONE);
     EXPECT_EQ(skipped.getSkipCount(), 0);
     asserthelper::ValidateBlocksAreEqual(block, expectedOutputBlock);
@@ -635,10 +634,10 @@ TEST_P(BlockOverloadTest, test_hardlimit_const_fetcher_consecutive_shadow_rows) 
     // Validate that additional upstream-rows are gone.
     AqlCall call{};
     // First put enough fetch all subquery call onto the stack
-    AqlCallStack stack(AqlCallList{AqlCall{}});
+    AqlCallStack stack;
     stack.pushCall(AqlCallList{AqlCall{}});
-    stack.pushCall(AqlCallList{std::move(call)});
-    auto const& [state, skipped, block] = testee.execute(stack);
+    stack.pushCall(AqlCallList{AqlCall{}});
+    auto const& [state, skipped, block] = testee.execute(stack, AqlCallList{std::move(call)});
     EXPECT_EQ(state, ExecutionState::DONE);
     EXPECT_EQ(skipped.getSkipCount(), 0);
     EXPECT_EQ(block, nullptr);

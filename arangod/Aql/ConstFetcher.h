@@ -34,6 +34,7 @@
 namespace arangodb {
 namespace aql {
 
+class AqlCallList;
 class AqlCallStack;
 class AqlItemBlock;
 template <BlockPassthrough>
@@ -60,7 +61,8 @@ class ConstFetcher {
   /**
    * @brief Execute the given call stack
    *
-   * @param stack Call stack, on top of stack there is current subquery, bottom is the main query.
+   * @param stack Outer subqueries call stack, bottom is the main query.
+   * @param clientCall The call relevant for this executor
    * @return std::tuple<ExecutionState, size_t, DataRange>
    *   ExecutionState => DONE, all queries are done, there will be no more
    *   ExecutionState => HASMORE, there are more results for queries, might be on other subqueries
@@ -69,7 +71,7 @@ class ConstFetcher {
    *   size_t => Amount of documents skipped
    *   DataRange => Resulting data
    */
-  auto execute(AqlCallStack& stack) -> std::tuple<ExecutionState, SkipResult, DataRange>;
+  auto execute(AqlCallStack const& stack, AqlCallList clientCall) -> std::tuple<ExecutionState, SkipResult, DataRange>;
 
   void injectBlock(SharedAqlItemBlockPtr block, SkipResult skipped);
 
@@ -78,9 +80,6 @@ class ConstFetcher {
     TRI_ASSERT(false);
     THROW_ARANGO_EXCEPTION(TRI_ERROR_NOT_IMPLEMENTED);
   }
-
-  //@deprecated
-  auto useStack(AqlCallStack const& stack) -> void{};
 
  private:
   /**

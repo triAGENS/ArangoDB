@@ -89,14 +89,16 @@ class SharedExecutionBlockImplTest {
     return res;
   }
 
-  AqlCallStack buildStack(AqlCall call) {
-    return AqlCallStack{AqlCallList{call}};
+  std::pair<AqlCallStack, AqlCallList> buildStack(AqlCall call) {
+    return buildStack({}, call);
   }
 
-  AqlCallStack buildStack(AqlCall subqueryCall, AqlCall call) {
-    AqlCallStack stack{AqlCallList{subqueryCall}};
-    stack.pushCall(AqlCallList{call});
-    return stack;
+  std::pair<AqlCallStack, AqlCallList> buildStack(std::vector<AqlCall> subqueryCalls, AqlCall call) {
+    AqlCallStack stack{};
+    for (auto const& c : subqueryCalls) {
+      stack.pushCall(AqlCallList{c});
+    }
+    return {std::move(stack), AqlCallList{call}};
   }
 
   RegisterInfos makeRegisterInfos(RegisterId inputRegisters = RegisterPlan::MaxRegisterId,
@@ -350,7 +352,7 @@ class ExecutionBlockImplExecuteSpecificTest : public SharedExecutionBlockImplTes
    */
   auto runTest(ProduceCall& prod, SkipCall& skip, AqlCall call)
       -> std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> {
-    auto stack = buildStack(call);
+    auto [stack, clientCall] = buildStack(call);
     auto singleton = createSingleton();
     if (passthrough()) {
       ExecutionBlockImpl<LambdaExePassThrough> testee{fakedQuery->rootEngine(),
@@ -358,13 +360,13 @@ class ExecutionBlockImplExecuteSpecificTest : public SharedExecutionBlockImplTes
                                                       makeRegisterInfos(0, 0),
                                                       makeExecutorInfos(prod)};
       testee.addDependency(singleton.get());
-      return testee.execute(stack);
+      return testee.execute(stack, clientCall);
     } else {
       ExecutionBlockImpl<LambdaExe> testee{fakedQuery->rootEngine(), generateNodeDummy(),
                                            makeRegisterInfos(0, 0),
                                            makeSkipExecutorInfos(prod, skip)};
       testee.addDependency(singleton.get());
-      return testee.execute(stack);
+      return testee.execute(stack, clientCall);
     }
   }
 
@@ -563,11 +565,11 @@ TEST_P(ExecutionBlockImplExecuteSpecificTest, test_relevant_shadowrow_does_not_f
   auto testee = onceLinesProducer(subqueryStart.get(), ExecutionBlock::DefaultBatchSize);
 
   AqlCall fullCall{};
-  auto stack = buildStack(fullCall);
+  auto [stack, clientCall] = buildStack(fullCall);
   stack.pushCall(AqlCallList{fullCall});
   {
     // First call. Fetch all rows (data only)
-    auto const& [state, skipped, block] = testee->execute(stack);
+    auto const& [state, skipped, block] = testee->execute(stack, clientCall);
     EXPECT_EQ(state, ExecutionState::HASMORE);
     EXPECT_EQ(skipped.getSkipCount(), 0);
     ASSERT_NE(block, nullptr);
@@ -576,7 +578,7 @@ TEST_P(ExecutionBlockImplExecuteSpecificTest, test_relevant_shadowrow_does_not_f
   }
   {
     // Second call. only a single shadowRow left
-    auto const& [state, skipped, block] = testee->execute(stack);
+    auto const& [state, skipped, block] = testee->execute(stack, clientCall);
     EXPECT_EQ(state, ExecutionState::DONE);
     EXPECT_EQ(skipped.getSkipCount(), 0);
     ASSERT_NE(block, nullptr);
@@ -610,13 +612,13 @@ TEST_P(ExecutionBlockImplExecuteSpecificTest, set_of_shadowrows_does_not_fit_in_
   auto testee = onceLinesProducer(subqueryInnerStart.get(), ExecutionBlock::DefaultBatchSize);
 
   AqlCall fullCall{};
-  auto stack = buildStack(fullCall);
+  auto [stack, clientCall] = buildStack(fullCall);
   stack.pushCall(AqlCallList{fullCall});
   stack.pushCall(AqlCallList{fullCall});
 
   {
     // First call. Fetch all rows (data only)
-    auto const& [state, skipped, block] = testee->execute(stack);
+    auto const& [state, skipped, block] = testee->execute(stack, clientCall);
     EXPECT_EQ(state, ExecutionState::HASMORE);
     EXPECT_EQ(skipped.getSkipCount(), 0);
     ASSERT_NE(block, nullptr);
@@ -625,7 +627,7 @@ TEST_P(ExecutionBlockImplExecuteSpecificTest, set_of_shadowrows_does_not_fit_in_
   }
   {
     // Second call. only the shadowRows are left
-    auto const& [state, skipped, block] = testee->execute(stack);
+    auto const& [state, skipped, block] = testee->execute(stack, clientCall);
     EXPECT_EQ(state, ExecutionState::DONE);
     EXPECT_EQ(skipped.getSkipCount(), 0);
     ASSERT_NE(block, nullptr);
@@ -667,13 +669,13 @@ TEST_P(ExecutionBlockImplExecuteSpecificTest, set_of_shadowrows_does_not_fit_ful
                                   ExecutionBlock::DefaultBatchSize - 1);
 
   AqlCall fullCall{};
-  auto stack = buildStack(fullCall);
+  auto [stack, clientCall] = buildStack(fullCall);
   stack.pushCall(AqlCallList{fullCall});
   stack.pushCall(AqlCallList{fullCall});
 
   {
     // First call. Fetch all rows (data + relevant shadow row)
-    auto const& [state, skipped, block] = testee->execute(stack);
+    auto const& [state, skipped, block] = testee->execute(stack, clientCall);
     EXPECT_EQ(state, ExecutionState::HASMORE);
     EXPECT_EQ(skipped.getSkipCount(), 0);
     ASSERT_NE(block, nullptr);
@@ -685,7 +687,7 @@ TEST_P(ExecutionBlockImplExecuteSpecificTest, set_of_shadowrows_does_not_fit_ful
   }
   {
     // Second call. only the shadowRows are left
-    auto const& [state, skipped, block] = testee->execute(stack);
+    auto const& [state, skipped, block] = testee->execute(stack, clientCall);
     EXPECT_EQ(state, ExecutionState::DONE);
     EXPECT_EQ(skipped.getSkipCount(), 0);
     ASSERT_NE(block, nullptr);
@@ -1392,14 +1394,14 @@ TEST_P(ExecutionBlockImplExecuteIntegrationTest, test_waiting_block_mock) {
                                        : WaitingExecutionBlockMock::WaitingBehaviour::NEVER};
 
   auto const& call = getCall();
-  auto stack = buildStack(call);
+  auto [stack, clientCall] = buildStack(call);
 
-  auto [state, skipped, block] = testee.execute(stack);
+  auto [state, skipped, block] = testee.execute(stack, clientCall);
   if (doesWaiting()) {
     EXPECT_EQ(state, ExecutionState::WAITING);
     EXPECT_EQ(skipped.getSkipCount(), 0);
     EXPECT_EQ(block, nullptr);
-    std::tie(state, skipped, block) = testee.execute(stack);
+    std::tie(state, skipped, block) = testee.execute(stack, clientCall);
   }
   if (call.getLimit() > builder->slice().length() || call.needsFullCount() ||
       call.hasHardLimit()) {
@@ -1427,14 +1429,14 @@ TEST_P(ExecutionBlockImplExecuteIntegrationTest, test_produce_only) {
   auto producer = produceBlock(singleton.get(), builder, outReg);
 
   auto const& call = getCall();
-  auto stack = buildStack(call);
+  auto [stack, clientCall] = buildStack(call);
   if (doesWaiting()) {
-    auto const [state, skipped, block] = producer->execute(stack);
+    auto const [state, skipped, block] = producer->execute(stack, clientCall);
     EXPECT_EQ(state, ExecutionState::WAITING);
     EXPECT_EQ(skipped.getSkipCount(), 0);
     EXPECT_EQ(block, nullptr);
   }
-  auto const [state, skipped, block] = producer->execute(stack);
+  auto const [state, skipped, block] = producer->execute(stack, clientCall);
   if (std::holds_alternative<size_t>(call.softLimit) && !call.hasHardLimit()) {
     EXPECT_EQ(state, ExecutionState::HASMORE);
   } else {
@@ -1461,14 +1463,14 @@ TEST_P(ExecutionBlockImplExecuteIntegrationTest, test_produce_using_two) {
   auto producerFirst = produceBlock(singleton.get(), builder, outRegFirst);
   auto producer = produceBlock(producerFirst.get(), builder, outRegSecond);
   auto const& call = getCall();
-  auto stack = buildStack(call);
+  auto [stack, clientCall] = buildStack(call);
   if (doesWaiting()) {
-    auto const [state, skipped, block] = producer->execute(stack);
+    auto const [state, skipped, block] = producer->execute(stack, clientCall);
     EXPECT_EQ(state, ExecutionState::WAITING);
     EXPECT_EQ(skipped.getSkipCount(), 0);
     EXPECT_EQ(block, nullptr);
   }
-  auto const [state, skipped, block] = producer->execute(stack);
+  auto const [state, skipped, block] = producer->execute(stack, clientCall);
   if (call.getLimit() < 100) {
     if (call.hasHardLimit()) {
       // On hard limit we need to stop
@@ -1522,9 +1524,9 @@ TEST_P(ExecutionBlockImplExecuteIntegrationTest, test_call_forwarding_passthroug
   auto lower = forwardBlock(lowerState, upper.get(), outReg);
 
   auto const& call = getCall();
-  auto stack = buildStack(call);
+  auto [stack, clientCall] = buildStack(call);
   if (doesWaiting()) {
-    auto const [state, skipped, block] = lower->execute(stack);
+    auto const [state, skipped, block] = lower->execute(stack, clientCall);
     EXPECT_EQ(state, ExecutionState::WAITING);
     EXPECT_EQ(skipped.getSkipCount(), 0);
     EXPECT_EQ(block, nullptr);
@@ -1532,7 +1534,7 @@ TEST_P(ExecutionBlockImplExecuteIntegrationTest, test_call_forwarding_passthroug
     upperState.reset();
     lowerState.reset();
   }
-  auto const [state, skipped, block] = lower->execute(stack);
+  auto const [state, skipped, block] = lower->execute(stack, clientCall);
   if (std::holds_alternative<size_t>(call.softLimit) && !call.hasHardLimit()) {
     EXPECT_EQ(state, ExecutionState::HASMORE);
   } else {
@@ -1606,14 +1608,14 @@ TEST_P(ExecutionBlockImplExecuteIntegrationTest, test_call_forwarding_implement_
   lower->addDependency(upper.get());
 
   auto const& call = getCall();
-  auto stack = buildStack(call);
+  auto [stack, clientCall] = buildStack(call);
   if (doesWaiting()) {
-    auto const [state, skipped, block] = lower->execute(stack);
+    auto const [state, skipped, block] = lower->execute(stack, clientCall);
     EXPECT_EQ(state, ExecutionState::WAITING);
     EXPECT_EQ(skipped.getSkipCount(), 0);
     EXPECT_EQ(block, nullptr);
   }
-  auto const [state, skipped, block] = lower->execute(stack);
+  auto const [state, skipped, block] = lower->execute(stack, clientCall);
   if (std::holds_alternative<size_t>(call.softLimit) && !call.hasHardLimit()) {
     EXPECT_EQ(state, ExecutionState::HASMORE);
   } else {
@@ -1650,14 +1652,14 @@ TEST_P(ExecutionBlockImplExecuteIntegrationTest, test_multiple_upstream_calls) {
   RegisterId outReg = 0;
   auto testee = forwardBlock(produceAsserter, skipAsserter, producer.get(), outReg);
   auto const& call = getCall();
-  auto stack = buildStack(call);
-  auto [state, skipped, block] = testee->execute(stack);
+  auto [stack, clientCall] = buildStack(call);
+  auto [state, skipped, block] = testee->execute(stack, clientCall);
   size_t killSwitch = 0;
   while (state == ExecutionState::WAITING) {
     EXPECT_TRUE(doesWaiting());
     EXPECT_EQ(skipped.getSkipCount(), 0);
     EXPECT_EQ(block, nullptr);
-    std::tie(state, skipped, block) = testee->execute(stack);
+    std::tie(state, skipped, block) = testee->execute(stack, clientCall);
     // Kill switch to avoid endless loop in case of error.
     // We should get this through with much fewer than two times Batchsize calls.
     killSwitch++;
@@ -1708,8 +1710,8 @@ TEST_P(ExecutionBlockImplExecuteIntegrationTest, test_multiple_upstream_calls_pa
 
   if (limit == 0) {
     // we can bypass everything and get away with a single call
-    auto stack = buildStack(call);
-    auto [state, skipped, block] = testee->execute(stack);
+    auto [stack, clientCall] = buildStack(call);
+    auto [state, skipped, block] = testee->execute(stack, clientCall);
     if (doesWaiting()) {
       size_t waited = 0;
       while (state == ExecutionState::WAITING && waited < 2 /* avoid endless waiting*/) {
@@ -1717,7 +1719,7 @@ TEST_P(ExecutionBlockImplExecuteIntegrationTest, test_multiple_upstream_calls_pa
         EXPECT_EQ(skipped.getSkipCount(), 0);
         EXPECT_EQ(block, nullptr);
         waited++;
-        std::tie(state, skipped, block) = testee->execute(stack);
+        std::tie(state, skipped, block) = testee->execute(stack, clientCall);
       }
       EXPECT_LT(waited, 2);
     }
@@ -1738,8 +1740,8 @@ TEST_P(ExecutionBlockImplExecuteIntegrationTest, test_multiple_upstream_calls_pa
     }
     for (size_t i = 0; i < limit && it.valid(); ++i) {
       call.skippedRows = 0;
-      auto stack = buildStack(call);
-      auto [state, skipped, block] = testee->execute(stack);
+      auto [stack, clientCall] = buildStack(call);
+      auto [state, skipped, block] = testee->execute(stack, clientCall);
       if (doesWaiting()) {
         size_t waited = 0;
         while (state == ExecutionState::WAITING && waited < 3 /* avoid endless waiting*/) {
@@ -1747,7 +1749,7 @@ TEST_P(ExecutionBlockImplExecuteIntegrationTest, test_multiple_upstream_calls_pa
           EXPECT_EQ(skipped.getSkipCount(), 0);
           EXPECT_EQ(block, nullptr);
           waited++;
-          std::tie(state, skipped, block) = testee->execute(stack);
+          std::tie(state, skipped, block) = testee->execute(stack, clientCall);
         }
         if (offset > 0 && i == 0) {
           // We wait some time before the first row is produced
@@ -1865,16 +1867,16 @@ TEST_P(ExecutionBlockImplExecuteIntegrationTest, only_relevant_shadowRows) {
     // We always take a new call. We do not want the call to be modified cross
     // subqueries, this would not be done by Executors.
     auto const& call = getCall();
-    auto stack = buildStack(AqlCall{}, call);
+    auto [stack, clientCall] = buildStack({AqlCall{}}, call);
     // We cannot group shadowRows within a single call.
     // So we end up with 3 results, each 1 shadowRow, no matter what the call is
-    auto [state, skipped, block] = testee->execute(stack);
+    auto [state, skipped, block] = testee->execute(stack, clientCall);
     if (doesWaiting()) {
       // We wait between lines
       EXPECT_EQ(state, ExecutionState::WAITING);
       EXPECT_EQ(skipped.getSkipCount(), 0);
       EXPECT_EQ(block, nullptr);
-      std::tie(state, skipped, block) = testee->execute(stack);
+      std::tie(state, skipped, block) = testee->execute(stack, clientCall);
     }
     if (i == 2) {
       // Only the last one is done
@@ -1925,14 +1927,14 @@ TEST_P(ExecutionBlockImplExecuteIntegrationTest, input_and_relevant_shadowRow) {
   auto testee = forwardBlock(getAsserter, skipAsserter, producer.get(), outReg);
 
   auto const& call = getCall();
-  auto stack = buildStack(AqlCall{}, call);
+  auto [stack, clientCall] = buildStack({AqlCall{}}, call);
   if (doesWaiting()) {
-    auto const [state, skipped, block] = testee->execute(stack);
+    auto const [state, skipped, block] = testee->execute(stack, clientCall);
     EXPECT_EQ(state, ExecutionState::WAITING);
     EXPECT_EQ(skipped.getSkipCount(), 0);
     EXPECT_EQ(block, nullptr);
   }
-  auto const [state, skipped, block] = testee->execute(stack);
+  auto const [state, skipped, block] = testee->execute(stack, clientCall);
 
   if (std::holds_alternative<size_t>(call.softLimit) && !call.hasHardLimit()) {
     EXPECT_EQ(state, ExecutionState::HASMORE);
@@ -1981,15 +1983,14 @@ TEST_P(ExecutionBlockImplExecuteIntegrationTest, input_and_non_relevant_shadowRo
   auto testee = forwardBlock(getAsserter, skipAsserter, producer.get(), outReg);
 
   auto const& call = getCall();
-  auto stack = buildStack(AqlCall{}, AqlCall{});
-  stack.pushCall(AqlCallList{call});
+  auto [stack, clientCall] = buildStack({AqlCall{}, AqlCall{}}, call);
   if (doesWaiting()) {
-    auto const [state, skipped, block] = testee->execute(stack);
+    auto const [state, skipped, block] = testee->execute(stack, clientCall);
     EXPECT_EQ(state, ExecutionState::WAITING);
     EXPECT_EQ(skipped.getSkipCount(), 0);
     EXPECT_EQ(block, nullptr);
   }
-  auto const [state, skipped, block] = testee->execute(stack);
+  auto const [state, skipped, block] = testee->execute(stack, clientCall);
 
   if (std::holds_alternative<size_t>(call.softLimit) && !call.hasHardLimit()) {
     EXPECT_EQ(state, ExecutionState::HASMORE);
@@ -2055,16 +2056,15 @@ TEST_P(ExecutionBlockImplExecuteIntegrationTest, multiple_subqueries) {
       subqueryData->add(VPackValue(subqueryRun));
     }
     subqueryData->close();
-    auto const& call = getCall();
-    auto stack = buildStack(AqlCall{}, AqlCall{});
-    stack.pushCall(AqlCallList{call});
+    auto call = getCall();
+    auto [stack, clientCall] = buildStack({AqlCall{}, AqlCall{}}, call);
     if (doesWaiting()) {
-      auto const [state, skipped, block] = testee->execute(stack);
+      auto const [state, skipped, block] = testee->execute(stack, clientCall);
       EXPECT_EQ(state, ExecutionState::WAITING);
       EXPECT_EQ(skipped.getSkipCount(), 0);
       EXPECT_EQ(block, nullptr);
     }
-    auto const [state, skipped, block] = testee->execute(stack);
+    auto const [state, skipped, block] = testee->execute(stack, clientCall);
 
     if (std::holds_alternative<size_t>(call.softLimit) && !call.hasHardLimit()) {
       EXPECT_EQ(state, ExecutionState::HASMORE);
@@ -2079,11 +2079,10 @@ TEST_P(ExecutionBlockImplExecuteIntegrationTest, multiple_subqueries) {
         forwardCall.hardLimit = 0u;
         forwardCall.fullCount = false;
 
-        auto forwardStack = buildStack(AqlCall{}, AqlCall{});
-        forwardStack.pushCall(AqlCallList{forwardCall});
+        auto [forwardStack, clientCall] = buildStack({AqlCall{}, AqlCall{}}, forwardCall);
 
         auto const [forwardState, forwardSkipped, forwardBlock] =
-            testee->execute(forwardStack);
+            testee->execute(forwardStack, clientCall);
         // We do not care for any data left
         EXPECT_EQ(forwardState, ExecutionState::HASMORE);
         EXPECT_EQ(forwardSkipped.getSkipCount(), 0);
@@ -2230,10 +2229,9 @@ TEST_P(ExecutionBlockImplExecuteIntegrationTest, empty_subquery) {
   auto testee = forwardBlock(getAsserter, skipAsserter, producerDepth1.get(), outReg);
 
   if (doesWaiting()) {
-    auto stack = buildStack(AqlCall{}, AqlCall{});
-    stack.pushCall(AqlCallList{getCall()});
+    auto [stack, clientCall] = buildStack({AqlCall{}, AqlCall{}}, getCall());
     // we only wait exactly once, only one block upstream that is not sliced.
-    auto const& [state, skipped, block] = testee->execute(stack);
+    auto const& [state, skipped, block] = testee->execute(stack, clientCall);
     EXPECT_EQ(state, ExecutionState::WAITING);
     EXPECT_EQ(skipped.getSkipCount(), 0);
     EXPECT_EQ(block, nullptr);
@@ -2242,9 +2240,8 @@ TEST_P(ExecutionBlockImplExecuteIntegrationTest, empty_subquery) {
   bool skip = call.getOffset() > 0 || (call.getLimit() == 0 && call.needsFullCount());
   {
     // First subquery
-    auto stack = buildStack(AqlCall{}, AqlCall{});
-    stack.pushCall(AqlCallList{getCall()});
-    auto const& [state, skipped, block] = testee->execute(stack);
+    auto [stack, clientCall] = buildStack({AqlCall{}, AqlCall{}}, getCall());
+    auto const& [state, skipped, block] = testee->execute(stack, clientCall);
     EXPECT_EQ(state, ExecutionState::HASMORE);
     ASSERT_NE(block, nullptr);
     if (skip) {
@@ -2282,9 +2279,8 @@ TEST_P(ExecutionBlockImplExecuteIntegrationTest, empty_subquery) {
 
   {
     // Second subquery
-    auto stack = buildStack(AqlCall{}, AqlCall{});
-    stack.pushCall(AqlCallList{getCall()});
-    auto const& [state, skipped, block] = testee->execute(stack);
+    auto [stack, clientCall] = buildStack({AqlCall{}, AqlCall{}}, getCall());
+    auto const& [state, skipped, block] = testee->execute(stack, clientCall);
     EXPECT_EQ(state, ExecutionState::HASMORE);
     ASSERT_NE(block, nullptr);
     EXPECT_EQ(skipped.getSkipCount(), 0);
@@ -2309,9 +2305,8 @@ TEST_P(ExecutionBlockImplExecuteIntegrationTest, empty_subquery) {
 
   {
     // Third subquery
-    auto stack = buildStack(AqlCall{}, AqlCall{});
-    stack.pushCall(AqlCallList{getCall()});
-    auto const& [state, skipped, block] = testee->execute(stack);
+    auto [stack, clientCall] = buildStack({AqlCall{}, AqlCall{}}, getCall());
+    auto const& [state, skipped, block] = testee->execute(stack, clientCall);
     EXPECT_EQ(state, ExecutionState::DONE);
     ASSERT_NE(block, nullptr);
     EXPECT_EQ(skipped.getSkipCount(), 0);

@@ -118,9 +118,15 @@ struct ExecutorTestHelper {
   }
 
   auto setCall(AqlCall c) -> ExecutorTestHelper& {
-    _callStack = AqlCallStack{AqlCallList{c}};
+    _clientCall = AqlCallList{c};
     return *this;
   }
+
+  auto setCallList(AqlCallList c) -> ExecutorTestHelper& {
+    _clientCall = c;
+    return *this;
+  }
+
 
   auto setInputValue(MatrixBuilder<inputColumns> in) -> ExecutorTestHelper& {
     _input = std::move(in);
@@ -294,7 +300,7 @@ struct ExecutorTestHelper {
     BlockCollector allResults{&_itemBlockManager};
 
     if (!loop) {
-      auto const [state, skipped, result] = _pipeline.get().front()->execute(_callStack);
+      auto const [state, skipped, result] = _pipeline.get().front()->execute(_callStack, _clientCall);
       skippedTotal.merge(skipped, false);
       finalState = state;
       if (result != nullptr) {
@@ -302,10 +308,10 @@ struct ExecutorTestHelper {
       }
     } else {
       do {
-        auto const [state, skipped, result] = _pipeline.get().front()->execute(_callStack);
+        auto const [state, skipped, result] = _pipeline.get().front()->execute(_callStack, _clientCall);
         finalState = state;
-        auto& call = _callStack.modifyTopCall();
         skippedTotal.merge(skipped, false);
+        auto& call = _clientCall.modifyNextCall();
         call.didSkip(skipped.getSkipCount());
         if (result != nullptr) {
           call.didProduce(result->size());
@@ -313,8 +319,8 @@ struct ExecutorTestHelper {
         }
         call.resetSkipCount();
       } while (finalState != ExecutionState::DONE &&
-               (!_callStack.peek().hasSoftLimit() ||
-                (_callStack.peek().getLimit() + _callStack.peek().getOffset()) > 0));
+               (!_clientCall.peekNextCall().hasSoftLimit() ||
+                (_clientCall.peekNextCall().getLimit() + _clientCall.peekNextCall().getOffset()) > 0));
     }
     EXPECT_EQ(skippedTotal, _expectedSkip);
     EXPECT_EQ(finalState, _expectedState);
@@ -427,8 +433,11 @@ struct ExecutorTestHelper {
                                                        _waitingBehaviour);
   }
 
+
+  // Initialize without a outer query.
+  AqlCallStack _callStack{};
   // Default initialize with a fetchAll call.
-  AqlCallStack _callStack{AqlCallList{AqlCall{}}};
+  AqlCallList _clientCall{AqlCall{}};
   MatrixBuilder<inputColumns> _input;
   MatrixBuilder<outputColumns> _output;
   std::vector<std::pair<size_t, uint64_t>> _outputShadowRows{};

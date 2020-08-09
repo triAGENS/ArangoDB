@@ -21,7 +21,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "AqlCallStack.h"
-#include "Basics/Exceptions.h"
 
 #include <velocypack/Builder.h>
 #include <velocypack/Iterator.h>
@@ -35,8 +34,15 @@
 using namespace arangodb;
 using namespace arangodb::aql;
 
-AqlCallStack::AqlCallStack(AqlCallList call, bool compatibilityMode3_6)
-    : _operations{{std::move(call)}}, _compatibilityMode3_6(compatibilityMode3_6) {}
+AqlCallStack AqlCallStack::EmptyStack{false};
+
+
+AqlCallStack const& AqlCallStack::emptyStack() {
+  return AqlCallStack::EmptyStack;
+}
+
+AqlCallStack::AqlCallStack(bool compatibilityMode3_6)
+    : _operations{}, _compatibilityMode3_6(compatibilityMode3_6) {}
 
 AqlCallStack::AqlCallStack(AqlCallStack const& other, AqlCallList call)
     : _operations{other._operations}, _compatibilityMode3_6{other._compatibilityMode3_6} {
@@ -77,7 +83,7 @@ auto AqlCallStack::popCall() -> AqlCallList {
     // This code is to be removed in the next version after 3.7
     _operations.emplace_back(AqlCall{});
   }
-  auto call = _operations.back();
+  auto call = std::move(_operations.back());
   _operations.pop_back();
   return call;
 }
@@ -93,7 +99,7 @@ auto AqlCallStack::peek() const -> AqlCall const& {
     // to the upwards subquery.
     // => Simply put another fetchAll Call on the stack.
     // This code is to be removed in the next version after 3.7
-    _operations.emplace_back(AqlCallList{AqlCall{}});
+    _operations.emplace_back(AqlCall{});
   }
   TRI_ASSERT(!_operations.empty());
   return _operations.back().peekNextCall();
@@ -179,13 +185,15 @@ auto AqlCallStack::createEquivalentFetchAllShadowRowsStack() const -> AqlCallSta
 
 auto AqlCallStack::needToCountSubquery() const noexcept -> bool {
   return std::any_of(_operations.begin(), _operations.end(), [](AqlCallList const& call) -> bool {
-    return call.peekNextCall().needSkipMore() || call.peekNextCall().hasLimit();
+    auto const& nextCall = call.peekNextCall();
+    return nextCall.needSkipMore() || nextCall.hasLimit();
   });
 }
 
 auto AqlCallStack::needToSkipSubquery() const noexcept -> bool {
   return std::any_of(_operations.begin(), _operations.end(), [](AqlCallList const& call) -> bool {
-    return call.peekNextCall().needSkipMore() || call.peekNextCall().hardLimit == 0;
+    auto const& nextCall = call.peekNextCall();
+    return nextCall.needSkipMore() || nextCall.hardLimit == 0;
   });
 }
 
@@ -215,6 +223,11 @@ auto AqlCallStack::modifyCallListAtDepth(size_t depth) -> AqlCallList& {
   return _operations.at(_operations.size() - 1 - depth);
 }
 
+auto AqlCallStack::getCallListAtDepth(size_t depth) const -> AqlCallList const& {
+  TRI_ASSERT(_operations.size() > depth);
+  return _operations.at(_operations.size() - 1 - depth);
+}
+
 auto AqlCallStack::getCallAtDepth(size_t depth) const -> AqlCall const& {
   // depth 0 is back of vector
   TRI_ASSERT(_operations.size() > depth);
@@ -234,7 +247,7 @@ auto AqlCallStack::modifyTopCall() -> AqlCall& {
     // to the upwards subquery.
     // => Simply put another fetchAll Call on the stack.
     // This code is to be removed in the next version after 3.7
-    _operations.emplace_back(AqlCallList{AqlCall{}});
+    _operations.emplace_back(AqlCall{});
   }
   TRI_ASSERT(!_operations.empty());
   return modifyCallAtDepth(0);
@@ -245,9 +258,9 @@ auto AqlCallStack::hasAllValidCalls() const noexcept -> bool {
     if (!list.hasMoreCalls()) {
       return false;
     }
-    auto const& call = list.peekNextCall();
+    auto const& nextCall = list.peekNextCall();
     // We cannot continue if any of our calls has a softLimit reached.
-    return !(call.hasSoftLimit() && call.getLimit() == 0 && call.getOffset() == 0);
+    return !(nextCall.hasSoftLimit() && nextCall.getLimit() == 0 && nextCall.getOffset() == 0);
   });
 }
 

@@ -22,6 +22,7 @@
 
 #include "ConstFetcher.h"
 
+#include "Aql/AqlCallList.h"
 #include "Aql/AqlCallStack.h"
 #include "Aql/DependencyProxy.h"
 #include "Aql/ShadowAqlItemRow.h"
@@ -39,11 +40,9 @@ ConstFetcher::ConstFetcher() : _currentBlock{nullptr}, _rowIndex(0) {}
 ConstFetcher::ConstFetcher(DependencyProxy& executionBlock)
     : _currentBlock{nullptr}, _rowIndex(0) {}
 
-auto ConstFetcher::execute(AqlCallStack& stack)
+auto ConstFetcher::execute(AqlCallStack const&, AqlCallList clientCall)
     -> std::tuple<ExecutionState, SkipResult, AqlItemBlockInputRange> {
-  // We only peek the call here, as we do not take over ownership.
-  // We can replace this by pop again if all executors also only take a reference to the stack.
-  auto call = stack.peek();
+  auto call = clientCall.popNextCall();
   if (_blockForPassThrough == nullptr) {
     SkipResult skipped = _skipped;
     _skipped.reset();

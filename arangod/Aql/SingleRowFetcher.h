@@ -71,67 +71,13 @@ class SingleRowFetcher {
    *   size_t => Amount of documents skipped
    *   DataRange => Resulting data
    */
-  std::tuple<ExecutionState, SkipResult, DataRange> execute(AqlCallStack& stack);
+  std::tuple<ExecutionState, SkipResult, DataRange> execute(AqlCallStack const& stack, AqlCallList clientCall);
 
   void setDistributeId(std::string const& id);
-
-  //@deprecated
-  auto useStack(AqlCallStack const& stack) -> void;
 
  private:
   DependencyProxy<blockPassthrough>* _dependencyProxy;
 
-  /**
-   * @brief Holds state returned by the last fetchBlock() call.
-   *        This is similar to ExecutionBlock::_upstreamState, but can also be
-   *        WAITING.
-   *        Part of the Fetcher, and may be moved if the Fetcher implementations
-   *        are moved into separate classes.
-   */
-#ifdef ARANGODB_USE_GOOGLE_TESTS
- protected:
-#endif
-  // NOLINTNEXTLINE(cppcoreguidelines-non-private-member-variables-in-classes, misc-non-private-member-variables-in-classes)
-  ExecutionState _upstreamState;
-#ifdef ARANGODB_USE_GOOGLE_TESTS
- private:
-#endif
-  /**
-   * @brief Input block currently in use. Used for memory management by the
-   *        SingleRowFetcher. May be moved if the Fetcher implementations
-   *        are moved into separate classes.
-   */
-  SharedAqlItemBlockPtr _currentBlock;
-
-  /**
-   * @brief This is valid iff _currentBlock != nullptr and it's smaller or equal
-   *        than _currentBlock->size(). May be moved if the Fetcher implementations
-   *        are moved into separate classes.
-   */
-  size_t _rowIndex;
-
-  /**
-   * @brief
-   */
-  InputAqlItemRow _currentRow;
-  ShadowAqlItemRow _currentShadowRow;
-
- private:
-  /**
-   * @brief Delegates to ExecutionBlock::fetchBlock()
-   */
-  [[nodiscard]] TEST_VIRTUAL std::pair<ExecutionState, SharedAqlItemBlockPtr> fetchBlock(size_t atMost);
-
-  [[nodiscard]] bool fetchBlockIfNecessary(size_t atMost);
-
-  /**
-   * @brief Delegates to ExecutionBlock::getNrInputRegisters()
-   */
-  [[nodiscard]] RegisterCount getNrInputRegisters() const;
-
-  [[nodiscard]] bool indexIsValid() const;
-
-  [[nodiscard]] ExecutionState returnState(bool isShadowRow) const;
 };
 }  // namespace arangodb::aql
 

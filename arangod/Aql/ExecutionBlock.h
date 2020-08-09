@@ -39,6 +39,7 @@ class Methods;
 }
 
 namespace aql {
+class AqlCallList;
 class AqlCallStack;
 class InputAqlItemRow;
 class ExecutionEngine;
@@ -115,7 +116,7 @@ class ExecutionBlock {
   ///          * DONE: Here is some data, and there will be no further data available.
   ///        2. SkipResult: Amount of documents skipped.
   ///        3. SharedAqlItemBlockPtr: The next data block.
-  virtual std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> execute(AqlCallStack stack) = 0;
+  virtual std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> execute(AqlCallStack const& stack, AqlCallList clientCall) = 0;
   
   virtual void collectExecStats(ExecutionStats&) const;
   [[nodiscard]] bool isInSplicedSubquery() const noexcept;
@@ -127,6 +128,7 @@ class ExecutionBlock {
   
   // Trace the start of a execute call
   void traceExecuteBegin(AqlCallStack const& stack,
+                         AqlCallList const& clientCall,
                          std::string const& clientId = "");
 
   // Trace the end of a execute call, potentially with result

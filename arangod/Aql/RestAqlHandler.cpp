@@ -615,15 +615,18 @@ RestStatus RestAqlHandler::handleUseQuery(std::string const& operation,
     // shardId is set IFF the root node is scatter or distribute
     TRI_ASSERT(shardId.empty() != (rootNodeType == ExecutionNode::SCATTER ||
                                    rootNodeType == ExecutionNode::DISTRIBUTE));
+    // The API ships a full stack. We need to split of the top-most element
+    AqlCallStack stack = executeCall.callStack();
+    AqlCallList clientCall = stack.popCall();
     if (shardId.empty()) {
       std::tie(state, skipped, items) =
-          _engine->execute(executeCall.callStack());
+          _engine->execute(stack, std::move(clientCall));
       if (state == ExecutionState::WAITING) {
         return RestStatus::WAITING;
       }
     } else {
       std::tie(state, skipped, items) =
-          _engine->executeForClient(executeCall.callStack(), shardId);
+          _engine->executeForClient(stack, std::move(clientCall), shardId);
       if (state == ExecutionState::WAITING) {
         return RestStatus::WAITING;
       }

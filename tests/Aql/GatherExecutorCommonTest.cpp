@@ -371,13 +371,13 @@ class CommonGatherExecutorTest
     return toCallList(AqlCall{offset});
   }
 
-  auto executeUntilResponse(ExecutionBlock* exec, AqlCallStack stack)
+  auto executeUntilResponse(ExecutionBlock* exec, AqlCallStack stack, AqlCallList clientCall)
       -> std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> {
     ExecutionState state = ExecutionState::WAITING;
     SkipResult skipped{};
     SharedAqlItemBlockPtr block{nullptr};
     while (state == ExecutionState::WAITING) {
-      std::tie(state, skipped, block) = exec->execute(stack);
+      std::tie(state, skipped, block) = exec->execute(stack, clientCall);
       TRI_ASSERT(state != ExecutionState::WAITING || skipped.nothingSkipped());
       TRI_ASSERT(state != ExecutionState::WAITING || block == nullptr);
     }
@@ -680,14 +680,13 @@ INSTANTIATE_TEST_CASE_P(CommonGatherTests, CommonGatherExecutorTest, combination
 TEST_P(CommonGatherExecutorTest, get_all) {
   auto [exec, result] = getExecutor({});
 
-  // Default Stack, fetch all unlimited
-  AqlCallStack stack{fetchAllCall()};
   ExecutionState state = ExecutionState::HASMORE;
   SkipResult skipped{};
   SharedAqlItemBlockPtr block{nullptr};
   while (state != ExecutionState::DONE) {
     // In this test we do not care for waiting.
-    std::tie(state, skipped, block) = exec->execute(stack);
+      // Default Stack, fetch all unlimited
+    std::tie(state, skipped, block) = exec->execute(AqlCallStack::emptyStack(), fetchAllCall());
 
     ASSERT_TRUE(skipped.nothingSkipped());
     assertResultValid(block, result);
@@ -707,14 +706,14 @@ TEST_P(CommonGatherExecutorTest, get_all_sub_1) {
   auto [exec, result] = getExecutor({4});
 
   // Default Stack, fetch all unlimited
-  AqlCallStack stack{fetchAllCall()};
+  AqlCallStack stack{};
   stack.pushCall(fetchAllCall());
   ExecutionState state = ExecutionState::HASMORE;
   SkipResult skipped{};
   SharedAqlItemBlockPtr block{nullptr};
   while (state != ExecutionState::DONE) {
     // In this test we do not care for waiting.
-    std::tie(state, skipped, block) = exec->execute(stack);
+    std::tie(state, skipped, block) = exec->execute(stack, fetchAllCall());
 
     ASSERT_TRUE(skipped.nothingSkipped());
     assertResultValid(block, result);
@@ -737,7 +736,7 @@ TEST_P(CommonGatherExecutorTest, get_all_sub_2) {
   auto [exec, result] = getExecutor({3, 5});
 
   // Default Stack, fetch all unlimited
-  AqlCallStack stack{fetchAllCall()};
+  AqlCallStack stack{};
   stack.pushCall(fetchAllCall());
   stack.pushCall(fetchAllCall());
   ExecutionState state = ExecutionState::HASMORE;
@@ -745,7 +744,7 @@ TEST_P(CommonGatherExecutorTest, get_all_sub_2) {
   SharedAqlItemBlockPtr block{nullptr};
   while (state != ExecutionState::DONE) {
     // In this test we do not care for waiting.
-    std::tie(state, skipped, block) = exec->execute(stack);
+    std::tie(state, skipped, block) = exec->execute(stack, fetchAllCall());
 
     ASSERT_TRUE(skipped.nothingSkipped());
     assertResultValid(block, result);
@@ -764,13 +763,12 @@ TEST_P(CommonGatherExecutorTest, skip_data) {
   auto [exec, result] = getExecutor({});
 
   // Default Stack, fetch all unlimited
-  AqlCallStack stack{skipThenFetchCall(5)};
   ExecutionState state = ExecutionState::HASMORE;
   SkipResult skipped{};
   SharedAqlItemBlockPtr block{nullptr};
   while (state != ExecutionState::DONE) {
     // In this test we do not care for waiting.
-    std::tie(state, skipped, block) = exec->execute(stack);
+    std::tie(state, skipped, block) = exec->execute(AqlCallStack::emptyStack(), skipThenFetchCall(5));
 
     ASSERT_FALSE(skipped.nothingSkipped());
     EXPECT_EQ(skipped.getSkipOnSubqueryLevel(0), 5);
@@ -792,14 +790,14 @@ TEST_P(CommonGatherExecutorTest, skip_data_sub_1) {
   auto [exec, result] = getExecutor({4});
 
   // Default Stack, fetch all unlimited
-  AqlCallStack stack{fetchAllCall()};
-  stack.pushCall(skipThenFetchCall(5));
+  AqlCallStack stack{};
+  stack.pushCall(fetchAllCall());
   ExecutionState state = ExecutionState::HASMORE;
   SkipResult skipped{};
   SharedAqlItemBlockPtr block{nullptr};
   while (state != ExecutionState::DONE) {
     // In this test we do not care for waiting.
-    std::tie(state, skipped, block) = exec->execute(stack);
+    std::tie(state, skipped, block) = exec->execute(stack, skipThenFetchCall(5));
 
     EXPECT_EQ(skipped.getSkipOnSubqueryLevel(0), 5);
     EXPECT_EQ(skipped.getSkipOnSubqueryLevel(1), 0);
@@ -822,15 +820,15 @@ TEST_P(CommonGatherExecutorTest, skip_data_sub_2) {
   auto [exec, result] = getExecutor({3, 5});
 
   // Default Stack, fetch all unlimited
-  AqlCallStack stack{fetchAllCall()};
+  AqlCallStack stack{};
   stack.pushCall(fetchAllCall());
-  stack.pushCall(skipThenFetchCall(5));
+  stack.pushCall(fetchAllCall());
   ExecutionState state = ExecutionState::HASMORE;
   SkipResult skipped{};
   SharedAqlItemBlockPtr block{nullptr};
   while (state != ExecutionState::DONE) {
     // In this test we do not care for waiting.
-    std::tie(state, skipped, block) = exec->execute(stack);
+    std::tie(state, skipped, block) = exec->execute(stack, skipThenFetchCall(5));
     assertResultValid(block, result);
     EXPECT_EQ(skipped.getSkipCount(), 5);
     EXPECT_EQ(skipped.getSkipOnSubqueryLevel(0), 5);
@@ -853,21 +851,22 @@ TEST_P(CommonGatherExecutorTest, skip_main_query_sub_1) {
   auto [exec, result] = getExecutor({3});
 
   // Default Stack, fetch all unlimited
-  AqlCallStack stack{skipThenFetchCall(1)};
-  stack.pushCall(fetchAllCall());
+  AqlCallStack stack{};
+  stack.pushCall(skipThenFetchCall(1));
+  auto clientCall = fetchAllCall();
   result.skipOverSubquery(0, 1);
   {
-    auto [state, skipped, block] = executeUntilResponse(exec.get(), stack);
+    auto [state, skipped, block] = executeUntilResponse(exec.get(), stack, clientCall);
     // In the first round we need to skip
     EXPECT_EQ(skipped.getSkipCount(), 0);
     EXPECT_EQ(skipped.getSkipOnSubqueryLevel(1), 1);
     assertResultValid(block, result);
     // we skipped 1 count it.
-    stack.modifyCallAtDepth(1).offset -= 1;
+    stack.modifyCallAtDepth(0).offset -= 1;
     EXPECT_EQ(state, ExecutionState::HASMORE);
   }
   {
-    auto [state, skipped, block] = executeUntilResponse(exec.get(), stack);
+    auto [state, skipped, block] = executeUntilResponse(exec.get(), stack, clientCall);
     // In the second round we do not need to skip any more
     EXPECT_EQ(skipped.getSkipCount(), 0);
     EXPECT_EQ(skipped.getSkipOnSubqueryLevel(1), 0);
@@ -894,10 +893,11 @@ TEST_P(CommonGatherExecutorTest, skip_over_first_branch) {
   // We skip over the full first branch.
   // And then continue skipping on second branch.
   size_t offset = numberOfDocuments + (numberOfDocuments / 2);
-  AqlCallStack stack{skipThenFetchCall(offset)};
   {
     // In this test we do not care for waiting.
-    auto const [state, skipped, block] = executeUntilResponse(exec.get(), stack);
+    auto const [state, skipped, block] =
+        executeUntilResponse(exec.get(), AqlCallStack::emptyStack(),
+                             skipThenFetchCall(offset));
 
     ASSERT_FALSE(skipped.nothingSkipped());
     EXPECT_EQ(state, ExecutionState::DONE);
@@ -925,13 +925,14 @@ TEST_P(CommonGatherExecutorTest, skip_over_subquery) {
   // We skip over the full first branch.
   // And then continue skipping on second branch.
   size_t offset = 3;
-  AqlCallStack stack{skipThenFetchCall(offset)};
-  stack.pushCall(fetchAllCall());
+  AqlCallStack stack{};
+  stack.pushCall(skipThenFetchCall(offset));
+  auto clientCall = fetchAllCall();
 
   result.skipOverSubquery(0, offset);
   {
     // In this test we do not care for waiting.
-    auto const [state, skipped, block] = executeUntilResponse(exec.get(), stack);
+    auto const [state, skipped, block] = executeUntilResponse(exec.get(), stack, clientCall);
 
     // We can only produce 1 subquery, not two in a row.
     EXPECT_FALSE(skipped.nothingSkipped());
@@ -943,13 +944,13 @@ TEST_P(CommonGatherExecutorTest, skip_over_subquery) {
     assertResultValid(block, result);
 
     // Fix the stack for the next call
-    stack.modifyCallAtDepth(1).didSkip(offset);
-    stack.modifyCallAtDepth(1).resetSkipCount();
+    stack.modifyCallAtDepth(0).didSkip(offset);
+    stack.modifyCallAtDepth(0).resetSkipCount();
   }
 
   {
     // In this test we do not care for waiting.
-    auto const [state, skipped, block] = executeUntilResponse(exec.get(), stack);
+    auto const [state, skipped, block] = executeUntilResponse(exec.get(), stack, clientCall);
 
     // We can only produce 1 subquery, not two in a row.
     EXPECT_TRUE(skipped.nothingSkipped());

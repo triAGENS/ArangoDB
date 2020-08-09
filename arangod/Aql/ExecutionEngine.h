@@ -40,6 +40,7 @@
 namespace arangodb {
 namespace aql {
 
+class AqlCallList;
 class AqlCallStack;
 class AqlItemBlock;
 class AqlItemBlockManager;
@@ -109,10 +110,11 @@ class ExecutionEngine {
   /// return waiting
   std::pair<ExecutionState, Result> shutdown(int errorCode);
 
-  auto execute(AqlCallStack const& stack)
+  auto execute(AqlCallStack const& stack, AqlCallList clientCall)
       -> std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr>;
 
-  auto executeForClient(AqlCallStack const& stack, std::string const& clientId)
+  auto executeForClient(AqlCallStack const& stack, AqlCallList clientCall,
+                        std::string const& clientId)
       -> std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr>;
 
   /// @brief getSome

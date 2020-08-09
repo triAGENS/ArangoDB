@@ -81,12 +81,12 @@ auto ScatterExecutor::ClientBlockData::hasDataFor(AqlCall const& call) -> bool {
   return _executorHasMore || !_queue.empty();
 }
 
-auto ScatterExecutor::ClientBlockData::execute(AqlCallStack callStack, ExecutionState upstreamState)
+auto ScatterExecutor::ClientBlockData::execute(AqlCallStack const& callStack, AqlCallList clientCall, ExecutionState upstreamState)
     -> std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> {
   TRI_ASSERT(_executor != nullptr);
 
   // Make sure we actually have data before you call execute
-  TRI_ASSERT(hasDataFor(callStack.peek()));
+  TRI_ASSERT(hasDataFor(clientCall.peekNextCall()));
   if (!_executorHasMore) {
     auto const& [block, skipResult] = _queue.front();
     // This cast is guaranteed, we create this a couple lines above and only
@@ -100,7 +100,7 @@ auto ScatterExecutor::ClientBlockData::execute(AqlCallStack callStack, Execution
     _executorHasMore = true;
     _queue.pop_front();
   }
-  auto [state, skipped, result] = _executor->execute(callStack);
+  auto [state, skipped, result] = _executor->execute(callStack, std::move(clientCall));
   // We have all data locally cannot wait here.
   TRI_ASSERT(state != ExecutionState::WAITING);
 

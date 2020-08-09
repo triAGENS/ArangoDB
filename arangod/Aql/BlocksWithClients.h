@@ -88,7 +88,7 @@ class BlocksWithClients {
    * @param clientId The requesting client Id.
    * @return std::tuple<ExecutionState, size_t, SharedAqlItemBlockPtr>
    */
-  virtual auto executeForClient(AqlCallStack stack, std::string const& clientId)
+  virtual auto executeForClient(AqlCallStack const& stack, AqlCallList clientCall, std::string const& clientId)
       -> std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> = 0;
 };
 
@@ -124,7 +124,7 @@ class BlocksWithClientsImpl : public ExecutionBlock, public BlocksWithClients {
   std::pair<ExecutionState, Result> shutdown(int) override;
 
   /// @brief execute: shouldn't be used, use executeForClient
-  std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> execute(AqlCallStack stack) override;
+  std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> execute(AqlCallStack const& stack, AqlCallList clientCall) override;
 
   /**
    * @brief Execute for client.
@@ -134,7 +134,7 @@ class BlocksWithClientsImpl : public ExecutionBlock, public BlocksWithClients {
    * @param clientId The requesting client Id.
    * @return std::tuple<ExecutionState, size_t, SharedAqlItemBlockPtr>
    */
-  auto executeForClient(AqlCallStack stack, std::string const& clientId)
+  auto executeForClient(AqlCallStack const& stack, AqlCallList clientCall, std::string const& clientId)
       -> std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> override;
 
  private:
@@ -145,14 +145,14 @@ class BlocksWithClientsImpl : public ExecutionBlock, public BlocksWithClients {
    * @param clientId The requesting client Id.
    * @return std::tuple<ExecutionState, size_t, SharedAqlItemBlockPtr>
    */
-  auto executeWithoutTraceForClient(AqlCallStack stack, std::string const& clientId)
+  auto executeWithoutTraceForClient(AqlCallStack const& stack, AqlCallList clientCall, std::string const& clientId)
       -> std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr>;
 
   /**
    * @brief Load more data from upstream and distribute it into _clientBlockData
    *
    */
-  auto fetchMore(AqlCallStack stack) -> ExecutionState;
+  auto fetchMore(AqlCallStack const& stack) -> ExecutionState;
 
   /// @brief getSomeForShard
   /// @deprecated

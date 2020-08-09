@@ -92,7 +92,8 @@ class AllRowsFetcher {
   /**
    * @brief Execute the given call stack
    *
-   * @param stack Call stack, on top of stack there is current subquery, bottom is the main query.
+   * @param stack Call stack, all calls of outer subqueries
+   * @param clientCall current subquery information
    * @return std::tuple<ExecutionState, size_t, DataRange>
    *   ExecutionState => DONE, all queries are done, there will be no more
    *   ExecutionState => HASMORE, there are more results for queries, might be on other subqueries
@@ -101,13 +102,10 @@ class AllRowsFetcher {
    *   size_t => Amount of documents skipped
    *   DataRange => Resulting data
    */
-  std::tuple<ExecutionState, SkipResult, DataRange> execute(AqlCallStack& stack);
+  std::tuple<ExecutionState, SkipResult, DataRange> execute(AqlCallStack const& stack, AqlCallList clientCall);
 
   // only for ModificationNodes
   ExecutionState upstreamState();
-
-  //@deprecated
-  auto useStack(AqlCallStack const& stack) -> void;
 
  private:
   DependencyProxy<BlockPassthrough::Disable>* _dependencyProxy;
@@ -121,22 +119,6 @@ class AllRowsFetcher {
    * @brief Delegates to ExecutionBlock::getNrInputRegisters()
    */
   RegisterCount getNrInputRegisters() const;
-
-  /**
-   * @brief Delegates to ExecutionBlock::fetchBlock()
-   */
-  std::pair<ExecutionState, SharedAqlItemBlockPtr> fetchBlock();
-
-  /**
-   * @brief intermediate function to fetch data from
-   *        upstream and does upstream state checking
-   */
-  ExecutionState fetchData();
-
-  /**
-   * @brief Fetch blocks from upstream until done
-   */
-  ExecutionState fetchUntilDone();
 };
 
 }  // namespace aql

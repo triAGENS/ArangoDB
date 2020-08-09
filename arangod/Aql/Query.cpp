@@ -417,8 +417,7 @@ ExecutionState Query::execute(QueryResult& queryResult) {
         // In case of WAITING we return, this function is repeatable!
         // In case of HASMORE we loop
         while (true) {
-          AqlCallStack defaultStack{AqlCallList{AqlCall{}}};
-          auto const& [state, skipped, block] = engine->execute(defaultStack);
+          auto const& [state, skipped, block] = engine->execute(AqlCallStack::emptyStack(), AqlCallList{AqlCall{}});
           // The default call asks for No skips.
           TRI_ASSERT(skipped.nothingSkipped());
           if (state == ExecutionState::WAITING) {

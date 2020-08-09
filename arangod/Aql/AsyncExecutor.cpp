@@ -46,9 +46,9 @@ ExecutionBlockImpl<AsyncExecutor>::ExecutionBlockImpl(
     : ExecutionBlock(engine, node),
       _sharedState(engine->sharedState()) {}
 
-std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> ExecutionBlockImpl<AsyncExecutor>::execute(AqlCallStack stack) {
-  traceExecuteBegin(stack);
-  auto res = executeWithoutTrace(stack);
+std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> ExecutionBlockImpl<AsyncExecutor>::execute(AqlCallStack const& stack, AqlCallList clientCall) {
+  traceExecuteBegin(stack, clientCall);
+  auto res = executeWithoutTrace(stack, std::move(clientCall));
 #ifdef ARANGODB_ENABLE_MAINTAINER_MODE
   auto const& [state, skipped, block] = res;
   if (block != nullptr) {
@@ -59,7 +59,7 @@ std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> ExecutionBlockImpl
   return res;
 }
 
-std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> ExecutionBlockImpl<AsyncExecutor>::executeWithoutTrace(AqlCallStack const& stack) {
+std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> ExecutionBlockImpl<AsyncExecutor>::executeWithoutTrace(AqlCallStack const& stack, AqlCallList clientCall) {
   
 //  if (getQuery().killed()) {
 //    THROW_ARANGO_EXCEPTION(TRI_ERROR_QUERY_KILLED);
@@ -86,11 +86,11 @@ std::tuple<ExecutionState, SkipResult, SharedAqlItemBlockPtr> ExecutionBlockImpl
   TRI_ASSERT(_internalState == AsyncState::Empty);
 
   _internalState = AsyncState::InProgress;
-  bool queued = _sharedState->asyncExecuteAndWakeup([this, stack](bool isAsync) {
+  bool queued = _sharedState->asyncExecuteAndWakeup([this, stack, clientCall](bool isAsync) {
     std::unique_lock<std::mutex> guard(_mutex, std::defer_lock);
 
     try {
-      auto [state, skip, block] = _dependencies[0]->execute(stack);
+      auto [state, skip, block] = _dependencies[0]->execute(stack, clientCall);
       if (isAsync) {
         guard.lock();
       }
