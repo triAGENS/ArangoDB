@@ -55,6 +55,7 @@
 #include "Aql/Projections.h"
 #include "Aql/Query.h"
 #include "Aql/Range.h"
+#include "Aql/ReadAllNode.h"
 #include "Aql/RegisterPlan.h"
 #include "Aql/ReturnExecutor.h"
 #include "Aql/ShortestPathNode.h"
@@ -124,6 +125,7 @@ std::unordered_map<int, std::string const> const typeNames{
     {static_cast<int>(ExecutionNode::MATERIALIZE), "MaterializeNode"},
     {static_cast<int>(ExecutionNode::ASYNC), "AsyncNode"},
     {static_cast<int>(ExecutionNode::MUTEX), "MutexNode"},
+    {static_cast<int>(ExecutionNode::READALL), "ReadAllNode"},
 };
 }  // namespace
 
@@ -355,6 +357,8 @@ ExecutionNode* ExecutionNode::fromVPackFactory(ExecutionPlan* plan, VPackSlice c
       return new AsyncNode(plan, slice);
     case MUTEX:
       return new MutexNode(plan, slice);
+    case READALL:
+      return new ReadAllNode(plan, slice);
     default: {
       // should not reach this point
       TRI_ASSERT(false);
@@ -1406,6 +1410,7 @@ bool ExecutionNode::alwaysCopiesRows(NodeType type) {
     case SUBQUERY:
     case SINGLETON:
     case LIMIT:
+    case READALL:
       return false;
     // It should be safe to return false for these, but is it necessary?
     // Returning true can lead to more efficient register usage.

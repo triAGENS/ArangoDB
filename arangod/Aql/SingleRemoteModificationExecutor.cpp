@@ -267,4 +267,3 @@ template struct ::arangodb::aql::SingleRemoteModificationExecutor<Insert>;
 template struct ::arangodb::aql::SingleRemoteModificationExecutor<Remove>;
 template struct ::arangodb::aql::SingleRemoteModificationExecutor<Replace>;
 template struct ::arangodb::aql::SingleRemoteModificationExecutor<Update>;
-template struct ::arangodb::aql::SingleRemoteModificationExecutor<Upsert>;

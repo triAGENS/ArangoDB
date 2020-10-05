@@ -597,8 +597,7 @@ std::initializer_list<arangodb::aql::ExecutionNode::NodeType> const scatterInClu
     arangodb::aql::ExecutionNode::INSERT,
     arangodb::aql::ExecutionNode::UPDATE,
     arangodb::aql::ExecutionNode::REPLACE,
-    arangodb::aql::ExecutionNode::REMOVE,
-    arangodb::aql::ExecutionNode::UPSERT};
+    arangodb::aql::ExecutionNode::REMOVE};
 std::initializer_list<arangodb::aql::ExecutionNode::NodeType> const removeDataModificationOutVariablesNodeTypes{
     arangodb::aql::ExecutionNode::REMOVE, arangodb::aql::ExecutionNode::INSERT,
     arangodb::aql::ExecutionNode::UPDATE, arangodb::aql::ExecutionNode::REPLACE,
@@ -4179,7 +4178,7 @@ auto isModificationNode(ExecutionNode::NodeType nodeType) noexcept -> bool {
 }
 
 auto nodeEligibleForDistribute(ExecutionNode::NodeType nodeType) noexcept -> bool {
-  return isModificationNode(nodeType) || isGraphNode(nodeType);
+  return nodeType != ExecutionNode::UPSERT && (isModificationNode(nodeType) || isGraphNode(nodeType));
 }
 
 void arangodb::aql::distributeInClusterRule(Optimizer* opt,
@@ -4663,6 +4662,7 @@ void arangodb::aql::distributeFilterCalcToClusterRule(Optimizer* opt,
         case EN::SHORTEST_PATH:
         case EN::SUBQUERY:
         case EN::ENUMERATE_IRESEARCH_VIEW:
+        case EN::READALL:
           // do break
           stopSearching = true;
           break;
@@ -4798,6 +4798,7 @@ void arangodb::aql::distributeSortToClusterRule(Optimizer* opt,
         case EN::SHORTEST_PATH:
         case EN::REMOTESINGLE:
         case EN::ENUMERATE_IRESEARCH_VIEW:
+        case EN::READALL:
 
           // For all these, we do not want to pull a SortNode further down
           // out to the DBservers, note that potential FilterNodes and
@@ -7140,6 +7141,7 @@ static bool isAllowedIntermediateSortLimitNode(ExecutionNode* node) {
     case ExecutionNode::SUBQUERY:
     case ExecutionNode::REMOTE:
     case ExecutionNode::ASYNC:
+    case ExecutionNode::READALL:
       return true;
     case ExecutionNode::GATHER:
       // sorting gather is allowed
@@ -7975,6 +7977,7 @@ bool nodeMakesThisQueryLevelUnsuitableForSubquerySplicing(ExecutionNode const* n
     case ExecutionNode::DISTRIBUTE_CONSUMER:
     case ExecutionNode::SUBQUERY_START:
     case ExecutionNode::SUBQUERY_END:
+    case ExecutionNode::READALL:
     case ExecutionNode::ASYNC:
       // These nodes do not initiate a skip themselves, and thus are fine.
       return false;

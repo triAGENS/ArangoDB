@@ -1,6 +1,9 @@
 devel
 -----
 
+* Fixed UPSERT in cluster: It does now read it's own write, which should prevent
+  unique contraint violations, due to double inserts of the same document.
+
 * Fixed a bug in handling of followers which refuse to replicate operations.
   In the case that the follower has simply been dropped in the meantime, we now
   avoid an error reported by the shard leader.

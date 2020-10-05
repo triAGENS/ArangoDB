@@ -44,6 +44,7 @@
 #include "Aql/NodeFinder.h"
 #include "Aql/OptimizerRulesFeature.h"
 #include "Aql/Query.h"
+#include "Aql/ReadAllNode.h"
 #include "Aql/RegisterPlan.h"
 #include "Aql/ShortestPathNode.h"
 #include "Aql/SortNode.h"
@@ -2032,6 +2033,16 @@ ExecutionNode* ExecutionPlan::fromNodeUpsert(ExecutionNode* previous, AstNode co
   return addDependency(previous, en);
 }
 
+
+ExecutionNode* ExecutionPlan::fromNodeReadAll(ExecutionNode* previous, AstNode const* node) {
+  TRI_ASSERT(node != nullptr && node->type == NODE_TYPE_READ_ALL);
+  TRI_ASSERT(node->numMembers() == 0);
+
+  ExecutionNode* en = registerNode(new ReadAllNode(this, nextId()));
+
+  return addDependency(previous, en);
+}
+
 /// @brief create an execution plan from an abstract syntax tree node
 ExecutionNode* ExecutionPlan::fromNode(AstNode const* node) {
   TRI_ASSERT(node != nullptr);
@@ -2134,6 +2145,11 @@ ExecutionNode* ExecutionPlan::fromNode(AstNode const* node) {
 
       case NODE_TYPE_UPSERT: {
         en = fromNodeUpsert(en, member);
+        break;
+      }
+
+      case NODE_TYPE_READ_ALL: {
+        en = fromNodeReadAll(en, member);
         break;
       }
 

@@ -37,6 +37,7 @@ using EN = arangodb::aql::ExecutionNode;
 
 bool ConditionFinder::before(ExecutionNode* en) {
   switch (en->getType()) {
+    case EN::READALL:
     case EN::ENUMERATE_LIST:
     case EN::COLLECT:
     case EN::SCATTER:

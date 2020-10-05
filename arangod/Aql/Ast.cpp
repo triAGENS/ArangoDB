@@ -4087,3 +4087,7 @@ AstNode* Ast::createNodeAttributeAccess(AstNode const* node,
 AstNode* Ast::createNodeFunctionCall(char const* functionName, AstNode const* arguments) {
   return createNodeFunctionCall(functionName, strlen(functionName), arguments);
 }
+
+AstNode* Ast::createNodeReadAll() {
+  return createNode(NODE_TYPE_READ_ALL);
+}

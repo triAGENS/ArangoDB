@@ -29,6 +29,7 @@
 #include "Aql/Collection.h"
 #include "Aql/ExecutionNode.h"
 #include "Aql/GraphNode.h"
+#include "Aql/ModificationNodes.h"
 #include "Aql/Query.h"
 #include "Aql/QuerySnippet.h"
 #include "Basics/StringUtils.h"
@@ -539,6 +540,13 @@ void EngineInfoContainerDBServerServerBased::addGraphNode(GraphNode* node, bool 
   // SnippetID does not matter on GraphNodes
   _shardLocking.addNode(node, 0, pushToSingleServer);
   _graphNodes.emplace_back(node);
+}
+
+// Insert an Upsert that needs to generate TraverserEngines on
+// the DBServers. The GraphNode itself will retain on the coordinator.
+void EngineInfoContainerDBServerServerBased::addUpsertNode(UpsertNode* node) {
+  // SnippetID does not matter on UpsertNodes
+  _shardLocking.addNode(node, 0, false);
 }
 
 // Insert the Locking information into the message to be send to DBServers

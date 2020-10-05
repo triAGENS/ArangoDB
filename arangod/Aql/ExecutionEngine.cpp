@@ -24,9 +24,9 @@
 #include "ExecutionEngine.h"
 
 #include "ApplicationFeatures/ApplicationServer.h"
+#include "Aql/AqlItemBlockManager.h"
 #include "Aql/BlocksWithClients.h"
 #include "Aql/Collection.h"
-#include "Aql/AqlItemBlockManager.h"
 #include "Aql/EngineInfoContainerCoordinator.h"
 #include "Aql/EngineInfoContainerDBServerServerBased.h"
 #include "Aql/ExecutionBlockImpl.h"
@@ -34,12 +34,13 @@
 #include "Aql/ExecutionPlan.h"
 #include "Aql/GraphNode.h"
 #include "Aql/IdExecutor.h"
+#include "Aql/ModificationNodes.h"
 #include "Aql/OptimizerRule.h"
 #include "Aql/QueryContext.h"
 #include "Aql/RemoteExecutor.h"
 #include "Aql/ReturnExecutor.h"
-#include "Aql/SkipResult.h"
 #include "Aql/SharedQueryState.h"
+#include "Aql/SkipResult.h"
 #include "Aql/WalkerWorker.h"
 #include "Basics/ScopeGuard.h"
 #include "Cluster/ServerState.h"
@@ -413,6 +414,9 @@ struct DistributedQueryInstanciator final
         case ExecutionNode::SHORTEST_PATH:
         case ExecutionNode::K_SHORTEST_PATHS:
           _dbserverParts.addGraphNode(ExecutionNode::castTo<GraphNode*>(en), _pushToSingleServer);
+          break;
+        case ExecutionNode::UPSERT:
+          _dbserverParts.addUpsertNode(ExecutionNode::castTo<UpsertNode*>(en));
           break;
         default:
           // Do nothing

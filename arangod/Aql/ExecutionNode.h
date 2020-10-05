@@ -166,6 +166,7 @@ class ExecutionNode {
     MATERIALIZE = 31,
     ASYNC = 32,
     MUTEX = 33,
+    READALL = 34,
 
     MAX_NODE_TYPE_VALUE
   };

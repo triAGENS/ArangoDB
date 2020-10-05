@@ -1188,6 +1188,9 @@ upsert_statement:
     } expression {
       AstNode* variableNode = static_cast<AstNode*>(parser->popStack());
 
+      auto readAllNode = parser->ast()->createNodeReadAll();
+      parser->ast()->addOperation(readAllNode);
+
       auto scopes = parser->ast()->scopes();
 
       scopes->start(arangodb::aql::AQL_SCOPE_SUBQUERY);

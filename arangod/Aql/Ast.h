@@ -380,6 +380,9 @@ class Ast {
   /// @brief create an AST n-ary operator
   AstNode* createNodeNaryOperator(AstNodeType, AstNode const*);
 
+  /// @brief create an AST read all node
+  AstNode* createNodeReadAll();
+
   /// @brief injects bind parameters into the AST
   void injectBindParameters(BindParameters& parameters,
                             arangodb::CollectionNameResolver const& resolver);

@@ -374,6 +374,9 @@ class ExecutionPlan {
   /// @brief create an execution plan element from an AST UPSERT node
   ExecutionNode* fromNodeUpsert(ExecutionNode*, AstNode const*);
 
+  /// @brief create an execution plan element from an AST READ_ALL node
+  ExecutionNode* fromNodeReadAll(ExecutionNode*, AstNode const*);
+
   /// @brief create an vertex element for graph nodes
   AstNode const* parseTraversalVertexNode(ExecutionNode*&, AstNode const*);
 

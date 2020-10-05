@@ -50,6 +50,7 @@ namespace aql {
 class ExecutionNode;
 class GatherNode;
 class GraphNode;
+class UpsertNode;
 class QueryContext;
 class QuerySnippet;
 
@@ -158,6 +159,8 @@ class EngineInfoContainerDBServerServerBased {
   // Insert a GraphNode that needs to generate TraverserEngines on
   // the DBServers. The GraphNode itself will retain on the coordinator.
   void addGraphNode(GraphNode* node, bool pushToSingleServer);
+
+  void addUpsertNode(UpsertNode* node);
 
  private:
   // Insert the Locking information into the message to be send to DBServers

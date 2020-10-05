@@ -593,6 +593,7 @@ AstNode::AstNode(Ast* ast, arangodb::velocypack::Slice const& slice)
     case NODE_TYPE_OPERATOR_NARY_OR:
     case NODE_TYPE_WITH:
     case NODE_TYPE_FOR_VIEW:
+    case NODE_TYPE_READ_ALL:
       break;
   }
 
@@ -711,6 +712,7 @@ AstNode::AstNode(std::function<void(AstNode*)> const& registerNode,
     case NODE_TYPE_COLLECTION_LIST:
     case NODE_TYPE_PASSTHRU:
     case NODE_TYPE_WITH:
+    case NODE_TYPE_READ_ALL:
     case NODE_TYPE_FOR_VIEW: { 
       THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_INTERNAL,
                                      "Unsupported node type");
@@ -2408,6 +2410,7 @@ void AstNode::findVariableAccess(std::vector<AstNode const*>& currentPath,
     case NODE_TYPE_OPERATOR_BINARY_ARRAY_NIN:
     case NODE_TYPE_QUANTIFIER:
     case NODE_TYPE_FOR_VIEW:
+    case NODE_TYPE_READ_ALL:
       break;
   }
 
@@ -2584,6 +2587,7 @@ AstNode const* AstNode::findReference(AstNode const* findme) const {
     case NODE_TYPE_OPERATOR_BINARY_ARRAY_NIN:
     case NODE_TYPE_QUANTIFIER:
     case NODE_TYPE_FOR_VIEW:
+    case NODE_TYPE_READ_ALL:
       break;
   }
   return ret;

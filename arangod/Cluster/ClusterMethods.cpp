@@ -169,10 +169,6 @@ Future<Result> beginTransactionOnAllLeaders(transaction::Methods& trx, ShardMap 
 void addTransactionHeaderForShard(transaction::Methods const& trx, ShardMap const& shardMap,
                                   ShardID const& shard, network::Headers& headers) {
   TRI_ASSERT(trx.state()->isCoordinator());
-  if (!ClusterTrxMethods::isElCheapo(trx)) {
-    return;  // no need
-  }
-
   auto const& it = shardMap.find(shard);
   if (it != shardMap.end()) {
     if (it->second.empty()) {
@@ -1336,6 +1332,7 @@ Future<OperationResult> createDocumentOnCoordinator(transaction::Methods const& 
     }
 
     std::string const baseUrl = "/_api/document/";
+    
 
     network::RequestOptions reqOpts;
     reqOpts.database = trx.vocbase().name();

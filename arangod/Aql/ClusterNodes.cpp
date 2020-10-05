@@ -666,9 +666,6 @@ std::unique_ptr<ExecutionBlock> SingleRemoteOperationNode::createBlock(
   } else if (_mode == NodeType::UPDATE) {
     return std::make_unique<ExecutionBlockImpl<SingleRemoteModificationExecutor<Update>>>(
         &engine, this, std::move(registerInfos), std::move(executorInfos));
-  } else if (_mode == NodeType::UPSERT) {
-    return std::make_unique<ExecutionBlockImpl<SingleRemoteModificationExecutor<Upsert>>>(
-        &engine, this, std::move(registerInfos), std::move(executorInfos));
   } else {
     TRI_ASSERT(false);
     return nullptr;

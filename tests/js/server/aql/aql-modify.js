@@ -1184,7 +1184,7 @@ function aqlUpsertOptionsSuite() {
         FOR fv0 IN 1..3
         LET sq1 = (
           FOR fv2 IN ${collectionName}
-          UPSERT {value: fv2.value} INSERT {value: 98 }  UPDATE {value: 51, updated: true} IN ${collectionName}
+          UPSERT {value: fv2.value} INSERT {value: 98 }  UPDATE {updated: true} IN ${collectionName}
           LIMIT 5,0
           RETURN {fv2: UNSET_RECURSIVE(fv2,"_rev", "_id", "_key")}
         )

@@ -1812,14 +1812,13 @@ function ahuacatlGeneratedSuite() {
           LIMIT 2,13
           RETURN {fv2: UNSET_RECURSIVE(fv2,"_rev", "_id", "_key")})
         LET sq3 = (FOR fv4 IN ${cn2} 
-          UPSERT {value: fv4.value  }  INSERT {value: 71 }  UPDATE {value: 21, updated: true} IN ${cn2}
+          UPSERT {value: fv4.value  }  INSERT {value: 71 }  UPDATE {updated: true} IN ${cn2}
           LIMIT 11,2
           RETURN {fv4: UNSET_RECURSIVE(fv4,"_rev", "_id", "_key"), sq1: UNSET_RECURSIVE(sq1,"_rev", "_id", 
         "_key")})
         LIMIT 8,3
         RETURN {fv0: UNSET_RECURSIVE(fv0,"_rev", "_id", "_key"), sq1: UNSET_RECURSIVE(sq1,"_rev", "_id", 
         "_key"), sq3: UNSET_RECURSIVE(sq3,"_rev", "_id", "_key")}`;
-
       const resSplice = db._query(q, {}, activateSplice);
       const resNoSplice = db._query(q, {}, deactivateSplice);
       assertEqual(resSplice.getExtra().stats.writesExecuted, resNoSplice.getExtra().stats.writesExecuted);

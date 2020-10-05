@@ -22,19 +22,19 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "ModificationNodes.h"
+
 #include "Aql/AllRowsFetcher.h"
 #include "Aql/Ast.h"
 #include "Aql/Collection.h"
 #include "Aql/ExecutionBlockImpl.h"
 #include "Aql/ExecutionPlan.h"
-#include "Aql/Query.h"
-#include "Aql/SingleRowFetcher.h"
-#include "Aql/VariableGenerator.h"
-
 #include "Aql/ModificationExecutor.h"
 #include "Aql/ModificationExecutorHelpers.h"
+#include "Aql/Query.h"
 #include "Aql/SimpleModifier.h"
+#include "Aql/SingleRowFetcher.h"
 #include "Aql/UpsertModifier.h"
+#include "Aql/VariableGenerator.h"
 
 using namespace arangodb::aql;
 
@@ -562,15 +562,11 @@ std::unique_ptr<ExecutionBlock> UpsertNode::createBlock(
       IgnoreErrors(_options.ignoreErrors), DoCount(countStats()),
       IsReplace(_isReplace) /*(needed by upsert)*/,
       IgnoreDocumentNotFound(_options.ignoreDocumentNotFound));
-  if (_options.readCompleteInput) {
-    return std::make_unique<AllRowsUpsertExecutionBlock>(&engine, this,
-                                                         std::move(registerInfos),
-                                                         std::move(executorInfos));
-  } else {
+
     return std::make_unique<SingleRowUpsertExecutionBlock>(&engine, this,
                                                            std::move(registerInfos),
                                                            std::move(executorInfos));
-  }
+
 }
 
 /// @brief clone ExecutionNode recursively

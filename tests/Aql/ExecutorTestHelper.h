@@ -267,6 +267,20 @@ struct ExecutorTestHelper {
   }
 
   /**
+   * @brief Add a consumer in form of an ExecutionBlock. This is used for all
+   * Blocks, that do not follow the Fetcher / Executor Pattern
+   *
+   * @param nodeType A dummy node type used for printing
+   * @return ExecutorTestHelper&
+   */
+  template <typename E, typename std::enable_if<std::is_base_of<ExecutionBlock, E>::value>::type* = nullptr>
+  auto addConsumer(RegisterInfos registerInfos, ExecutionNode::NodeType nodeType = ExecutionNode::SINGLETON)
+      -> ExecutorTestHelper& {
+    _pipeline.addConsumer(createExecBlock<E>(std::move(registerInfos), nodeType));
+    return *this;
+  }
+
+  /**
    * @brief This appends an empty block after the input fully created.
    *        It simulates a situation where the Producer lies about the
    *        the last input with HASMORE, but it actually is not able
@@ -369,6 +383,15 @@ struct ExecutorTestHelper {
     return std::make_unique<ExecutionBlockImpl<E>>(_query.rootEngine(),
                                                    testeeNode.get(), std::move(registerInfos),
                                                    std::move(executorInfos));
+  }
+
+  template <typename E, typename std::enable_if<std::is_base_of<ExecutionBlock, E>::value>::type* = nullptr>
+  auto createExecBlock(RegisterInfos registerInfos, ExecutionNode::NodeType nodeType = ExecutionNode::SINGLETON)
+      -> ExecBlock {
+    auto& testeeNode = _execNodes.emplace_back(
+        std::make_unique<MockTypedNode>(_query.plan(),
+                                        ExecutionNodeId{_execNodes.size()}, nodeType));
+    return std::make_unique<E>(_query.rootEngine(), testeeNode.get(), std::move(registerInfos));
   }
 
   auto generateInputRanges(AqlItemBlockManager& itemBlockManager)

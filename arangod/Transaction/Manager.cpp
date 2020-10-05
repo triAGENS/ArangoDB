@@ -523,7 +523,7 @@ std::shared_ptr<transaction::Context> Manager::leaseManagedTrx(TransactionId tid
     }
     
     if (AccessMode::isWriteOrExclusive(mode)) {
-      if (mtrx.type == MetaType::StandaloneAQL) {
+      if (mtrx.type == MetaType::StandaloneAQL && mtrx.state->isReadOnlyTransaction()) {
         THROW_ARANGO_EXCEPTION_MESSAGE(
             TRI_ERROR_TRANSACTION_DISALLOWED_OPERATION,
             "not allowed to write lock an AQL transaction");
