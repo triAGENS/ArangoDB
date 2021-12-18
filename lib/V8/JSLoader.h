@@ -55,8 +55,11 @@ class JSLoader : public ScriptLoader {
   /// returned result will be written there as vpack
   //////////////////////////////////////////////////////////////////////////////
 
-  JSLoader::eState loadScript(v8::Isolate* isolate, v8::Handle<v8::Context>&,
-                              std::string const& name, velocypack::Builder* builder);
+  JSLoader::eState loadScript(v8::Isolate* isolate,
+                              v8::Handle<v8::Context>&,
+                              std::string const& name,
+                              velocypack::Builder* builder,
+                              bool logStacktraceError = false);
 };
 }  // namespace arangodb
 

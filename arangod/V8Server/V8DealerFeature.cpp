@@ -1692,7 +1692,7 @@ void V8DealerFeature::loadJavaScriptFileInternal(std::string const& file, V8Cont
   {
     v8::Context::Scope contextScope(localContext);
 
-    switch (_startupLoader.loadScript(context->_isolate, localContext, file, builder)) {
+    switch (_startupLoader.loadScript(context->_isolate, localContext, file, builder, true)) {
       case JSLoader::eSuccess:
         LOG_TOPIC("29e73", TRACE, arangodb::Logger::V8) << "loaded JavaScript file '" << file << "'";
         break;

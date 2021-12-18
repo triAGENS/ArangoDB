@@ -207,7 +207,8 @@ start_color_print('arangodb', true);
 
         console.setExecutingCommand(true);
         TRI_ExecuteJavaScriptString(isolate, localContext,
-                                    TRI_V8_STD_STRING(isolate, input), name, true);
+                                    TRI_V8_STD_STRING(isolate, input), name,
+                                    true, false);
         console.setExecutingCommand(false);
 
         if (_userAborted.load()) {

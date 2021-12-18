@@ -41,6 +41,8 @@
     restServer = options["server.rest-server"];
   }
 
+  // make sure the cache is filled:
+  let col = internal.db._collections();
   // reload routing information
   if (restServer) {
     // the function name reloadRouting is misleading here, as it actually
