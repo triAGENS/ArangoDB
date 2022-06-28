@@ -442,8 +442,10 @@ Result PhysicalCollection::newObjectForInsert(
   // _rev
   bool handled = false;
   TRI_IF_FAILURE("Insert::useRev") { isRestore = true; }
-  if (isRestore) {
-    // copy revision id verbatim
+  if (isRestore ||
+      (_logicalCollection.hasClusterWideUniqueRevs() && _isDBServer)) {
+    // In the restore case, and if we use clusterWideUniqueRevs the
+    // Caller is allowed to give us a _rev and we simply take it.
     s = value.get(StaticStrings::RevString);
     if (s.isString()) {
       builder.add(StaticStrings::RevString, s);
