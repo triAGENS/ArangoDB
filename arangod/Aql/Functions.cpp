@@ -6981,11 +6981,13 @@ AqlValue Functions::Matches(ExpressionContext* expressionContext,
 AqlValue Functions::Round(ExpressionContext*, AstNode const&,
                           VPackFunctionParametersView parameters) {
   AqlValue const& value = extractFunctionParameterValue(parameters, 0);
+  AqlValue const& precision = extractFunctionParameterValue(parameters, 1);
 
   double input = value.toDouble();
+  double exp = std::pow(10, precision.toDouble() >= 0 ? precision.toDouble() : 0);
 
   // Rounds down for < x.4999 and up for > x.50000
-  return ::numberValue(std::floor(input + 0.5), true);
+  return ::numberValue(std::floor((input * exp) + 0.5) / exp, true);
 }
 
 /// @brief function ABS

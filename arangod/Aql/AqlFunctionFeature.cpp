@@ -237,7 +237,7 @@ void AqlFunctionFeature::addNumericFunctions() {
   // numeric functions
   add({"FLOOR", ".", flags, &Functions::Floor});
   add({"CEIL", ".", flags, &Functions::Ceil});
-  add({"ROUND", ".", flags, &Functions::Round});
+  add({"ROUND", ".|.,.", flags, &Functions::Round});
   add({"ABS", ".", flags, &Functions::Abs});
   add({"SQRT", ".", flags, &Functions::Sqrt});
   add({"POW", ".,.", flags, &Functions::Pow});

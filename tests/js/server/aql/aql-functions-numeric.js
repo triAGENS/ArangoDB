@@ -3858,6 +3858,19 @@ function ahuacatlNumericFunctionsTestSuite () {
 /// @brief test round function
 ////////////////////////////////////////////////////////////////////////////////
 
+    testRoundWithPrecision : function () {
+      var expected = [ -100.1, -3.1, -2.1, 1.1, 2.1, 100.1 ];
+      var actual = getQueryResults("FOR r IN [ -100.123, -3.123, -2.123, 1.123, 2.123, 100.123 ] return ROUND(r, 1)");
+      assertEqual(expected, actual);
+
+      actual = getQueryResults("FOR r IN [ -100.123, -3.123, -2.123, 1.123, 2.123, 100.123 ] return ROUND(r, 1)");
+      assertEqual(expected, actual);
+    },
+
+////////////////////////////////////////////////////////////////////////////////
+/// @brief test round function
+////////////////////////////////////////////////////////////////////////////////
+
     testRoundInvalid : function () {
       assertQueryError(errors.ERROR_QUERY_FUNCTION_ARGUMENT_NUMBER_MISMATCH.code, "RETURN ROUND()"); 
       assertQueryError(errors.ERROR_QUERY_FUNCTION_ARGUMENT_NUMBER_MISMATCH.code, "RETURN ROUND(1,2)"); 
