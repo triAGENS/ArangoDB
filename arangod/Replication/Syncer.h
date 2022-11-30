@@ -220,6 +220,8 @@ class Syncer : public std::enable_shared_from_this<Syncer> {
   /// @brief drops an index, based on the VelocyPack provided
   Result dropIndex(arangodb::velocypack::Slice const&);
 
+  Result changeIndex(VPackSlice const&);
+
   /// @brief creates a view, based on the VelocyPack provided
   Result createView(TRI_vocbase_t& vocbase,
                     arangodb::velocypack::Slice const& slice);

@@ -81,6 +81,14 @@ RocksDBLogValue RocksDBLogValue::IndexDrop(TRI_voc_tick_t dbid,
   return RocksDBLogValue(RocksDBLogType::IndexDrop, dbid, cid.id(), iid.id());
 }
 
+RocksDBLogValue RocksDBLogValue::IndexChange(TRI_voc_tick_t dbid,
+                                             DataSourceId cid,
+                                             IndexId iid,
+                                             VPackSlice indexInfo) {
+  return RocksDBLogValue(RocksDBLogType::IndexChange, dbid, cid.id(),
+                         iid.id(), indexInfo);
+}
+
 RocksDBLogValue RocksDBLogValue::ViewCreate(TRI_voc_tick_t dbid,
                                             DataSourceId vid) {
   return RocksDBLogValue(RocksDBLogType::ViewCreate, dbid, vid.id());
@@ -214,6 +222,26 @@ RocksDBLogValue::RocksDBLogValue(RocksDBLogType type, uint64_t dbId,
 }
 
 RocksDBLogValue::RocksDBLogValue(RocksDBLogType type, uint64_t dbId,
+                                 uint64_t cid, uint64_t iid, VPackSlice info)
+    : _buffer() {
+  switch (type) {
+    case RocksDBLogType::IndexChange: {
+      _buffer.reserve(sizeof(RocksDBLogType) + sizeof(uint64_t) * 3 + info.byteSize());
+      _buffer.push_back(static_cast<char>(type));
+      uint64ToPersistent(_buffer, dbId);
+      uint64ToPersistent(_buffer, cid);
+      uint64ToPersistent(_buffer, iid);
+      _buffer.append(reinterpret_cast<char const*>(info.begin()),
+                     info.byteSize());
+      break;
+    }
+    default:
+      THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_BAD_PARAMETER,
+                                     "invalid type for log value");
+  }
+}
+
+RocksDBLogValue::RocksDBLogValue(RocksDBLogType type, uint64_t dbId,
                                  uint64_t cid, VPackSlice info)
     : _buffer() {
   switch (type) {
@@ -300,7 +328,8 @@ TransactionId RocksDBLogValue::transactionId(rocksdb::Slice const& slice) {
 IndexId RocksDBLogValue::indexId(rocksdb::Slice const& slice) {
   TRI_ASSERT(slice.size() >= sizeof(RocksDBLogType) + (3 * sizeof(uint64_t)));
   RocksDBLogType type = static_cast<RocksDBLogType>(slice.data()[0]);
-  TRI_ASSERT(type == RocksDBLogType::IndexDrop);
+  TRI_ASSERT(type == RocksDBLogType::IndexDrop ||
+             type == RocksDBLogType::IndexChange );
   return IndexId{uint64FromPersistent(slice.data() + sizeof(RocksDBLogType) +
                                       (2 * sizeof(uint64_t)))};
 }
@@ -337,6 +366,14 @@ VPackSlice RocksDBLogValue::indexSlice(rocksdb::Slice const& slice) {
   TRI_ASSERT(type == RocksDBLogType::IndexCreate);
   return VPackSlice(reinterpret_cast<uint8_t const*>(
       slice.data() + sizeof(RocksDBLogType) + sizeof(uint64_t) * 2));
+}
+
+VPackSlice RocksDBLogValue::indexChangeSlice(rocksdb::Slice const& slice) {
+  TRI_ASSERT(slice.size() >= sizeof(RocksDBLogType) + sizeof(uint64_t) * 3);
+  RocksDBLogType type = static_cast<RocksDBLogType>(slice.data()[0]);
+  TRI_ASSERT(type == RocksDBLogType::IndexChange);
+  return VPackSlice(reinterpret_cast<uint8_t const*>(
+      slice.data() + sizeof(RocksDBLogType) + sizeof(uint64_t) * 3));
 }
 
 VPackSlice RocksDBLogValue::viewSlice(rocksdb::Slice const& slice) {
@@ -408,6 +445,8 @@ bool RocksDBLogValue::containsDatabaseId(RocksDBLogType type) {
          type == RocksDBLogType::ViewDrop ||
          type == RocksDBLogType::ViewChange ||
          type == RocksDBLogType::IndexCreate ||
+         type == RocksDBLogType::IndexChange ||
+         type == RocksDBLogType::IndexChange ||
          type == RocksDBLogType::IndexDrop ||
          type == RocksDBLogType::BeginTransaction ||
          type == RocksDBLogType::CommitTransaction ||
@@ -422,6 +461,7 @@ bool RocksDBLogValue::containsDataSourceId(RocksDBLogType type) {
          type == RocksDBLogType::CollectionChange ||
          type == RocksDBLogType::CollectionTruncate ||
          type == RocksDBLogType::IndexCreate ||
+         type == RocksDBLogType::IndexChange ||
          type == RocksDBLogType::IndexDrop ||
          type == RocksDBLogType::SinglePut ||
          type == RocksDBLogType::SingleRemoveV2;

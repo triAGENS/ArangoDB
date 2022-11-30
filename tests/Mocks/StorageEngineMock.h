@@ -86,6 +86,9 @@ class PhysicalCollectionMock : public arangodb::PhysicalCollection {
   virtual ErrorCode close() override;
   virtual std::shared_ptr<arangodb::Index> createIndex(
       arangodb::velocypack::Slice info, bool restore, bool& created) override;
+  Result updateIndex(IndexId, velocypack::Slice) override {
+    return {TRI_ERROR_NOT_IMPLEMENTED};
+  }
   virtual void deferDropCollection(
       std::function<bool(arangodb::LogicalCollection&)> const& callback)
       override;

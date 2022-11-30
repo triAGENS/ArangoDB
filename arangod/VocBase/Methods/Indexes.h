@@ -63,6 +63,11 @@ struct Indexes {
   static arangodb::Result drop(LogicalCollection* collection,
                                velocypack::Slice const& indexArg);
 
+  static arangodb::Result update(LogicalCollection* collection,
+                                 velocypack::Slice const indexArg,
+                                 velocypack::Slice const body,
+                                 velocypack::Builder& output);
+
   static arangodb::Result extractHandle(LogicalCollection const* collection,
                                         CollectionNameResolver const* resolver,
                                         velocypack::Slice const& val,

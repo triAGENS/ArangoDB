@@ -934,6 +934,11 @@ Result Syncer::dropIndex(arangodb::velocypack::Slice const& slice) {
   return r;
 }
 
+Result Syncer::changeIndex(VPackSlice const& slice) {
+  return {TRI_ERROR_NOT_IMPLEMENTED};
+}
+
+
 /// @brief creates a view, based on the VelocyPack provided
 Result Syncer::createView(TRI_vocbase_t& vocbase,
                           arangodb::velocypack::Slice const& slice) {

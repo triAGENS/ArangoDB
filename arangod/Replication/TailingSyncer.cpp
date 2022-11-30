@@ -1054,6 +1054,10 @@ Result TailingSyncer::applyLogMarker(VPackSlice const& slice,
     return createIndex(slice);
   }
 
+  if (type == REPLICATION_INDEX_CHANGE) {
+    return changeIndex(slice);
+  }
+
   if (type == REPLICATION_INDEX_DROP) {
     return dropIndex(slice);
   }

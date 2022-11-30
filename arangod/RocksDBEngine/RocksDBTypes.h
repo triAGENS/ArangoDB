@@ -95,6 +95,7 @@ enum class RocksDBLogType : char {
   FlushSync = 'H',  // @see FlushFeature
   TrackedDocumentInsert = 'I',
   TrackedDocumentRemove = 'J',
+  IndexChange = 'K'
 };
 
 /// @brief settings keys

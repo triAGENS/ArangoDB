@@ -67,6 +67,8 @@ TRI_replication_operation_e rocksutils::convertLogType(RocksDBLogType t) {
       return REPLICATION_COLLECTION_TRUNCATE;
     case RocksDBLogType::IndexCreate:
       return REPLICATION_INDEX_CREATE;
+    case RocksDBLogType::IndexChange:
+      return REPLICATION_INDEX_CHANGE;
     case RocksDBLogType::IndexDrop:
       return REPLICATION_INDEX_DROP;
     case RocksDBLogType::ViewCreate:
@@ -208,6 +210,10 @@ class WALParser final : public rocksdb::WriteBatch::Handler {
           }
           updateLastEmittedTick(_currentSequence);
         }
+        break;
+      }
+      case RocksDBLogType::IndexChange: {
+        resetTransientState();  // finish ongoing trx
         break;
       }
       case RocksDBLogType::IndexCreate: {

@@ -62,6 +62,36 @@
 #include <velocypack/Iterator.h>
 #include <regex>
 
+namespace {
+using namespace arangodb;
+using namespace arangodb::methods;
+
+Result getHandle(LogicalCollection const* collection,
+                 velocypack::Slice const indexArg, IndexId& iid,
+                 std::string& name, CollectionNameResolver const* resolver,
+                 transaction::Methods* trx = nullptr) {
+  Result res =
+      Indexes::extractHandle(collection, resolver, indexArg, iid, name);
+
+  if (!res.ok()) {
+    return res;
+  }
+
+  if (iid.empty() && !name.empty()) {
+    VPackBuilder builder;
+    res = Indexes::getIndex(collection, indexArg, builder, trx);
+    if (!res.ok()) {
+      return res;
+    }
+
+    VPackSlice idSlice = builder.slice().get(StaticStrings::IndexId);
+    Result res =
+        Indexes::extractHandle(collection, resolver, idSlice, iid, name);
+  }
+  return res;
+};
+}
+
 using namespace arangodb;
 using namespace arangodb::basics;
 using namespace arangodb::methods;
@@ -658,6 +688,75 @@ Result Indexes::extractHandle(arangodb::LogicalCollection const* collection,
   return Result();
 }
 
+arangodb::Result Indexes::update(LogicalCollection* collection,
+  velocypack::Slice const indexArg,
+  velocypack::Slice const body,
+  velocypack::Builder& output) {
+  TRI_ASSERT(collection != nullptr);
+
+  ExecContext const& exec = ExecContext::current();
+  if (!exec.isSuperuser()) {
+    if (exec.databaseAuthLevel() != auth::Level::RW ||
+        !exec.canUseCollection(collection->name(), auth::Level::RW)) {
+      // FIXME: Do we need an event here?
+      //events::UpdateIndex(collection->vocbase().name(), collection->name(), "",
+      //                  TRI_ERROR_FORBIDDEN);
+      return TRI_ERROR_FORBIDDEN;
+    }
+  }
+  IndexId iid = IndexId::none();
+  std::string name;
+  if (ServerState::instance()->isCoordinator()) {
+    CollectionNameResolver resolver(collection->vocbase());
+    Result res = getHandle(collection, indexArg, iid, name, &resolver);
+    if (!res.ok()) {
+      // FIXME: Do we need an event here?
+      //events::UpdateIndex(collection->vocbase().name(), collection->name(), "",
+      //                  res.errorNumber());
+      return res;
+    }
+
+    auto& ci = collection->vocbase()
+                   .server()
+                   .getFeature<ClusterFeature>()
+                   .clusterInfo();
+    // FIXME: implement cluster update
+   // res = ci.updateIndexCoordinator(
+   //     collection->vocbase().name(), std::to_string(collection->id().id()),
+   //     body);
+    return res;
+  } else {
+    READ_LOCKER(readLocker, collection->vocbase()._inventoryLock);
+
+    SingleCollectionTransaction trx(transaction::V8Context::CreateWhenRequired(
+                                        collection->vocbase(), false),
+                                    *collection, AccessMode::Type::EXCLUSIVE);
+    Result res = trx.begin();
+
+    if (!res.ok()) {
+      // FIXME: Do we need an event here?
+      //events::UpdateIndex(collection->vocbase().name(), collection->name(), "",
+      //                  res.errorNumber());
+      return res;
+    }
+
+    LogicalCollection* col = trx.documentCollection();
+    res = getHandle(collection, indexArg, iid, name, trx.resolver(), &trx);
+    if (!res.ok()) {
+      // FIXME: Do we need an event here?
+      //events::UpdateIndex(collection->vocbase().name(), collection->name(), "",
+      //                  res.errorNumber());
+      return res;
+    }
+    res = col->updateIndex(iid, body, output);
+    // FIXME: Do we need an event here?
+    //events::UpdateIndex(collection->vocbase().name(), collection->name(),
+    //                  std::to_string(iid.id()), res.errorNumber());
+    return res;
+  }
+  return {};
+}
+
 arangodb::Result Indexes::drop(LogicalCollection* collection,
                                VPackSlice const& indexArg) {
   TRI_ASSERT(collection != nullptr);
@@ -671,47 +770,28 @@ arangodb::Result Indexes::drop(LogicalCollection* collection,
       return TRI_ERROR_FORBIDDEN;
     }
   }
+  /*
+   VPackBuilder tmp;
+    idx->toVelocyPack(tmp, Index::makeFlags(Index::Serialize::Estimates));
+
+    std::string iid = StringUtils::itoa(idx->id().id());
+    VPackBuilder b;
+    b.openObject();
+    b.add("isNewlyCreated", VPackValue(created));
+    b.add(
+        StaticStrings::IndexId,
+        VPackValue(collection->name() + TRI_INDEX_HANDLE_SEPARATOR_CHR + iid));
+    b.close();
+    output = VPackCollection::merge(tmp.slice(), b.slice(), false);*/
 
   IndexId iid = IndexId::none();
   std::string name;
-  auto getHandle = [collection, &indexArg, &iid, &name](
-                       CollectionNameResolver const* resolver,
-                       transaction::Methods* trx = nullptr) -> Result {
-    Result res =
-        Indexes::extractHandle(collection, resolver, indexArg, iid, name);
-
+  if (ServerState::instance()->isCoordinator()) {
+    CollectionNameResolver resolver(collection->vocbase());
+    Result res = getHandle(collection, indexArg, iid, name, &resolver);
     if (!res.ok()) {
       events::DropIndex(collection->vocbase().name(), collection->name(), "",
                         res.errorNumber());
-      return res;
-    }
-
-    if (iid.empty() && !name.empty()) {
-      VPackBuilder builder;
-      res = methods::Indexes::getIndex(collection, indexArg, builder, trx);
-      if (!res.ok()) {
-        events::DropIndex(collection->vocbase().name(), collection->name(), "",
-                          res.errorNumber());
-        return res;
-      }
-
-      VPackSlice idSlice = builder.slice().get(StaticStrings::IndexId);
-      Result res =
-          Indexes::extractHandle(collection, resolver, idSlice, iid, name);
-
-      if (!res.ok()) {
-        events::DropIndex(collection->vocbase().name(), collection->name(), "",
-                          res.errorNumber());
-      }
-    }
-
-    return res;
-  };
-
-  if (ServerState::instance()->isCoordinator()) {
-    CollectionNameResolver resolver(collection->vocbase());
-    Result res = getHandle(&resolver);
-    if (!res.ok()) {
       return res;
     }
 
@@ -749,8 +829,10 @@ arangodb::Result Indexes::drop(LogicalCollection* collection,
     }
 
     LogicalCollection* col = trx.documentCollection();
-    res = getHandle(trx.resolver(), &trx);
+    res = getHandle(collection, indexArg, iid, name, trx.resolver(), &trx);
     if (!res.ok()) {
+      events::DropIndex(collection->vocbase().name(), collection->name(), "",
+                        res.errorNumber());
       return res;
     }
 

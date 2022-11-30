@@ -238,6 +238,8 @@ char const* arangodb::rocksDBLogTypeName(arangodb::RocksDBLogType type) {
       return "CollectionTruncate";
     case arangodb::RocksDBLogType::IndexCreate:
       return "IndexCreate";
+    case arangodb::RocksDBLogType::IndexChange:
+      return "IndexChange";
     case arangodb::RocksDBLogType::IndexDrop:
       return "IndexDrop";
     case arangodb::RocksDBLogType::ViewCreate:

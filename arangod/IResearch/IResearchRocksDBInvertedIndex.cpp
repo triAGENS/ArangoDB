@@ -331,6 +331,10 @@ void IResearchRocksDBInvertedIndex::toVelocyPack(
   }
 }
 
+Result IResearchRocksDBInvertedIndex::updateProperties(VPackSlice slice) {
+  return IResearchInvertedIndex::updateProperties(slice);
+}
+
 Result IResearchRocksDBInvertedIndex::drop() /*noexcept*/ {
   return deleteDataStore();
 }

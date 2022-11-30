@@ -689,6 +689,29 @@ ArangoCollection.prototype.ensureIndex = function (data) {
 };
 
 // //////////////////////////////////////////////////////////////////////////////
+// / @brief updates an index
+// //////////////////////////////////////////////////////////////////////////////
+
+ArangoCollection.prototype.updateIndex = function (id, data) {
+  if (typeof data !== 'object' || Array.isArray(data)) {
+    throw 'usage: ensureIndex(<id>, <description>)';
+  }
+  
+   if (id.hasOwnProperty('id')) {
+    id = id.id;
+  } else if (id.hasOwnProperty('name')) {
+    id = id.name;
+  }
+
+  var requestResult = this._database._connection.PATCH(
+    this._database._indexurl(id, this.name()), data);
+
+  arangosh.checkRequestResult(requestResult);
+
+  return requestResult;
+};
+
+// //////////////////////////////////////////////////////////////////////////////
 // / @brief gets the number of documents
 // //////////////////////////////////////////////////////////////////////////////
 

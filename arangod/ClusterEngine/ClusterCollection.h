@@ -92,6 +92,8 @@ class ClusterCollection final : public PhysicalCollection {
   std::shared_ptr<Index> createIndex(velocypack::Slice info, bool restore,
                                      bool& created) override;
 
+  Result updateIndex(IndexId iid, VPackSlice body, VPackBuilder& updated) override;
+
   /// @brief Drop an index with the given iid.
   bool dropIndex(IndexId iid) override;
   std::unique_ptr<IndexIterator> getAllIterator(

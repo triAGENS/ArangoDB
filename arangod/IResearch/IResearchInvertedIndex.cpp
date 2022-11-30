@@ -782,6 +782,25 @@ IResearchInvertedIndex::sortedFields(IResearchInvertedIndexMeta const& meta) {
   return res;
 }
 
+Result IResearchInvertedIndex::updateProperties(VPackSlice slice) {
+  std::string error;
+  IResearchDataStoreMeta meta;
+  if (!meta.init(slice, error, _meta, nullptr)) {
+    return {TRI_ERROR_BAD_PARAMETER,
+            absl::StrCat("failed to update inverted index '", id().id(),
+                "' from definition" ,
+                (error.empty() ? ": "
+                               : (", error in attribute '" + error + "': ")) ,
+                slice.toString())};
+  }
+  _meta.storePartial(std::move(meta));
+  auto linkLock = _asyncSelf->lock();
+  if (linkLock) {
+    IResearchDataStore::properties(std::move(linkLock), _meta);
+  }
+  return {};
+}
+
 Result IResearchInvertedIndex::init(
     VPackSlice definition, bool& pathExists,
     IResearchDataStore::InitCallback const& initCallback /*= {}*/) {

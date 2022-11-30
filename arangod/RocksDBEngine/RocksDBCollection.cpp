@@ -464,6 +464,80 @@ void RocksDBCollection::prepareIndexes(
   TRI_ASSERT(!_indexes.empty());
 }
 
+Result RocksDBCollection::updateIndex(IndexId iid, VPackSlice body,
+                                      VPackBuilder& updated) {
+  TRI_ASSERT(body.isObject());
+  TRI_vocbase_t& vocbase = _logicalCollection.vocbase();
+  if (!vocbase.use()) {  // someone dropped the database
+    THROW_ARANGO_EXCEPTION(TRI_ERROR_ARANGO_DATABASE_NOT_FOUND);
+  }
+
+  auto& selector =
+      _logicalCollection.vocbase().server().getFeature<EngineSelectorFeature>();
+  auto& engine = selector.engine<RocksDBEngine>();
+  bool const inRecovery = engine.inRecovery();
+
+  std::unique_ptr<CollectionGuard> guard;
+  try {
+    guard =
+        std::make_unique<CollectionGuard>(&vocbase, _logicalCollection.id());
+  } catch (...) {
+    vocbase.release();
+    throw;
+  }
+  auto colGuard = scopeGuard([&]() noexcept { vocbase.release(); });
+  READ_LOCKER(inventoryLocker, vocbase._inventoryLock);
+  Result res;
+  std::shared_ptr<arangodb::Index> toUpdate;
+  {
+    RECURSIVE_WRITE_LOCKER(_indexesLock, _indexesLockWriteOwner);
+    for (auto& it : _indexes) {
+      if (iid == it->id()) {
+        toUpdate = it;
+        
+        break;
+      }
+    }
+
+    if (!toUpdate) {  // index not found
+      //events::UpdateIndex(_logicalCollection.vocbase().name(),
+      //                  _logicalCollection.name(), std::to_string(iid.id()),
+      //                  TRI_ERROR_ARANGO_INDEX_NOT_FOUND);
+      return {TRI_ERROR_ARANGO_INDEX_NOT_FOUND};
+    }
+
+    if (!toUpdate->canBeUpdated()) {
+      // FIXME: Do we need an event here?
+      // events::UpdateIndex(collection->vocbase().name(), collection->name(),
+      //                  std::to_string(iid.id()), TRI_ERROR_NOT_IMPLEMENTED);
+      return Result(TRI_ERROR_NOT_IMPLEMENTED);
+    }
+
+    res = toUpdate->updateProperties(body);
+    if (res.fail()) {
+      return res;
+    }
+    // skip writing WAL marker if inRecovery()
+    if (!inRecovery) {
+      auto builder = _logicalCollection.toVelocyPackIgnore(
+          {"path", "statusString"},
+          LogicalDataSource::Serialization::PersistenceWithInProgress);
+      // log this event in the WAL and in the collection meta-data
+      toUpdate->toVelocyPack(updated,
+                           Index::makeFlags(Index::Serialize::Internals));
+      res = engine.writeCreateCollectionMarker(  // write marker
+          _logicalCollection.vocbase().id(),            // vocbase id
+          _logicalCollection.id(),                      // collection id
+          builder.slice(),                              // RocksDB path
+          RocksDBLogValue::IndexChange(                   // marker
+              _logicalCollection.vocbase().id(), _logicalCollection.id(), iid,
+              updated.slice()  // args
+              ));
+    }
+  }
+  return res;
+}
+
 std::shared_ptr<Index> RocksDBCollection::createIndex(VPackSlice info,
                                                       bool restore,
                                                       bool& created) {

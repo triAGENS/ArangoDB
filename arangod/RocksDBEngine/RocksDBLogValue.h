@@ -66,6 +66,9 @@ class RocksDBLogValue {
                                      VPackSlice indexInfo);
   static RocksDBLogValue IndexDrop(TRI_voc_tick_t dbid, DataSourceId cid,
                                    IndexId indexId);
+  static RocksDBLogValue IndexChange(TRI_voc_tick_t dbid, DataSourceId cid,
+                                     IndexId indexId,
+                                     VPackSlice indexInfo);
 
   static RocksDBLogValue ViewCreate(TRI_voc_tick_t, DataSourceId);
   static RocksDBLogValue ViewDrop(TRI_voc_tick_t, DataSourceId,
@@ -105,6 +108,7 @@ class RocksDBLogValue {
   static RevisionId revisionId(rocksdb::Slice const&);
 
   static velocypack::Slice indexSlice(rocksdb::Slice const&);
+  static VPackSlice indexChangeSlice(rocksdb::Slice const& slice);
   static velocypack::Slice viewSlice(rocksdb::Slice const&);
   /// @brief get UUID from collection drop marker
   static std::string_view collectionUUID(rocksdb::Slice const&);
@@ -139,6 +143,8 @@ class RocksDBLogValue {
   RocksDBLogValue(RocksDBLogType, uint64_t, uint64_t, uint64_t);
   RocksDBLogValue(RocksDBLogType, uint64_t, uint64_t, VPackSlice);
   RocksDBLogValue(RocksDBLogType, uint64_t, uint64_t, std::string_view data);
+  RocksDBLogValue(RocksDBLogType type, uint64_t dbId, uint64_t cid,
+                  uint64_t iid, VPackSlice info);
 
  private:
   std::string _buffer;

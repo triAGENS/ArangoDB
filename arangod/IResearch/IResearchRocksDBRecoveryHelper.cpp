@@ -300,6 +300,11 @@ void IResearchRocksDBRecoveryHelper::LogData(const rocksdb::Slice& blob,
   RocksDBLogType const type = RocksDBLogValue::type(blob);
 
   switch (type) {
+    case RocksDBLogType::IndexChange: {
+      // NOOP. Definition is stored in the rocksdb
+      // and should be replayed by rocksdb
+      break;
+    }
     case RocksDBLogType::IndexCreate: {
       // Intentional NOOP. Index is committed upon creation.
       // So if this marker was written  - index was persisted already.

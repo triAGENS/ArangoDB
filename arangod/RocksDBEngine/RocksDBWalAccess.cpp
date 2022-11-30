@@ -224,6 +224,10 @@ class MyWALDumper final : public rocksdb::WriteBatch::Handler,
         }
         break;
       }
+      case RocksDBLogType::IndexChange: {
+        resetTransientState();  // finish ongoing trx
+        break;
+      }
       case RocksDBLogType::IndexCreate: {
         resetTransientState();  // finish ongoing trx
 

@@ -77,6 +77,9 @@ class RocksDBCollection final : public RocksDBMetaCollection {
   std::shared_ptr<Index> createIndex(velocypack::Slice info, bool restore,
                                      bool& created) override;
 
+  Result updateIndex(IndexId iid, velocypack::Slice body,
+                     VPackBuilder& updated) override;
+
   /// @brief Drop an index with the given iid.
   bool dropIndex(IndexId iid) override;
 

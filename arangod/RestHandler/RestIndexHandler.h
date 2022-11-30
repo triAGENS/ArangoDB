@@ -53,6 +53,7 @@ class RestIndexHandler : public arangodb::RestVocbaseBaseHandler {
   RestStatus getIndexes();
   RestStatus getSelectivityEstimates();
   RestStatus createIndex();
+  RestStatus updateIndex();
   RestStatus dropIndex();
 
   void shutdownBackgroundThread();

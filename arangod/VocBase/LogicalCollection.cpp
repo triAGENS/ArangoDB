@@ -1087,6 +1087,18 @@ std::shared_ptr<Index> LogicalCollection::createIndex(VPackSlice info,
   return idx;
 }
 
+Result LogicalCollection::updateIndex(IndexId iid, velocypack::Slice body,
+                                      VPackBuilder& updated) {
+  auto res = _physical->updateIndex(iid, body, updated);
+  if (res.ok()) {
+    auto& df = vocbase().server().getFeature<DatabaseFeature>();
+    if (df.versionTracker() != nullptr) {
+      df.versionTracker()->track("update index");
+    }
+  }
+  return res;
+}
+
 /// @brief drops an index, including index file removal and replication
 bool LogicalCollection::dropIndex(IndexId iid) {
   TRI_ASSERT(!ServerState::instance()->isCoordinator());

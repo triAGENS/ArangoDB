@@ -313,6 +313,7 @@ class LogicalCollection : public LogicalDataSource {
 
   /// @brief Create a new Index based on VelocyPack description
   virtual std::shared_ptr<Index> createIndex(velocypack::Slice, bool&);
+  virtual Result updateIndex(IndexId iid, velocypack::Slice body, VPackBuilder& updated);
 
   /// @brief Find index by definition
   std::shared_ptr<Index> lookupIndex(velocypack::Slice) const;

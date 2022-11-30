@@ -69,6 +69,8 @@ RestStatus RestIndexHandler::execute() {
     return createIndex();
   } else if (type == rest::RequestType::DELETE_REQ) {
     return dropIndex();
+  } else if (type == rest::RequestType::PATCH) {
+   return updateIndex();
   } else {
     generateError(rest::ResponseCode::METHOD_NOT_ALLOWED,
                   TRI_ERROR_HTTP_METHOD_NOT_ALLOWED);
@@ -293,6 +295,49 @@ RestStatus RestIndexHandler::getSelectivityEstimates() {
   builder.close();
 
   generateResult(rest::ResponseCode::OK, std::move(buffer));
+  return RestStatus::DONE;
+}
+
+RestStatus RestIndexHandler::updateIndex() {
+  std::vector<std::string> const& suffixes = _request->suffixes();
+  bool parseSuccess = false;
+  VPackSlice body = this->parseVPackBody(parseSuccess);
+  if (!parseSuccess) {
+    return RestStatus::DONE;
+  }
+  if (suffixes.size() != 2) {
+    // FIXME: Do we need an event here?
+    //events::UpdateIndex(_vocbase.name(), "(unknown)", "(unknown)",
+    //                  TRI_ERROR_HTTP_BAD_PARAMETER);
+    generateError(rest::ResponseCode::BAD, TRI_ERROR_HTTP_BAD_PARAMETER,
+                  "expecting PATCH /<collection-name>/<index-identifier>");
+    return RestStatus::DONE;
+  }
+  std::string const& cName = suffixes[0];
+  auto coll = collection(cName);
+  if (coll == nullptr) {
+    // FIXME: Do we need an event here?
+    // events::UpdateIndex(_vocbase.name(), "(unknown)", "(unknown)",
+    //                  TRI_ERROR_HTTP_BAD_PARAMETER);
+    generateError(rest::ResponseCode::NOT_FOUND,
+                  TRI_ERROR_ARANGO_DATA_SOURCE_NOT_FOUND);
+    return RestStatus::DONE;
+  }
+
+  std::string const& iid = suffixes[1];
+  VPackBuilder idBuilder;
+  if (iid.starts_with(cName + TRI_INDEX_HANDLE_SEPARATOR_CHR)) {
+    idBuilder.add(VPackValue(iid));
+  } else {
+    idBuilder.add(VPackValue(cName + TRI_INDEX_HANDLE_SEPARATOR_CHR + iid));
+  }
+  VPackBuilder result;
+  Result res = methods::Indexes::update(coll.get(), idBuilder.slice(), body, result);
+  if (res.ok()) {
+    generateResult(rest::ResponseCode::OK, result.slice());
+  } else {
+    generateError(res);
+  }
   return RestStatus::DONE;
 }
 
