@@ -70,14 +70,9 @@ var cleanup = function() {
 var createBaseGraph = function() {
   db._create(customerCollectionName, {
     cacheEnabled: false,
-    globallyUniqueId: "h43A585CA1081/168",
-    isSmartChild: false,
     isSystem: false,
     keyOptions: { allowUserKeys: true, type: "traditional", lastValue: 0 },
-    objectId: "167",
-    statusString: "loaded",
     usesRevisionsAsDocumentIds: true,
-    validation: null,
     waitForSync: false,
     writeConcern: 1
   });

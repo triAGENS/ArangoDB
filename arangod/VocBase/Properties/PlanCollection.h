@@ -32,10 +32,10 @@
 #include <string>
 
 namespace arangodb {
+class Result;
+
 template<typename T>
 class ResultT;
-
-struct ServerDefaults;
 
 namespace inspection {
 struct Status;
@@ -45,9 +45,36 @@ class Slice;
 }
 
 struct PlanCollection {
+  struct DatabaseConfiguration {
+#if ARANGODB_USE_GOOGLE_TESTS
+    // Default constructor for testability.
+    // In production, we need to use vocbase
+    // constructor.
+    DatabaseConfiguration() = default;
+#endif
+    explicit DatabaseConfiguration(TRI_vocbase_t const& database);
+
+    bool allowExtendedNames = false;
+    bool shouldValidateClusterSettings = false;
+    uint32_t maxNumberOfShards = 0;
+
+    uint32_t minReplicationFactor = 0;
+    uint32_t maxReplicationFactor = 0;
+    bool enforceReplicationFactor = true;
+
+    uint64_t defaultNumberOfShards = 1;
+    uint64_t defaultReplicationFactor = 1;
+    uint64_t defaultWriteConcern = 1;
+    std::string defaultDistributeShardsLike = "";
+    bool isOneShardDB = false;
+  };
+
   struct Invariants {
     [[nodiscard]] static auto isNonEmpty(std::string const& value)
         -> inspection::Status;
+
+    [[nodiscard]] static auto isNonEmptyIfPresent(
+        std::optional<std::string> const& value) -> inspection::Status;
 
     [[nodiscard]] static auto isGreaterZero(uint64_t const& value)
         -> inspection::Status;
@@ -58,6 +85,9 @@ struct PlanCollection {
     [[nodiscard]] static auto isValidCollectionType(
         std::underlying_type_t<TRI_col_type_e> const& value)
         -> inspection::Status;
+
+    [[nodiscard]] static auto areShardKeysValid(
+        std::vector<std::string> const& value) -> inspection::Status;
   };
 
   struct Transformers {
@@ -76,13 +106,22 @@ struct PlanCollection {
   PlanCollection();
 
   static ResultT<PlanCollection> fromCreateAPIBody(
-      arangodb::velocypack::Slice input,
-      arangodb::ServerDefaults defaultValues);
+      arangodb::velocypack::Slice input, DatabaseConfiguration config);
+
+  static ResultT<PlanCollection> fromCreateAPIV8(
+      arangodb::velocypack::Slice properties, std::string const& name,
+      TRI_col_type_e type, DatabaseConfiguration config);
+
+  static arangodb::velocypack::Builder toCreateCollectionProperties(
+      std::vector<PlanCollection> const& collections);
 
   // Temporary method to handOver information from
-  arangodb::velocypack::Builder toCollectionsCreate();
+  [[nodiscard]] arangodb::velocypack::Builder toCollectionsCreate() const;
 
-  std::string name;
+  [[nodiscard]] arangodb::Result validateDatabaseConfiguration(
+      DatabaseConfiguration config) const;
+
+  std::string name = StaticStrings::Empty;
   std::underlying_type_t<TRI_col_type_e> type;
   bool waitForSync;
   bool isSystem;
@@ -94,7 +133,7 @@ struct PlanCollection {
   uint64_t replicationFactor;
   uint64_t writeConcern;
   std::string distributeShardsLike;
-  std::string smartJoinAttribute;
+  std::optional<std::string> smartJoinAttribute;
   std::string shardingStrategy;
   std::string globallyUniqueId;
 
@@ -117,10 +156,14 @@ struct PlanCollection {
   bool usesRevisionsAsDocumentIds;
   bool isSmart;
   bool isDisjoint;
+  bool isSmartChild = false;
   std::string smartGraphAttribute;
   // Deprecated, and not documented anymore
 
   std::string id;
+
+  // Not documented, actually this is an option, not a configuration parameter
+  std::vector<std::string> avoidServers = {};
 
   // TODO: Maybe this is better off with a transformator Uint -> col_type_e
   [[nodiscard]] TRI_col_type_e getType() const noexcept {
@@ -136,6 +179,7 @@ auto inspect(Inspector& f, PlanCollection& planCollection) {
   return f.object(planCollection)
       .fields(
           f.field("name", planCollection.name)
+              .fallback(f.keep())
               .invariant(PlanCollection::Invariants::isNonEmpty),
           f.field("id", planCollection.id).fallback(""),
           f.field("waitForSync", planCollection.waitForSync).fallback(false),
@@ -174,16 +218,18 @@ auto inspect(Inspector& f, PlanCollection& planCollection) {
               .transformWith(
                   PlanCollection::Transformers::ReplicationSatellite{}),
           f.field("distributeShardsLike", planCollection.distributeShardsLike)
-              .fallback(""),
-          f.field("smartJoinAttribute", planCollection.smartJoinAttribute)
-              .fallback(""),
+              .fallback(f.keep()),
+          f.field(StaticStrings::SmartJoinAttribute,
+                  planCollection.smartJoinAttribute)
+              .invariant(PlanCollection::Invariants::isNonEmptyIfPresent),
           f.field("globallyUniqueId", planCollection.globallyUniqueId)
               .fallback(""),
           f.field("shardingStrategy", planCollection.shardingStrategy)
               .fallback("")
               .invariant(PlanCollection::Invariants::isValidShardingStrategy),
           f.field("shardKeys", planCollection.shardKeys)
-              .fallback(std::vector<std::string>{StaticStrings::KeyString}),
+              .fallback(std::vector<std::string>{StaticStrings::KeyString})
+              .invariant(PlanCollection::Invariants::areShardKeysValid),
           f.field("type", planCollection.type)
               .fallback(TRI_col_type_e::TRI_COL_TYPE_DOCUMENT)
               .invariant(PlanCollection::Invariants::isValidCollectionType),
@@ -192,7 +238,11 @@ auto inspect(Inspector& f, PlanCollection& planCollection) {
           f.field("keyOptions", planCollection.keyOptions)
               .fallback(VPackSlice::emptyObjectSlice()),
           f.field("computedValues", planCollection.computedValues)
-              .fallback(VPackSlice::emptyArraySlice()));
+              .fallback(VPackSlice::emptyArraySlice()),
+          f.field("avoidServers", planCollection.avoidServers)
+              .fallback(f.keep()),
+          f.field("isSmartChild", planCollection.isSmartChild)
+              .fallback(f.keep()));
 }
 
 }  // namespace arangodb

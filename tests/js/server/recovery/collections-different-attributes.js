@@ -38,7 +38,7 @@ function runSetup () {
 
   var c, i;
   db._drop('UnitTestsRecovery');
-  c = db._create('UnitTestsRecovery', { 'id': 9999990 });
+  c = db._create('UnitTestsRecovery', { 'id': "9999990" });
   for (i = 0; i < 10; ++i) {
     c.save({ _key: 'test' + i, value1: i, value2: 'test', value3: [ 'foo', i ] });
   }
@@ -47,7 +47,7 @@ function runSetup () {
   c.drop();
   internal.wait(5);
 
-  c = db._create('UnitTestsRecovery', { 'id': 9999990 });
+  c = db._create('UnitTestsRecovery', { 'id': "9999990" });
   for (i = 0; i < 10; ++i) {
     c.save({ _key: 'test' + i, value3: i, value1: 'test', value2: [ 'foo', i ] });
   }

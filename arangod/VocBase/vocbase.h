@@ -87,6 +87,7 @@ class DatabaseReplicationApplier;
 class LogicalCollection;
 class LogicalDataSource;
 class LogicalView;
+struct PlanCollection;
 class ReplicationClientsProgressTracker;
 class StorageEngine;
 struct VocBaseLogManager;
@@ -369,6 +370,12 @@ struct TRI_vocbase_t {
   /// registered after initial validation).
   std::vector<std::shared_ptr<arangodb::LogicalCollection>> createCollections(
       arangodb::velocypack::Slice infoSlice,
+      bool allowEnterpriseCollectionsOnSingleServer);
+
+  [[nodiscard]] arangodb::ResultT<
+      std::vector<std::shared_ptr<arangodb::LogicalCollection>>>
+  createCollections(
+      std::vector<arangodb::PlanCollection> const& parametersOfCollections,
       bool allowEnterpriseCollectionsOnSingleServer);
 
   /// @brief creates a new collection from parameter set

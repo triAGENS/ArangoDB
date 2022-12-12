@@ -37,14 +37,14 @@ function runSetup () {
 
   var c;
   db._drop('footest');
-  c = db._create('footest', { id: 99999999 });
+  c = db._create('footest', { id: `${99999999}` });
   c.save({ foo: 'bar' });
   c.save({ foo: 'bart' });
   db._drop('footest');
 
   internal.wait(2);
 
-  c = db._create('footest', { id: 99999999 });
+  c = db._create('footest', { id: `${99999999}` });
   c.save({ foo: 'baz' });
 
   db._drop('test');

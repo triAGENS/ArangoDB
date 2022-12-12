@@ -50,6 +50,8 @@ void Authenticated(GeneralRequest const&, rest::AuthenticationMethod);
 void NotAuthorized(GeneralRequest const&);
 void CreateCollection(std::string const& db, std::string const& name,
                       ErrorCode result);
+void CreateCollection(std::string const& db, std::string_view name,
+                      ErrorCode result);
 void DropCollection(std::string const& db, std::string const& name,
                     ErrorCode result);
 void PropertyUpdateCollection(std::string const& db,

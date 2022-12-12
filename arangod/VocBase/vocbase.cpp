@@ -101,6 +101,7 @@
 #include "VocBase/LogicalCollection.h"
 #include "VocBase/LogicalDataSource.h"
 #include "VocBase/LogicalView.h"
+#include "VocBase/Properties/PlanCollection.h"
 
 #include <thread>
 #include <absl/strings/str_cat.h>
@@ -1318,6 +1319,39 @@ std::shared_ptr<arangodb::LogicalCollection> TRI_vocbase_t::createCollection(
   } catch (std::exception const&) {
     events::CreateCollection(dbName, name, TRI_ERROR_INTERNAL);
     throw;
+  }
+}
+
+ResultT<std::vector<std::shared_ptr<arangodb::LogicalCollection>>>
+TRI_vocbase_t::createCollections(
+    std::vector<arangodb::PlanCollection> const& collections,
+    bool allowEnterpriseCollectionsOnSingleServer) {
+  // TODO: Need to get rid of this collection. Distribute Shards like
+  // is now denoted inside the PlanCollection
+  std::shared_ptr<LogicalCollection> colToDistributeShardsLike;
+  /// Code from here is copy pasted from original create and
+  /// has not been refacored yet.
+  VPackBuilder builder =
+      PlanCollection::toCreateCollectionProperties(collections);
+  VPackSlice infoSlice = builder.slice();
+
+  TRI_ASSERT(infoSlice.isArray());
+  TRI_ASSERT(infoSlice.length() >= 1);
+  TRI_ASSERT(infoSlice.length() == collections.size());
+  try {
+    // Here we do have a single server setup, or we're either on a DBServer
+    // / Agency. In that case, we're not batching collection creating.
+    // Therefore, we need to iterate over the infoSlice and create each
+    // collection one by one.
+    return {
+        createCollections(infoSlice, allowEnterpriseCollectionsOnSingleServer)};
+
+  } catch (basics::Exception const& ex) {
+    return Result(ex.code(), ex.what());
+  } catch (std::exception const& ex) {
+    return Result(TRI_ERROR_INTERNAL, ex.what());
+  } catch (...) {
+    return Result(TRI_ERROR_INTERNAL, "cannot create collection");
   }
 }
 

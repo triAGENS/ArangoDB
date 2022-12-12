@@ -93,6 +93,7 @@
 #include "ClusterEngine/Common.h"
 #include "StorageEngine/EngineSelectorFeature.h"
 #include "Metrics/Types.h"
+#include "VocBase/Properties/PlanCollection.h"
 
 using namespace arangodb;
 using namespace arangodb::basics;
@@ -2829,6 +2830,51 @@ Result compactOnAllDBServers(ClusterFeature& feature, bool changeLevel,
     }
   }
   return {};
+}
+
+[[nodiscard]] arangodb::ResultT<std::vector<std::shared_ptr<LogicalCollection>>>
+ClusterMethods::createCollectionsOnCoordinator(
+    TRI_vocbase_t& vocbase, std::vector<PlanCollection> const& collections,
+    bool ignoreDistributeShardsLikeErrors, bool waitForSyncReplication,
+    bool enforceReplicationFactor, bool isNewDatabase) {
+  /// Code from here is copy pasted from original create and
+  /// has not been refactored yet.
+  VPackBuilder builder =
+      PlanCollection::toCreateCollectionProperties(collections);
+
+  // TODO: Need to get rid of this collection. Distribute Shards like
+  // is now denoted inside the PlanCollection
+  std::shared_ptr<LogicalCollection> colToDistributeShardsLike;
+
+  VPackSlice infoSlice = builder.slice();
+
+  TRI_ASSERT(infoSlice.isArray());
+  TRI_ASSERT(infoSlice.length() >= 1);
+  TRI_ASSERT(infoSlice.length() == collections.size());
+
+  std::vector<std::shared_ptr<LogicalCollection>> results;
+  results.reserve(collections.size());
+
+  try {
+    results = ClusterMethods::createCollectionsOnCoordinator(
+        vocbase, infoSlice, ignoreDistributeShardsLikeErrors,
+        waitForSyncReplication, enforceReplicationFactor, isNewDatabase,
+        colToDistributeShardsLike);
+
+    if (collections.empty()) {
+      for (auto const& info : collections) {
+        events::CreateCollection(vocbase.name(), info.name, TRI_ERROR_INTERNAL);
+      }
+      return Result(TRI_ERROR_INTERNAL, "createCollectionsOnCoordinator");
+    }
+  } catch (basics::Exception const& ex) {
+    return Result(ex.code(), ex.what());
+  } catch (std::exception const& ex) {
+    return Result(TRI_ERROR_INTERNAL, ex.what());
+  } catch (...) {
+    return Result(TRI_ERROR_INTERNAL, "cannot create collection");
+  }
+  return {std::move(results)};
 }
 
 #ifndef USE_ENTERPRISE

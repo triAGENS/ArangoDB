@@ -606,32 +606,191 @@ Collections::create(         // create collection
     bool enforceReplicationFactor,            // replication factor flag
     bool isNewDatabase, bool allowEnterpriseCollectionsOnSingleServer,
     bool isRestore) {
-  std::vector<std::shared_ptr<LogicalCollection>> results;
-  results.reserve(collections.size());
-  // This block is to be replaced by proper implementation
-  {
-    // In this rudimentary forward we only support single collection, as this is
-    // the only way it is used right now.
-    TRI_ASSERT(collections.size() == 1);
-    // Just plainly forward
-    auto& planCollection = collections.at(0);
-    auto parameters = planCollection.toCollectionsCreate();
-    std::shared_ptr<LogicalCollection> coll;
-    auto res = methods::Collections::create(
-        vocbase, options,
-        planCollection.name,            // collection name
-        planCollection.getType(),       // collection type
-        parameters.slice(),             // collection properties
-        createWaitsForSyncReplication,  // replication wait flag
-        enforceReplicationFactor,       // replication factor flag
-        /*isNewDatabase*/ false,        // here always false
-        coll, planCollection.isSystem);
+  // Let's first check if we are allowed to create the collections
+  ExecContext const& exec = options.context();
+  if (!exec.canUseDatabase(vocbase.name(), auth::Level::RW)) {
+    for (auto const& col : collections) {
+      events::CreateCollection(vocbase.name(), col.name, TRI_ERROR_FORBIDDEN);
+    }
+    return arangodb::Result(                             // result
+        TRI_ERROR_FORBIDDEN,                             // code
+        "cannot create collection in " + vocbase.name()  // message
+    );
+  }
+
+  // TODO: Discuss should this be Prod Assert?
+  // We are trying to protect against someone creating collections
+  // in a database that is to be deleted.
+  // Or should this be a possible error?
+  TRI_ASSERT(!vocbase.isDangling());
+
+  PlanCollection::DatabaseConfiguration config(vocbase);
+  config.enforceReplicationFactor = enforceReplicationFactor;
+
+  ClusterInfo& ci = vocbase.server().getFeature<ClusterFeature>().clusterInfo();
+  for (auto& col : collections) {
+    if (!col.distributeShardsLike.empty()) {
+      // Apply distributeShardsLike overwrites
+      // TODO: Make this piece unit-testable.
+      CollectionNameResolver resolver(vocbase);
+      auto myColToDistributeLike = resolver.getCollection(col.distributeShardsLike);
+      if (myColToDistributeLike == nullptr) {
+        return Result{
+          TRI_ERROR_CLUSTER_UNKNOWN_DISTRIBUTESHARDSLIKE,
+            "Collection not found: " + col.distributeShardsLike +
+            " in database " + vocbase.name()};
+      }
+      col.numberOfShards = myColToDistributeLike->numberOfShards();
+      col.replicationFactor = myColToDistributeLike->replicationFactor();
+      // TODO: writeConcern is inherited when using replication2
+      // col.writeConcern = myColToDistributeLike->writeConcern();
+    }
+    // TODO: Maybe we can do this within the parsing Step already.
+    // but that is a cleanup for later.
+    auto res = col.validateDatabaseConfiguration(config);
     if (res.fail()) {
+      for (auto const& reportCollection : collections) {
+        events::CreateCollection(vocbase.name(), reportCollection.name,
+                                 res.errorNumber());
+      }
       return res;
     }
-    results.emplace_back(coll);
-    return results;
+
+    // make sure we have enough servers available for the replication
+    // factor
+    if (config.enforceReplicationFactor &&
+        ServerState::instance()->isCoordinator() &&
+        col.replicationFactor > ci.getCurrentDBServers().size()) {
+      return Result(TRI_ERROR_CLUSTER_INSUFFICIENT_DBSERVERS);
+    }
+
+    {
+      // Only validate computed values
+      // we do not make use of the actual ComputedValueExecutor here
+      // TODO: Can be replaced by a two step way inspect -> ComputedValuesInput
+      // -> ComputedValues
+      auto result = ComputedValues::buildInstance(vocbase, col.shardKeys,
+                                                  col.computedValues.slice());
+      if (result.fail()) {
+        return result.result();
+      }
+    }
   }
+
+  arangodb::ResultT<std::vector<std::shared_ptr<LogicalCollection>>> results{
+      TRI_ERROR_INTERNAL};
+
+  if (ServerState::instance()->isCoordinator()) {
+    // Here we do have a cluster setup. In that case, we will create many
+    // collections in one go (batch-wise).
+    results = ClusterMethods::createCollectionsOnCoordinator(
+        vocbase, collections, false, createWaitsForSyncReplication,
+        enforceReplicationFactor, isNewDatabase);
+    if (results.fail()) {
+      for (auto const& info : collections) {
+        events::CreateCollection(vocbase.name(), info.name,
+                                 results.errorNumber());
+      }
+      return results;
+    }
+    if (results->empty()) {
+      // TODO: CHeck if this can really happen after refactoring is completed
+      // We may be able to guarantee error when nothing could be done.
+      for (auto const& info : collections) {
+        events::CreateCollection(vocbase.name(), info.name, TRI_ERROR_INTERNAL);
+      }
+      return Result(TRI_ERROR_INTERNAL, "createCollectionsOnCoordinator");
+    }
+  } else {
+    TRI_ASSERT(ServerState::instance()->isSingleServer() ||
+               ServerState::instance()->isDBServer() ||
+               ServerState::instance()->isAgent());
+    // Here we do have a single server setup, or we're either on a DBServer
+    // / Agency. In that case, we're not batching collection creating.
+    // Therefore, we need to iterate over the infoSlice and create each
+    // collection one by one.
+    results = vocbase.createCollections(
+        collections, allowEnterpriseCollectionsOnSingleServer);
+    if (results.fail()) {
+      return results;
+    }
+  }
+
+  // Grant access to the collections.
+  // This is identical on cluster and SingleServer
+  try {
+    // in case of success we grant the creating user RW access
+    auth::UserManager* um = AuthenticationFeature::instance()->userManager();
+    if (um != nullptr && !exec.isSuperuser() && !isRestore) {
+      // this should not fail, we can not get here without database RW access
+      // however, there may be races for updating the users account, so we try
+      // a few times in case of a conflict
+      int tries = 0;
+      while (true) {
+        Result r = um->updateUser(exec.user(), [&](auth::User& entry) {
+          for (auto const& col : *results) {
+            // do not grant rights on system collections
+            if (!col->system()) {
+              entry.grantCollection(vocbase.name(), col->name(),
+                                    auth::Level::RW);
+            }
+          }
+          return TRI_ERROR_NO_ERROR;
+        });
+        if (r.ok() || r.is(TRI_ERROR_USER_NOT_FOUND) ||
+            r.is(TRI_ERROR_USER_EXTERNAL)) {
+          // it seems to be allowed to created collections with an unknown user
+          break;
+        }
+        if (!r.is(TRI_ERROR_ARANGO_CONFLICT) || ++tries == 10) {
+          // This could be 116bb again, as soon as "old code" is removed
+          LOG_TOPIC("116bc", WARN, Logger::AUTHENTICATION)
+              << "Updating user failed with error: " << r.errorMessage()
+              << ". giving up!";
+          for (auto const& col : *results) {
+            events::CreateCollection(vocbase.name(), col->name(),
+                                     r.errorNumber());
+          }
+          return r;
+        }
+        // try again in case of conflict
+        // This could be ff123 again, as soon as "old code" is removed
+        LOG_TOPIC("ff124", TRACE, Logger::AUTHENTICATION)
+            << "Updating user failed with error: " << r.errorMessage()
+            << ". trying again";
+      }
+    }
+  } catch (basics::Exception const& ex) {
+    for (auto const& info : collections) {
+      events::CreateCollection(vocbase.name(), info.name, ex.code());
+    }
+    return Result(ex.code(), ex.what());
+  } catch (std::exception const& ex) {
+    for (auto const& info : collections) {
+      events::CreateCollection(vocbase.name(), info.name, TRI_ERROR_INTERNAL);
+    }
+    return Result(TRI_ERROR_INTERNAL, ex.what());
+  } catch (...) {
+    for (auto const& info : collections) {
+      events::CreateCollection(vocbase.name(), info.name, TRI_ERROR_INTERNAL);
+    }
+    return Result(TRI_ERROR_INTERNAL, "cannot create collection");
+  }
+  for (auto const& info : collections) {
+    if (!ServerState::instance()->isSingleServer()) {
+      // don't log here (again) for single servers, because on the single
+      // server we will log the creation of each collection inside
+      // vocbase::createCollectionWorker
+      events::CreateCollection(vocbase.name(), info.name, TRI_ERROR_NO_ERROR);
+    }
+
+    // TODO: update auditLog reporting
+    OperationResult result(Result(), info.toCollectionsCreate().steal(),
+                           options);
+    events::PropertyUpdateCollection(vocbase.name(), info.name, result);
+  }
+
+  return results;
 }
 
 /*static*/ arangodb::Result Collections::create(  // create collection
