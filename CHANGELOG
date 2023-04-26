@@ -1,6 +1,13 @@
 devel
 -----
 
+* Fixed a race condition on concurrent drop and create database calls on
+  the same database name. This race also requires DBServers to have a large
+  difference in their reaction time to drop database, so one being very busy
+  the other almost idle. Then this race could lead to a coordinator locking up
+  the AgencySynchronization and not update to new plans. If you always wait for
+  dropDatabase to complete and then trigger createDatabase this race cannot occur.
+
 * FE-238: Added auto-login support in core web UI - disabled logout when
   auto-login is enabled, set sessionStorage "jwtUser" value when login is
   skipped.

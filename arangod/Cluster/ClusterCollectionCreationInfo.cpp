@@ -44,22 +44,9 @@ ClusterCollectionCreationInfo::ClusterCollectionCreationInfo(
       json(slice),
       name(basics::VelocyPackHelper::getStringValue(
           json, StaticStrings::DataSourceName, StaticStrings::Empty)),
-      state(ClusterCollectionCreationState::INIT),
       creator(std::in_place, std::move(coordinatorId), rebootId) {
   TRI_ASSERT(creator);
   TRI_ASSERT(creator->rebootId().initialized());
-  if (numberOfShards == 0) {
-// Nothing to do this cannot fail
-// Deactivated this assertion, our testing mock for coordinator side
-// tries to get away without other servers by initially adding only 0
-// shard collections (non-smart). We do not want to loose these test.
-// So we will loose this assertion for now.
-#ifndef ARANGODB_USE_GOOGLE_TESTS
-    TRI_ASSERT(basics::VelocyPackHelper::getBooleanValue(
-        json, StaticStrings::IsSmart, false));
-#endif
-    state = ClusterCollectionCreationState::DONE;
-  }
   TRI_ASSERT(!name.empty());
   if (needsBuildingFlag()) {
     VPackBuilder tmp;
@@ -72,19 +59,6 @@ ClusterCollectionCreationInfo::ClusterCollectionCreationInfo(
     _isBuildingJson = VPackCollection::merge(json, tmp.slice(), true, false);
   }
 }
-
-ClusterCollectionCreationInfo::ClusterCollectionCreationInfo(
-    ClusterCollectionCreationInfo const& r)
-    : collectionID(r.collectionID),
-      numberOfShards(r.numberOfShards),
-      replicationFactor(r.replicationFactor),
-      writeConcern(r.writeConcern),
-      waitForReplication(r.waitForReplication),
-      json(r.json),
-      name(r.name),
-      state(r.state.load(std::memory_order_relaxed)),
-      creator(r.creator),
-      _isBuildingJson(r._isBuildingJson) {}
 
 VPackSlice ClusterCollectionCreationInfo::isBuildingSlice() const {
   if (needsBuildingFlag()) {

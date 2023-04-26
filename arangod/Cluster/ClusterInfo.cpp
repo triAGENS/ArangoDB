@@ -122,6 +122,41 @@ struct ShardStatistics {
 
 namespace {
 
+struct CreateCollectionReport {
+
+  explicit CreateCollectionReport(size_t expected) : _nrExpected(expected){}
+
+  Result dbServerResult;
+  bool isCleaned{false};
+
+  bool allReported() const noexcept {
+    // == is expected, however if we somehow collect too many reports we do not want this
+    // to block
+    TRI_ASSERT(_reports.size() <= _nrExpected);
+    return _reports.size() >= _nrExpected;
+  }
+  bool hasReported(std::string const& collectionId) const noexcept {
+    return _reports.contains(collectionId);
+  }
+
+  bool hasFailed(std::string const& collectionId) const noexcept {
+    auto const& it = _reports.find(collectionId);
+
+    return it != _reports.end() && it->second == ClusterCollectionCreationState::FAILED;
+  }
+
+  void setReport(std::string const& collectionId, ClusterCollectionCreationState state) {
+    TRI_ASSERT(!hasReported(collectionId)) << "We reported twice for collection: " << collectionId;
+    _reports.emplace(collectionId, state);
+  }
+
+ private:
+  size_t _nrExpected;
+  // This requires specific access patterns, so let us only modify it with getter/setter
+  std::unordered_map<std::string, ClusterCollectionCreationState> _reports;
+
+};
+
 std::string const kMetricsServerId = "Plan/Metrics/ServerId";
 std::string const kMetricsRebootId = "Plan/Metrics/RebootId";
 
@@ -3287,35 +3322,25 @@ Result ClusterInfo::createCollectionsCoordinator(
       << " isNewDatabase: " << isNewDatabase
       << " first collection name: " << infos[0].name;
 
-  // The following three are used for synchronization between the callback
+  // The following are used for synchronization between the callback
   // closure and the main thread executing this function. Note that it can
   // happen that the callback is called only after we return from this
   // function!
-  auto dbServerResult =
-      std::make_shared<std::atomic<std::optional<ErrorCode>>>(std::nullopt);
-  auto nrDone = std::make_shared<std::atomic<size_t>>(0);
-  auto errMsg = std::make_shared<std::string>();
-  auto cacheMutex = std::make_shared<std::mutex>();
-  auto cacheMutexOwner = std::make_shared<std::atomic<std::thread::id>>();
-  auto isCleaned = std::make_shared<bool>(false);
+  // Also note: We will use this guarded structure to protect access into state
+  // entries inside the infos list, as tehy can be modified concurrently.
+  auto report = std::make_shared<Guarded<CreateCollectionReport>>(
+      CreateCollectionReport{infos.size()});
 
   AgencyComm ac(_server);
   std::vector<std::shared_ptr<AgencyCallback>> agencyCallbacks;
 
   auto cbGuard = scopeGuard([&]() noexcept {
     try {
-      // We have a subtle race here, that we try to cover against:
-      // We register a callback in the agency.
-      // For some reason this scopeguard is executed (e.g. error case)
-      // While we are in this cleanup, and before a callback is removed from the
-      // agency. The callback is triggered by another thread. We have the
-      // following guarantees: a) cacheMutex|Owner are valid and locked by
-      // cleanup b) isCleaned is valid and now set to true c) the closure is
-      // owned by the callback d) info might be deleted, so we cannot use it. e)
-      // If the callback is ongoing during cleanup, the callback will
-      //    hold the Mutex and delay the cleanup.
-      RECURSIVE_MUTEX_LOCKER(*cacheMutex, *cacheMutexOwner);
-      *isCleaned = true;
+      // In order to protect against races and Use-after free
+      // we disable all callbacks by setting isCleaned to true
+      // furthermore in the callback created later we need to
+      // make sure all infromation is copied and not referenced
+      report->getLockedGuard()->isCleaned = true;
       for (auto& cb : agencyCallbacks) {
         _agencyCallbackRegistry->unregisterCallback(cb);
       }
@@ -3331,8 +3356,6 @@ Result ClusterInfo::createCollectionsCoordinator(
   containers::FlatHashSet<ServerID> allServers;
   std::vector<replication2::agency::LogTarget> replicatedStates;
 
-  // current thread owning 'cacheMutex' write lock (workaround for non-recursive
-  // Mutex)
   for (auto& info : infos) {
     TRI_IF_FAILURE("ClusterInfo::requiresWaitForReplication") {
       if (info.waitForReplication) {
@@ -3344,9 +3367,17 @@ Result ClusterInfo::createCollectionsCoordinator(
     }
     TRI_ASSERT(!info.name.empty());
 
-    if (info.state == ClusterCollectionCreationState::DONE) {
-      // This is possible in Enterprise / Smart Collection situation
-      (*nrDone)++;
+    if (info.numberOfShards == 0) {
+// Nothing to do this cannot fail
+// Deactivated this assertion, our testing mock for coordinator side
+// tries to get away without other servers by initially adding only 0
+// shard collections (non-smart). We do not want to lose these test.
+// So we will lose this assertion for now.
+#ifndef ARANGODB_USE_GOOGLE_TESTS
+      TRI_ASSERT(basics::VelocyPackHelper::getBooleanValue(
+          info.json, StaticStrings::IsSmart, false));
+#endif
+      report->getLockedGuard()->setReport(info.collectionID, ClusterCollectionCreationState::DONE);
     }
 
     std::map<ShardID, std::vector<ServerID>> shardServers;
@@ -3368,30 +3399,29 @@ Result ClusterInfo::createCollectionsCoordinator(
     //
     // The AgencyCallback will copy the closure and take responsibility of it.
     // this here is ok as ClusterInfo is not destroyed
-    // for &info it should have ensured lifetime somehow. OR ensured that
-    // callback is noop in case it is triggered too late.
-    auto closure = [cacheMutex, cacheMutexOwner, &info, dbServerResult, errMsg,
-                    nrDone, isCleaned, shardServers, this](VPackSlice result) {
-      // NOTE: This ordering here is important to cover against a race in
-      // cleanup. a) The Guard get's the Mutex, sets isCleaned == true, then
-      // removes the callback b) If the callback is acquired it is saved in a
-      // shared_ptr, the Mutex will be acquired first, then it will check if it
-      // isCleaned
-      RECURSIVE_MUTEX_LOCKER(*cacheMutex, *cacheMutexOwner);
-      if (*isCleaned) {
-        return true;
-      }
-      TRI_ASSERT(!info.name.empty());
-      if (info.state != ClusterCollectionCreationState::INIT) {
-        // All leaders have reported either good or bad
-        // We might be called by followers if they get in sync fast enough
-        // In this IF we are in the followers case, we can safely ignore
+    // We need to copy every variable here, otherwise the callback may still
+    // be working, while the main thread is completed and frees the structures.
+
+    auto closure = [report, cid = info.collectionID, name = info.name, numberOfShards = info.numberOfShards, waitForReplication = info.waitForReplication, shardServers, this](VPackSlice result) {
+      // We do a short-cut to complete the callback, if the operation is completed
+      // (success or abort) or this collection has already reported.
+      if (report->doUnderLock(
+              [&cid](CreateCollectionReport const& report) -> bool {
+                if (report.isCleaned) {
+                  return true;
+                }
+                  // All leaders have reported either good or bad
+                  // We might be called by followers if they get in sync fast
+                  // enough In this IF we are in the followers case, we can
+                  // safely ignore
+                return report.hasReported(cid);
+              })) {
         return true;
       }
 
       // result is the object at the path
       if (result.isObject() &&
-          result.length() == static_cast<size_t>(info.numberOfShards)) {
+          result.length() == static_cast<size_t>(numberOfShards)) {
         std::string tmpError;
 
         for (auto const& p : VPackObjectIterator(result)) {
@@ -3413,7 +3443,7 @@ Result ClusterInfo::createCollectionsCoordinator(
           }
 
           // wait that all followers have created our new collection
-          if (tmpError.empty() && info.waitForReplication) {
+          if (tmpError.empty() && waitForReplication) {
             std::vector<ServerID> plannedServers;
             // copy all servers which are in p from shardServers to
             // plannedServers
@@ -3427,15 +3457,15 @@ Result ClusterInfo::createCollectionsCoordinator(
                     << "Did not find shard in _shardServers: "
                     << p.key.copyString()
                     << ". Maybe the collection is already dropped.";
-                *errMsg =
-                    "Error in creation of collection: " + p.key.copyString() +
-                    ". Collection already dropped. " + __FILE__ + ":" +
-                    std::to_string(__LINE__);
-                dbServerResult->store(
-                    TRI_ERROR_CLUSTER_COULD_NOT_CREATE_COLLECTION,
-                    std::memory_order_release);
-                TRI_ASSERT(info.state != ClusterCollectionCreationState::DONE);
-                info.state = ClusterCollectionCreationState::FAILED;
+                report->doUnderLock([&p, &cid](CreateCollectionReport& report) {
+                  report.dbServerResult = Result{
+                      TRI_ERROR_CLUSTER_COULD_NOT_CREATE_COLLECTION,
+                      "Error in creation of collection: " + p.key.copyString() +
+                          ". Collection already dropped. " + __FILE__ + ":" +
+                          std::to_string(__LINE__)};
+                  report.setReport(cid, ClusterCollectionCreationState::FAILED);
+                });
+
                 return true;
               }
             }
@@ -3444,10 +3474,10 @@ Result ClusterInfo::createCollectionsCoordinator(
               LOG_TOPIC("a0a76", DEBUG, Logger::CLUSTER)
                   << "This should never have happened, Plan empty. Dumping "
                      "_shards in Plan:";
-              for (auto const& p : _shards) {
+              for (auto const& [shard, servers] : _shards) {
                 LOG_TOPIC("60c7d", DEBUG, Logger::CLUSTER)
-                    << "Shard: " << p.first;
-                for (auto const& q : *(p.second)) {
+                    << "Shard: " << shard;
+                for (auto const& q : *(servers)) {
                   LOG_TOPIC("c7363", DEBUG, Logger::CLUSTER)
                       << "  Server: " << q;
                 }
@@ -3467,30 +3497,31 @@ Result ClusterInfo::createCollectionsCoordinator(
             }
             if (!ClusterHelpers::compareServerLists(plannedServers,
                                                     currentServers)) {
-              TRI_ASSERT(!info.name.empty());
+              TRI_ASSERT(!name.empty());
               LOG_TOPIC("16623", DEBUG, Logger::CLUSTER)
                   << "Still waiting for all servers to ACK creation of "
-                  << info.name << ". Planned: " << plannedServers
+                  << name << ". Planned: " << plannedServers
                   << ", Current: " << currentServers;
               return true;
             }
           }
         }
         if (!tmpError.empty()) {
-          *errMsg = "Error in creation of collection:" + tmpError + " " +
-                    __FILE__ + std::to_string(__LINE__);
-          dbServerResult->store(TRI_ERROR_CLUSTER_COULD_NOT_CREATE_COLLECTION,
-                                std::memory_order_release);
-          // We cannot get into bad state after a collection was created
-          TRI_ASSERT(info.state != ClusterCollectionCreationState::DONE);
-          info.state = ClusterCollectionCreationState::FAILED;
+          report->doUnderLock(
+              [&tmpError, &cid](CreateCollectionReport& report) {
+                report.dbServerResult = Result{
+                    TRI_ERROR_CLUSTER_COULD_NOT_CREATE_COLLECTION,
+                    "Error in creation of collection :" + tmpError + " " +
+                        __FILE__ + std::to_string(__LINE__)};
+                report.setReport(cid, ClusterCollectionCreationState::FAILED);
+              });
+
         } else {
           // We can have multiple calls to this callback, one per leader and one
           // per follower As soon as all leaders are done we are either FAILED
           // or DONE, this cannot be altered later.
-          TRI_ASSERT(info.state != ClusterCollectionCreationState::FAILED);
-          info.state = ClusterCollectionCreationState::DONE;
-          (*nrDone)++;
+          report->getLockedGuard()->setReport(
+              cid, ClusterCollectionCreationState::DONE);
         }
       }
       return true;
@@ -3729,7 +3760,6 @@ Result ClusterInfo::createCollectionsCoordinator(
       // using loadPlan, this is necessary for the callback closure to
       // see the new planned state for this collection. Otherwise it cannot
       // recognize completion of the create collection operation properly:
-      RECURSIVE_MUTEX_LOCKER(*cacheMutex, *cacheMutexOwner);
       auto res = ac.sendTransactionWithFailover(transaction);
       // Only if not precondition failed
       if (!res.successful()) {
@@ -3789,7 +3819,7 @@ Result ClusterInfo::createCollectionsCoordinator(
   });
 
   do {
-    auto tmpRes = dbServerResult->load(std::memory_order_acquire);
+    auto tmpRes = report->getLockedGuard()->dbServerResult;
     if (TRI_microtime() > endTime) {
       for (auto const& info : infos) {
         LOG_TOPIC("f6b57", ERR, Logger::CLUSTER)
@@ -3808,12 +3838,40 @@ Result ClusterInfo::createCollectionsCoordinator(
       // Get a full agency dump for debugging
       logAgencyDump();
 
-      if (!tmpRes.has_value() || *tmpRes == TRI_ERROR_NO_ERROR) {
-        tmpRes = TRI_ERROR_CLUSTER_TIMEOUT;
+      if (tmpRes.ok()) {
+        tmpRes = Result{TRI_ERROR_CLUSTER_TIMEOUT};
       }
     }
 
-    if (nrDone->load(std::memory_order_acquire) == infos.size() &&
+
+    if (tmpRes.fail()) {
+      // We do not need to lock all condition variables
+      // we are safe by using cacheMutex
+      cbGuard.fire();
+
+      // report error
+      for (auto const& info : infos) {
+        // Report first error.
+        // On timeout report it on all not finished ones.
+        report->doUnderLock([&info, &databaseName, &tmpRes](CreateCollectionReport const& report) {
+          if (report.hasFailed(info.collectionID) ||
+              (tmpRes.is(TRI_ERROR_CLUSTER_TIMEOUT) &&
+               !report.hasReported(info.collectionID))) {
+            events::CreateCollection(databaseName, info.name, tmpRes.errorNumber());
+          }
+        });
+
+      }
+      LOG_TOPIC("98765", DEBUG, Logger::CLUSTER)
+          << "Failed createCollectionsCoordinator for " << infos.size()
+          << " collections in database " << databaseName
+          << " isNewDatabase: " << isNewDatabase
+          << " first collection name: " << infos[0].name
+          << " result: " << tmpRes.errorNumber();
+      return tmpRes;
+    }
+
+    if (report->getLockedGuard()->allReported() &&
         (replicationVersion == replication::Version::ONE ||
          replicatedStatesWait.isReady())) {
       if (replicationVersion == replication::Version::TWO) {
@@ -3899,7 +3957,6 @@ Result ClusterInfo::createCollectionsCoordinator(
       // Report if this operation worked, if it failed collections will be
       // cleaned up by deleteCollectionGuard.
       for (auto const& info : infos) {
-        TRI_ASSERT(info.state == ClusterCollectionCreationState::DONE);
         events::CreateCollection(databaseName, info.name, res.errorCode());
       }
 
@@ -3911,30 +3968,6 @@ Result ClusterInfo::createCollectionsCoordinator(
           << " result: " << res.errorCode();
       return res.asResult();
     }
-    if (tmpRes.has_value() && tmpRes != TRI_ERROR_NO_ERROR) {
-      // We do not need to lock all condition variables
-      // we are safe by using cacheMutex
-      cbGuard.fire();
-
-      // report error
-      for (auto const& info : infos) {
-        // Report first error.
-        // On timeout report it on all not finished ones.
-        if (info.state == ClusterCollectionCreationState::FAILED ||
-            (tmpRes == TRI_ERROR_CLUSTER_TIMEOUT &&
-             info.state == ClusterCollectionCreationState::INIT)) {
-          events::CreateCollection(databaseName, info.name, *tmpRes);
-        }
-      }
-      LOG_TOPIC("98765", DEBUG, Logger::CLUSTER)
-          << "Failed createCollectionsCoordinator for " << infos.size()
-          << " collections in database " << databaseName
-          << " isNewDatabase: " << isNewDatabase
-          << " first collection name: " << infos[0].name
-          << " result: " << *tmpRes;
-      return {*tmpRes, *errMsg};
-    }
-
     // If we get here we have not tried anything.
     // Wait on callbacks.
 
@@ -3951,7 +3984,7 @@ Result ClusterInfo::createCollectionsCoordinator(
     // first non, done
     TRI_ASSERT(agencyCallbacks.size() == infos.size());
     for (size_t i = 0; i < infos.size(); ++i) {
-      if (infos[i].state == ClusterCollectionCreationState::INIT) {
+      if (!report->getLockedGuard()->hasReported(infos[i].collectionID)) {
         bool gotTimeout;
         {
           // This one has not responded, wait for it.
@@ -3964,7 +3997,7 @@ Result ClusterInfo::createCollectionsCoordinator(
           // We got woken up by waittime, not by  callback.
           // Let us check if we skipped other callbacks as well
           for (; i < infos.size(); ++i) {
-            if (infos[i].state == ClusterCollectionCreationState::INIT) {
+            if (!report->getLockedGuard()->hasReported(infos[i].collectionID)) {
               agencyCallbacks[i]->refetchAndUpdate(true, false);
             }
           }
