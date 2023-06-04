@@ -1,118 +1,111 @@
-set(ARANGODB_IRESEARCH_TESTS_SOURCES
-  ${CMAKE_CURRENT_SOURCE_DIR}/ContainersTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/ExpressionFilterTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/GeoAnalyzerTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/GeoFilterTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/GeoDistanceFilterTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchAnalyzerFeatureTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchAqlAnalyzerTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchComparerTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchDocumentTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchFeatureTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchFilterArrayInTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchFilterArrayIntervalTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchFilterBooleanTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchFilterCompareTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchFilterFunctionTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchFilterGeoTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchFilterInTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchFilterMinHashMatchTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchFilterNestedTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchIndexTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchInvertedIndexConditionTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchInvertedIndexIteratorTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchInvertedIndexMetaTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchLinkTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchLinkCoordinatorTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchLinkHelperTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchLinkMetaTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchOrderTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryAggregateTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryAndTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryBooleanTermTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryComplexBooleanTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryExistsTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryFilterTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryGeoIntersectsTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryGeoContainsTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryGeoDistanceTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryGeoInRangeTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryInTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryInRangeTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryJoinTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryLateMaterializationTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryMinMatchTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryNGramMatchTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryNoMaterializationTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryNullTermTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryNumericTermTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryOptimizationTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryOptionsTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryOrTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryPhraseTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryLevenshteinMatchTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryWildcardTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryScorerTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQuerySelectAllTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryStartsWithTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryStringTermTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryTokensTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryValueTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchQueryTraversalTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchPrimaryKeyReuseTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchTestCommon.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchViewTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchViewCoordinatorTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchViewDBServerTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchViewMetaTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchViewNodeTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchViewSortTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchViewSortedTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/IResearchViewCountApproximateTest.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/VelocyPackHelperTest.cpp)
+add_library(arango_tests_iresearch OBJECT
+  ContainersTest.cpp
+  ExpressionFilterTest.cpp
+  GeoAnalyzerTest.cpp
+  GeoFilterTest.cpp
+  GeoDistanceFilterTest.cpp
+  IResearchAnalyzerFeatureTest.cpp
+  IResearchAqlAnalyzerTest.cpp
+  IResearchComparerTest.cpp
+  IResearchDocumentTest.cpp
+  IResearchFeatureTest.cpp
+  IResearchFilterArrayInTest.cpp
+  IResearchFilterArrayIntervalTest.cpp
+  IResearchFilterBooleanTest.cpp
+  IResearchFilterCompareTest.cpp
+  IResearchFilterFunctionTest.cpp
+  IResearchFilterGeoTest.cpp
+  IResearchFilterInTest.cpp
+  IResearchFilterMinHashMatchTest.cpp
+  IResearchFilterNestedTest.cpp
+  IResearchIndexTest.cpp
+  IResearchInvertedIndexConditionTest.cpp
+  IResearchInvertedIndexIteratorTest.cpp
+  IResearchInvertedIndexMetaTest.cpp
+  IResearchLinkTest.cpp
+  IResearchLinkCoordinatorTest.cpp
+  IResearchLinkHelperTest.cpp
+  IResearchLinkMetaTest.cpp
+  IResearchOrderTest.cpp
+  IResearchQueryAggregateTest.cpp
+  IResearchQueryAndTest.cpp
+  IResearchQueryBooleanTermTest.cpp
+  IResearchQueryComplexBooleanTest.cpp
+  IResearchQueryExistsTest.cpp
+  IResearchQueryFilterTest.cpp
+  IResearchQueryGeoIntersectsTest.cpp
+  IResearchQueryGeoContainsTest.cpp
+  IResearchQueryGeoDistanceTest.cpp
+  IResearchQueryGeoInRangeTest.cpp
+  IResearchQueryInTest.cpp
+  IResearchQueryInRangeTest.cpp
+  IResearchQueryJoinTest.cpp
+  IResearchQueryLateMaterializationTest.cpp
+  IResearchQueryMinMatchTest.cpp
+  IResearchQueryNGramMatchTest.cpp
+  IResearchQueryNoMaterializationTest.cpp
+  IResearchQueryNullTermTest.cpp
+  IResearchQueryNumericTermTest.cpp
+  IResearchQueryOptimizationTest.cpp
+  IResearchQueryOptionsTest.cpp
+  IResearchQueryOrTest.cpp
+  IResearchQueryPhraseTest.cpp
+  IResearchQueryLevenshteinMatchTest.cpp
+  IResearchQueryWildcardTest.cpp
+  IResearchQueryScorerTest.cpp
+  IResearchQuerySelectAllTest.cpp
+  IResearchQueryStartsWithTest.cpp
+  IResearchQueryStringTermTest.cpp
+  IResearchQueryTokensTest.cpp
+  IResearchQueryValueTest.cpp
+  IResearchQueryTraversalTest.cpp
+  IResearchPrimaryKeyReuseTest.cpp
+  IResearchTestCommon.cpp
+  IResearchViewTest.cpp
+  IResearchViewCoordinatorTest.cpp
+  IResearchViewDBServerTest.cpp
+  IResearchViewMetaTest.cpp
+  IResearchViewNodeTest.cpp
+  IResearchViewSortTest.cpp
+  IResearchViewSortedTest.cpp
+  IResearchViewCountApproximateTest.cpp
+  VelocyPackHelperTest.cpp)
 
-set(ARANGODB_IRESEARCH_TESTS_SOURCES
-  ${ARANGODB_IRESEARCH_TESTS_SOURCES}
-  PARENT_SCOPE)
+if (USE_JEMALLOC)
+  add_dependencies(arango_tests_iresearch jemalloc_build)
+endif ()
 
-add_executable(
-  arangodbtests-iresearch
-  ${ARANGODB_IRESEARCH_TESTS_SOURCES}
-)
+target_link_libraries(arango_tests_iresearch
+  arango_tests_basics
+  arango
+  arango_agency
+  arango_cluster_engine
+  arango_rocksdb
+  arango_v8server
+  arangoserver
+  gtest
+  boost_boost
+  v8_interface)
 
-set_target_properties(arangodbtests-iresearch PROPERTIES EXCLUDE_FROM_ALL TRUE)
+add_executable(arangodbtests_iresearch
+  EXCLUDE_FROM_ALL)
 
 #required by fakeit dtor mock -- https://github.com/eranpeer/FakeIt/issues/84
-if(CMAKE_CXX_COMPILER_ID STREQUAL GNU)
-  target_compile_options(arangodbtests-iresearch PRIVATE -fno-devirtualize)
-endif()
+if (CMAKE_CXX_COMPILER_ID STREQUAL GNU)
+  target_compile_options(arangodbtests_iresearch PRIVATE -fno-devirtualize)
+endif ()
 
-target_link_libraries(arangodbtests-iresearch
-  gtest
+target_link_libraries(arangodbtests_iresearch
   arango_tests_basics
+  arango
   arango_agency
   arango_cluster_engine
   arango_rocksdb
   arango_v8server
   arangoserver
   boost_boost
-)
+  v8_interface
+  arango_tests_iresearch)
 
-target_include_directories(arangodbtests-iresearch PRIVATE
-  ${PROJECT_SOURCE_DIR}/arangod
-  ${PROJECT_SOURCE_DIR}/${ENTERPRISE_INCLUDE_DIR}
-  ${PROJECT_SOURCE_DIR}/tests
-)
-
-# add these includes as system includes because otherwise
-# the compiler will emit warnings for fakeit.hpp
-target_include_directories(arangodbtests-iresearch SYSTEM PRIVATE
-  ${V8_INTERNAL_INCLUDE_DIR}
-  ${CMAKE_SOURCE_DIR}/3rdParty/fakeit-gtest
-)
-
-target_link_libraries(arangodbtests-iresearch v8_interface)
-
-if (USE_JEMALLOC)
-  add_dependencies(arangodbtests-iresearch jemalloc_build)
-endif ()
+add_test(NAME arangodbtests_iresearch
+  COMMAND arangodbtests_iresearch)
