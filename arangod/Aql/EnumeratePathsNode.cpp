@@ -26,6 +26,7 @@
 #include "EnumeratePathsNode.h"
 
 #include "Aql/Ast.h"
+#include "Aql/AstNode.h"
 #include "Aql/Collection.h"
 #include "Aql/ExecutionBlockImpl.tpp"
 #include "Aql/ExecutionEngine.h"
@@ -185,6 +186,8 @@ EnumeratePathsNode::EnumeratePathsNode(ExecutionPlan* plan,
       _inTargetVariable(nullptr),
       _fromCondition(nullptr),
       _toCondition(nullptr),
+      _globalVertexConditions(),
+      _globalEdgeConditions(),
       _distributeVariable(nullptr) {
   if (base.hasKey(StaticStrings::GraphQueryShortestPathType)) {
     _pathType = arangodb::graph::PathType::fromString(
@@ -244,6 +247,24 @@ EnumeratePathsNode::EnumeratePathsNode(ExecutionPlan* plan,
   // the plan's AST takes ownership of the newly created AstNode, so this is
   // safe cppcheck-suppress *
   _toCondition = plan->getAst()->createNode(base.get("toCondition"));
+
+  {
+    auto list = base.get("globalEdgeConditions");
+    if (list.isArray()) {
+      for (auto const& cond : VPackArrayIterator(list)) {
+        _globalEdgeConditions.emplace_back(plan->getAst()->createNode(cond));
+      }
+    }
+  }
+
+  {
+    auto list = base.get("globalVertexConditions");
+    if (list.isArray()) {
+      for (auto const& cond : VPackArrayIterator(list)) {
+        _globalVertexConditions.emplace_back(plan->getAst()->createNode(cond));
+      }
+    }
+  }
 
   if (base.hasKey("distributeVariable")) {
     _distributeVariable =
@@ -320,6 +341,24 @@ void EnumeratePathsNode::doToVelocyPack(VPackBuilder& nodes,
   nodes.add(VPackValue("toCondition"));
   _toCondition->toVelocyPack(nodes, flags);
 
+  if (!_globalEdgeConditions.empty()) {
+    nodes.add(VPackValue("globalEdgeConditions"));
+    nodes.openArray();
+    for (auto const& it : _globalEdgeConditions) {
+      it->toVelocyPack(nodes, flags);
+    }
+    nodes.close();
+  }
+
+  if (!_globalVertexConditions.empty()) {
+    nodes.add(VPackValue("globalVertexConditions"));
+    nodes.openArray();
+    for (auto const& it : _globalVertexConditions) {
+      it->toVelocyPack(nodes, flags);
+    }
+    nodes.close();
+  }
+
   if (_distributeVariable != nullptr) {
     nodes.add(VPackValue("distributeVariable"));
     _distributeVariable->toVelocyPack(nodes);
@@ -387,6 +426,19 @@ std::unique_ptr<ExecutionBlock> EnumeratePathsNode::createBlock(
       opts->minDepth, opts->maxDepth, pathType()};
   PathValidatorOptions validatorOptions(opts->tmpVar(),
                                         opts->getExpressionCtx());
+
+  // The _allVerticesExpression is a condition that has to hold for all vertices
+  // on a result path.
+  if (opts->_allVerticesExpression != nullptr) {
+    auto allVerticesExpression =
+        opts->_allVerticesExpression->clone(_plan->getAst());
+    validatorOptions.setAllVerticesExpression(std::move(allVerticesExpression));
+  }
+
+  if (opts->_allEdgesExpression != nullptr) {
+    auto allEdgesExpression = opts->_allEdgesExpression->clone(_plan->getAst());
+    validatorOptions.setAllEdgesExpression(std::move(allEdgesExpression));
+  }
 
   if (!ServerState::instance()->isCoordinator()) {
     // Create IndexAccessor for BaseProviderOptions (TODO: Location need to
@@ -699,6 +751,14 @@ void EnumeratePathsNode::enumeratePathsCloneHelper(ExecutionPlan& plan,
   // Filter Condition Parts
   c._fromCondition = _fromCondition->clone(_plan->getAst());
   c._toCondition = _toCondition->clone(_plan->getAst());
+
+  // Global Vertex/Edge conditions
+  c._globalEdgeConditions.insert(c._globalEdgeConditions.end(),
+                                 _globalEdgeConditions.begin(),
+                                 _globalEdgeConditions.end());
+  c._globalVertexConditions.insert(c._globalVertexConditions.end(),
+                                   _globalVertexConditions.begin(),
+                                   _globalVertexConditions.end());
 }
 
 void EnumeratePathsNode::replaceVariables(
@@ -841,12 +901,41 @@ void EnumeratePathsNode::prepareOptions() {
         break;
     }
   }
+
+  if (!_globalVertexConditions.empty()) {
+    auto cond =
+        _plan->getAst()->createNodeNaryOperator(NODE_TYPE_OPERATOR_NARY_AND);
+    for (auto const& it : _globalVertexConditions) {
+      cond->addMember(it);
+    }
+    opts->_allVerticesExpression = std::make_unique<Expression>(ast, cond);
+  }
+
+  if (!_globalEdgeConditions.empty()) {
+    auto cond =
+        _plan->getAst()->createNodeNaryOperator(NODE_TYPE_OPERATOR_NARY_AND);
+    for (auto const& it : _globalEdgeConditions) {
+      cond->addMember(it);
+    }
+    opts->_allEdgesExpression = std::make_unique<Expression>(ast, cond);
+  }
+
   // If we use the path output the cache should activate document
   // caching otherwise it is not worth it.
   if (!ServerState::instance()->isCoordinator()) {
     _options->activateCache(false, nullptr);
   }
   _optionsBuilt = true;
+}
+
+auto EnumeratePathsNode::registerGlobalVertexCondition(AstNode const* condition)
+    -> void {
+  _globalVertexConditions.emplace_back(condition);
+}
+
+auto EnumeratePathsNode::registerGlobalEdgeCondition(AstNode const* condition)
+    -> void {
+  _globalEdgeConditions.emplace_back(condition);
 }
 
 auto EnumeratePathsNode::options() const -> graph::ShortestPathOptions* {

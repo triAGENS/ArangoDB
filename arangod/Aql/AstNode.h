@@ -29,6 +29,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -280,6 +281,9 @@ struct AstNode {
 
   /// @brief return the type name of a node
   std::string_view getTypeString() const;
+
+  /// @brief return the type name for a type
+  static std::optional<std::string_view> getTypeStringForType(AstNodeType type);
 
   /// @brief return the value type name of a node
   std::string_view getValueTypeString() const;

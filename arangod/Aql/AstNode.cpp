@@ -847,12 +847,23 @@ void AstNode::sort() {
   setFlag(DETERMINED_SORTED, VALUE_SORTED);
 }
 
-/// @brief return the type name of a node
-std::string_view AstNode::getTypeString() const {
+std::optional<std::string_view> AstNode::getTypeStringForType(
+    AstNodeType type) {
   auto it = kTypeNames.find(static_cast<int>(type));
 
   if (it != kTypeNames.end()) {
     return (*it).second;
+  }
+
+  return std::nullopt;
+}
+
+/// @brief return the type name of a node
+std::string_view AstNode::getTypeString() const {
+  auto name = getTypeStringForType(type);
+
+  if (name.has_value()) {
+    return name.value();
   }
 
   THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_NOT_IMPLEMENTED,

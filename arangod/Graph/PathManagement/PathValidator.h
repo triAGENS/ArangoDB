@@ -123,12 +123,18 @@ class PathValidator {
       -> ValidationResult;
   auto evaluateVertexRestriction(typename PathStore::Step const& step) -> bool;
 
+  [[nodiscard]] auto evaluateEdgeCondition(typename PathStore::Step const&)
+      -> ValidationResult;
+
   [[nodiscard]] auto exposeUniqueVertices() const
       -> ::arangodb::containers::HashSet<VertexRef, std::hash<VertexRef>,
                                          std::equal_to<VertexRef>> const&;
 
   auto evaluateVertexExpression(arangodb::aql::Expression* expression,
                                 arangodb::velocypack::Slice value) -> bool;
+
+  auto evaluateEdgeExpression(arangodb::aql::Expression* expression,
+                              arangodb::velocypack::Slice value) -> bool;
 
   auto checkValidDisjointPath(typename PathStore::Step const& lastStep)
       -> arangodb::graph::ValidationResult::Type;

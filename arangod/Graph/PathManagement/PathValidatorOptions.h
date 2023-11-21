@@ -64,6 +64,12 @@ class PathValidatorOptions {
   void setAllVerticesExpression(std::unique_ptr<aql::Expression> expression);
 
   /**
+   * @brief Set the expression that needs to hold true for ALL edges on the
+   * path.
+   */
+  void setAllEdgesExpression(std::unique_ptr<aql::Expression> expression);
+
+  /**
    * @brief Set the expression that needs to hold true for the vertex on the
    * given depth. NOTE: This will overrule the ALL vertex expression, so make
    * sure this expression contains everything the ALL expression covers.
@@ -116,6 +122,7 @@ class PathValidatorOptions {
    * Caller does NOT take responsibility. Do not delete this pointer.
    */
   aql::Expression* getVertexExpression(uint64_t depth) const;
+  aql::Expression* getEdgeExpression() const;
 
   void addAllowedVertexCollection(std::string const& collectionName);
 
@@ -146,6 +153,8 @@ class PathValidatorOptions {
  private:
   // Vertex expression section
   std::shared_ptr<aql::Expression> _allVerticesExpression;
+  std::shared_ptr<aql::Expression> _allEdgesExpression;
+
   containers::FlatHashMap<uint64_t, std::shared_ptr<aql::Expression>>
       _vertexExpressionOnDepth;
   std::vector<std::string> _allowedVertexCollections;

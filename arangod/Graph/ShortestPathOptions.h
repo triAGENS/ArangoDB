@@ -111,6 +111,16 @@ struct ShortestPathOptions : public BaseOptions {
   std::vector<LookupInfo> _reverseLookupInfos;
   std::string _weightAttribute;
   double _defaultWeight;
+
+ public:
+  /// This condition has to hold for all vertices on a
+  /// found path
+  /// Note that this struct, while called ShortestPathOptions is used
+  /// for all path searches, i.e. ShortestPath, K-ShortestPaths, KPaths,
+  /// AllShortestPaths, and that this expression is currently only used
+  /// in the EnumeratePathsNode
+  std::unique_ptr<aql::Expression> _allVerticesExpression;
+  std::unique_ptr<aql::Expression> _allEdgesExpression;
 };
 
 }  // namespace graph

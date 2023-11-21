@@ -26,6 +26,8 @@
 #include "Aql/IResearchViewOptimizerRules.h"
 #include "Aql/IndexNodeOptimizerRules.h"
 #include "Aql/GraphOptimizerRules.h"
+#include "Aql/Optimizer/Rules/EnumeratePathsRule.h"
+#include "Aql/OptimizerRule.h"
 #include "Aql/OptimizerRules.h"
 #include "Basics/Exceptions.h"
 #include "Cluster/ServerState.h"
@@ -409,6 +411,13 @@ further optimizations that are not possible on the path variable `p`.)");
 early pruning of results, apply traversal projections, and avoid calculating
 edge and path output variables that are not declared in the query for the
 AQL traversal.)");
+
+  // merge certain filters into ENUMERATE_PATHS
+  registerRule("optimize-enumerate-paths", optimizeEnumeratePathsRule,
+               OptimizerRule::optimizeEnumeratePathsRule,
+               OptimizerRule::makeFlags(OptimizerRule::Flags::CanBeDisabled),
+               R"(Try to move `FILTER` conditions into `EnumeratePathsNode` for
+pre-filtering the graph that is searched.)");
 
   // optimize K_PATHS
   registerRule(

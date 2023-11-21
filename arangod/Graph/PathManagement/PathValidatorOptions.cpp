@@ -52,9 +52,16 @@ PathValidatorOptions::PathValidatorOptions(
 
 void PathValidatorOptions::setAllVerticesExpression(
     std::unique_ptr<aql::Expression> expression) {
-  // All edge expression should not be set before
+  // All vertex expression should not be set before
   TRI_ASSERT(_allVerticesExpression == nullptr);
   _allVerticesExpression = std::move(expression);
+}
+
+void PathValidatorOptions::setAllEdgesExpression(
+    std::unique_ptr<aql::Expression> expression) {
+  // All edge expression should not be set before
+  TRI_ASSERT(_allEdgesExpression == nullptr);
+  _allEdgesExpression = std::move(expression);
 }
 
 void PathValidatorOptions::setPruneEvaluator(
@@ -115,6 +122,10 @@ aql::Expression* PathValidatorOptions::getVertexExpression(
   }
 
   return _allVerticesExpression.get();
+}
+
+aql::Expression* PathValidatorOptions::getEdgeExpression() const {
+  return _allEdgesExpression.get();
 }
 
 void PathValidatorOptions::unpreparePruneContext() {

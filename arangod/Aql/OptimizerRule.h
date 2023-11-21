@@ -26,6 +26,7 @@
 #include <memory>
 #include <type_traits>
 
+#include "Aql/Optimizer/Rules/EnumeratePathsRule.h"
 #include "Basics/Common.h"
 
 namespace arangodb::aql {
@@ -213,6 +214,9 @@ struct OptimizerRule {
 
     // merge filters into graph traversals
     optimizeTraversalsRule,
+
+    // put path filters into enumerate paths
+    optimizeEnumeratePathsRule,
 
     // optimize K_PATHS
     optimizePathsRule,

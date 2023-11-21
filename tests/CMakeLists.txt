@@ -257,6 +257,8 @@ set(ARANGODB_TESTS_SOURCES
   VocBase/VocbaseTest.cpp
 )
 
+add_subdirectory(Aql)
+
 if (USE_V8)
   set(ARANGODB_TESTS_SOURCES ${ARANGODB_TESTS_SOURCES}
     V8Server/V8AnalyzersTest.cpp

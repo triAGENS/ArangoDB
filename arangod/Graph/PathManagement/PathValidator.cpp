@@ -302,6 +302,19 @@ auto PathValidator<ProviderType, PathStore, vertexUniqueness, edgeUniqueness>::
     }
   }
 
+  // Global edge condition
+  auto edgeExpr = _options.getEdgeExpression();
+  if (edgeExpr != nullptr) {
+    edgeBuilder.clear();
+    _provider.addEdgeToBuilder(step.getEdge(), edgeBuilder);
+
+    bool satisfiesCondition =
+        evaluateEdgeExpression(edgeExpr, edgeBuilder.slice());
+    if (!satisfiesCondition) {
+      return ValidationResult{ValidationResult::Type::FILTER_AND_PRUNE};
+    }
+  }
+
   if (res.isPruned() && res.isFiltered()) {
     return res;
   }
@@ -338,8 +351,70 @@ template<class ProviderType, class PathStore,
          VertexUniquenessLevel vertexUniqueness,
          EdgeUniquenessLevel edgeUniqueness>
 auto PathValidator<ProviderType, PathStore, vertexUniqueness, edgeUniqueness>::
+    evaluateEdgeCondition(typename PathStore::Step const& step)
+        -> ValidationResult {
+  auto res = ValidationResult{ValidationResult::Type::TAKE};
+
+  auto edgeBuilder = VPackBuilder{};
+
+  // Evaluate depth-based vertex expressions
+  auto edgeExpr = _options.getEdgeExpression();
+  if (edgeExpr != nullptr) {
+    if (edgeBuilder.isEmpty()) {
+      _provider.addEdgeToBuilder(step.getEdge(), edgeBuilder);
+    }
+
+    // evaluate expression
+    bool satifiesCondition =
+        evaluateEdgeExpression(edgeExpr, edgeBuilder.slice());
+
+    if (!satifiesCondition) {
+      if (_options.bfsResultHasToIncludeFirstVertex() && step.isFirst()) {
+        res.combine(ValidationResult::Type::PRUNE);
+      } else {
+        return ValidationResult{ValidationResult::Type::FILTER_AND_PRUNE};
+      }
+    }
+  }
+
+  return res;
+}
+
+template<class ProviderType, class PathStore,
+         VertexUniquenessLevel vertexUniqueness,
+         EdgeUniquenessLevel edgeUniqueness>
+auto PathValidator<ProviderType, PathStore, vertexUniqueness, edgeUniqueness>::
     evaluateVertexExpression(arangodb::aql::Expression* expression,
                              VPackSlice value) -> bool {
+  if (expression == nullptr) {
+    return true;
+  }
+
+  TRI_ASSERT(value.isObject() || value.isNull());
+  auto tmpVar = _options.getTempVar();
+  bool mustDestroy = false;
+  // node: for expression evaluation, the same expression context
+  // instance is used repeatedly.
+  auto& ctx = _options.getExpressionContext();
+  ctx.setVariableValue(tmpVar,
+                       aql::AqlValue{aql::AqlValueHintSliceNoCopy{value}});
+  // make sure we clean up after ourselves
+  ScopeGuard defer([&]() noexcept { ctx.clearVariableValue(tmpVar); });
+  aql::AqlValue res = expression->execute(&ctx, mustDestroy);
+  aql::AqlValueGuard guard{res, mustDestroy};
+  TRI_ASSERT(res.isBoolean());
+  return res.toBoolean();
+}
+
+// TODO: This is the same code as above, so  this is evaluating an
+// expression and it is unclear to me why this function exists
+// in this class
+template<class ProviderType, class PathStore,
+         VertexUniquenessLevel vertexUniqueness,
+         EdgeUniquenessLevel edgeUniqueness>
+auto PathValidator<ProviderType, PathStore, vertexUniqueness, edgeUniqueness>::
+    evaluateEdgeExpression(arangodb::aql::Expression* expression,
+                           VPackSlice value) -> bool {
   if (expression == nullptr) {
     return true;
   }

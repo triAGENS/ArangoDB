@@ -81,6 +81,14 @@ bool Quantifier::isAtLeast(AstNode const* quantifier) {
   return isType(quantifier, Type::kAtLeast);
 }
 
+std::optional<Quantifier::Type> Quantifier::getType(AstNode const* quantifier) {
+  if (quantifier->type == NODE_TYPE_QUANTIFIER) {
+    auto const value = quantifier->getIntValue(true);
+    return static_cast<Type>(value);
+  }
+  return std::nullopt;
+}
+
 /// @brief determine the min/max number of matches for an array comparison
 std::pair<size_t, size_t> Quantifier::requiredMatches(size_t inputSize,
                                                       AstNode const* quantifier,
