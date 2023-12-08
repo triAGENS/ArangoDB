@@ -188,6 +188,8 @@ if (USE_V8)
     V8ErrorHandler.cpp)
 endif()
 
+add_subdirectory(Optimizer)
+
 target_link_libraries(arango_aql
   arango_geo
   arango_graph

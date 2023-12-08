@@ -26,6 +26,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
+#include <optional>
 
 namespace arangodb::aql {
 struct AstNode;
@@ -48,6 +49,8 @@ struct Quantifier {
   static bool isAny(AstNode const* quantifier);
   static bool isNone(AstNode const* quantifier);
   static bool isAtLeast(AstNode const* quantifier);
+
+  static std::optional<Type> getType(AstNode const* quantifier);
 
   /// @brief determine the min/max number of matches for an array comparison
   static std::pair<size_t, size_t> requiredMatches(size_t inputSize,
