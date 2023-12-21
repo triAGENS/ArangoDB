@@ -33,6 +33,14 @@ parameters:
   v8-build-targets:
     type: string
     default: "arangosh"
+  build-docker-image:
+    type: string
+    default: ""
+  # Unused here, but it will be forwarded from config and will cause errors if not defined
+  replication-two:
+    type: boolean
+    # We use replication1 as default.
+    default: false
 
 commands:
   checkout-arangodb:

@@ -1,4 +1,5 @@
-FROM ubuntu:22.04
+FROM cimg/base:current-22.04
+
 MAINTAINER hackers@arangodb.com
 
 ARG arch

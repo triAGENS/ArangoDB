@@ -1,0 +1,139 @@
+version: 2.1
+orbs:
+  aws-cli: circleci/aws-cli@4.1.1
+  aws-ecr: circleci/aws-ecr@9.0.1
+
+# TODO: this is a hack, the enterprise branch is not needed
+parameters:
+  default-enterprise-branch:
+    type: string
+    default: "devel"
+  rebuild-docker-images:
+    type: boolean
+    default: false
+  enterprise-commit:
+    type: string
+    default: ""
+
+commands:
+  checkout-arangodb:
+    parameters:
+      destination:
+        type: string
+    steps:
+      - run:
+          name: Checkout ArangoDB
+          command: |
+            ssh-keyscan github.com >> ~/.ssh/known_hosts
+            mkdir -p << parameters.destination >>
+            cd << parameters.destination >>
+            echo << pipeline.git.revision >>
+            git init
+            git remote add origin git@github.com:arangodb/arangodb.git
+            echo "Fetching stuff"
+            git fetch --depth 1 origin << pipeline.git.revision >>
+            git checkout << pipeline.git.revision >>
+
+jobs:
+  build-build-docker-container:
+    docker:
+      - image: cimg/base:current
+    parameters:
+      arch:
+        type: string
+        default: ""
+      image:
+        type: string
+        default: public.ecr.aws/b0b8h2r4/build-alpine
+      resource-class:
+        type: string
+    resource_class: << parameters.resource-class >>
+    steps:
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - aws-cli/setup:
+          role_arn: "arn:aws:iam::242063586340:role/CircleCI-Container-Handler"
+      - aws-ecr/ecr_login:
+          public_registry: true
+      - checkout-arangodb:
+          destination: /home/circleci/project
+      - run:
+          name: Build Docker Image
+          command: |
+            cd /home/circleci/project/scripts/docker/build/linux
+            /bin/sh build-image.sh << parameters.image >> << parameters.arch >>
+      - run:
+          name: Determine Docker Tag
+          command: |
+            cd /home/circleci/project/scripts/docker/build/linux
+            /bin/sh determine-tag.sh << parameters.image >> << parameters.arch >> | tee << parameters.arch >>-tag.txt
+      - run:
+          name: Tag Docker Image
+          command: |
+            cd /home/circleci/project/scripts/docker/build/linux
+            docker tag << parameters.image >>:latest-<< parameters.arch >> <<parameters.image >>:$(cat << parameters.arch >>-tag.txt)-<< parameters.arch >>
+      - run:
+          name: Push Docker Image
+          command: |
+            cd /home/circleci/project/scripts/docker/build/linux
+            docker push << parameters.image >>:$(cat << parameters.arch >>-tag.txt)-<< parameters.arch >>
+      - persist_to_workspace:
+          root: .
+          paths:
+            - scripts/docker/build/linux/*-tag.txt
+
+  build-build-docker-manifest:
+    docker:
+      - image: cimg/base:current
+    parameters:
+      image:
+        type: string
+        default: public.ecr.aws/b0b8h2r4/build-alpine
+    steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "f9:49:75:1a:ad:44:89:10:4b:3c:70:70:ba:d3:c3:ce"
+      - checkout-arangodb:
+          destination: /home/circleci/project
+      - attach_workspace:
+          at: .
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - aws-cli/setup:
+          role_arn: "arn:aws:iam::242063586340:role/CircleCI-Container-Handler"
+      - aws-ecr/ecr_login:
+          public_registry: true
+      - run:
+          name: Build manifest
+          command: |
+            cd scripts/docker/build/linux
+            ./build-manifest.sh << parameters.image >> $(cat amd64-tag.txt)
+      - run:
+          name: Update TagFile
+          command: |
+            ssh-keyscan github.com >> ~/.ssh/known_hosts
+            cp scripts/docker/build/linux/amd64-tag.txt BUILD_DOCKER_TAG
+            git config user.email "build-automation@arangodb.biz"
+            git config user.name "CircleCI Docker Image Builder"
+            git add BUILD_DOCKER_TAG
+            git commit -m "Update BUILD_DOCKER_TAG"
+            git push origin HEAD:$CIRCLE_BRANCH
+
+workflows:
+  build-docker-images:
+    jobs:
+      - build-build-docker-container:
+          resource-class: arm.large
+          name: aarch64-docker-ok
+          arch: arm64
+
+      - build-build-docker-container:
+          resource-class: large
+          name: x86-docker-ok
+          arch: amd64
+
+      - build-build-docker-manifest:
+          name: build-build-docker-manifest
+          requires:
+            - aarch64-docker-ok
+            - x86-docker-ok
