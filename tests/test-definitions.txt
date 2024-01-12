@@ -16,7 +16,7 @@ replication_ongoing_global priority=500 parallelity=3 size=small single -- --ext
 replication_ongoing_global_spec parallelity=3 size=small single -- --extraArgs:log.level replication=trace
 replication_static priority=500 parallelity=3 size=small single -- --extraArgs:log.level replication=trace
 # TODO - we could actually use 4 buckets instead of 2, but ATM this causes issues with other tests on Jenkins
-replication_sync priority=8000 buckets=2 parallelity=3 size=medium single -- --extraArgs:log.level replication=trace
+replication_sync !coverage priority=8000 buckets=2 parallelity=3 size=medium single -- --extraArgs:log.level replication=trace
 shell_replication parallelity=3 size=small single 
 http_replication priority=500 parallelity=3 size=small single
 
