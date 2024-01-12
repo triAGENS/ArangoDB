@@ -23,8 +23,8 @@
 
 #include "FileIterator.h"
 
+#include "Assertions/ProdAssert.h"
 #include "Basics/Exceptions.h"
-#include "Basics/voc-errors.h"
 #include "Replication2/Storage/WAL/IFileReader.h"
 #include "Replication2/Storage/WAL/Record.h"
 
@@ -32,9 +32,10 @@
 
 namespace arangodb::replication2::storage::wal {
 
-FileIterator::FileIterator(IteratorPosition position,
-                           std::unique_ptr<IFileReader> reader)
-    : _reader(std::move(reader)) {
+FileIterator::FileIterator(
+    IteratorPosition position, std::unique_ptr<IFileReader> reader,
+    std::function<std::unique_ptr<IFileReader>()> moveToNextFile)
+    : _reader(std::move(reader)), _moveToNextFile(std::move(moveToNextFile)) {
   _reader.seek(position.fileOffset());
   if (position.index().value != 0) {
     moveToFirstEntry(position);
@@ -52,13 +53,29 @@ void FileIterator::moveToFirstEntry(IteratorPosition position) {
 
 auto FileIterator::next() -> std::optional<PersistedLogEntry> {
   auto res = _reader.readNextLogEntry();
-  if (res.fail()) {
-    if (res.errorNumber() == TRI_ERROR_END_OF_FILE) {
-      return std::nullopt;
-    }
-    THROW_ARANGO_EXCEPTION(res.result());
+  if (res.ok()) {
+    return {std::move(res.get())};
   }
 
+  TRI_ASSERT(res.fail());
+  if (res.errorNumber() != TRI_ERROR_END_OF_FILE) {
+    THROW_ARANGO_EXCEPTION(res.result());
+  }
+  auto fileReader = _moveToNextFile();
+  if (!fileReader) {
+    return std::nullopt;
+  }
+
+  // TODO - simplify this
+  _reader.~LogReader();
+  new (&_reader) LogReader(std::move(fileReader));
+
+  res = _reader.readNextLogEntry();
+  if (res.errorNumber() == TRI_ERROR_END_OF_FILE) {
+    // this should only happen if we reach an empty active file
+    TRI_ASSERT(_moveToNextFile() == nullptr);
+    return std::nullopt;
+  }
   return {std::move(res.get())};
 }
 

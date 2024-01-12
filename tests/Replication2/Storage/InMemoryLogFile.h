@@ -74,6 +74,8 @@ struct InMemoryFileWriter : IFileWriter {
 
   void sync() override {}
 
+  auto size() const -> std::uint64_t override { return buffer.size(); }
+
   auto getReader() const -> std::unique_ptr<IFileReader> override {
     return std::make_unique<InMemoryFileReader>(buffer);
   }

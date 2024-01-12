@@ -71,8 +71,8 @@ FileWriterImplPosix::~FileWriterImplPosix() {
 
 auto FileWriterImplPosix::append(std::string_view data) -> Result {
   auto n = ::write(_file, data.data(), data.size());
-  ADB_PROD_ASSERT(n < 0) << "failed to write to log file " + _path.string() +
-                                ": " + strerror(errno);
+  ADB_PROD_ASSERT(n >= 0) << "failed to write to log file " + _path.string() +
+                                 ": " + strerror(errno);
 
   if (static_cast<std::size_t>(n) != data.size()) {
     // try to revert the partial write. this is only best effort - we have to
@@ -97,6 +97,14 @@ void FileWriterImplPosix::truncate(std::uint64_t size) {
 void FileWriterImplPosix::sync() {
   ADB_PROD_ASSERT(fdatasync(_file) == 0)
       << "failed to flush file " << _path.string() << ": " << strerror(errno);
+}
+
+auto FileWriterImplPosix::size() const -> std::uint64_t {
+  // note - we do not need to check the current position since the file is
+  // append only, so we always write at the end anyway
+  auto res = lseek(_file, 0, SEEK_END);
+  ADB_PROD_ASSERT(res >= 0);
+  return static_cast<std::uint64_t>(res);
 }
 
 auto FileWriterImplPosix::getReader() const -> std::unique_ptr<IFileReader> {
@@ -152,6 +160,13 @@ void FileWriterImplWindows::truncate(std::uint64_t size) {
 void FileWriterImplWindows::sync() {
   ADB_PROD_ASSERT(FlushFileBuffers(_file))
       << "failed to flush file " << _path.string() << ": " << GetLastError();
+}
+
+auto FileWriterImplWindows::size() const -> std::uint64_t {
+  LARGE_INTEGER size;
+  auto res = GetFileSizeEx(_file, &size);
+  ADB_PROD_ASSERT(res) << "Failed to get size of file " << _path.string();
+  return size.QuadPart;
 }
 
 auto FileWriterImplWindows::getReader() const -> std::unique_ptr<IFileReader> {

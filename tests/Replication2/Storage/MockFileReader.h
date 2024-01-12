@@ -23,43 +23,18 @@
 
 #pragma once
 
-#include <cstdint>
-#include <type_traits>
+#include <gmock/gmock.h>
 
-#include "Assertions/Assert.h"
+#include "Replication2/Storage/WAL/IFileReader.h"
 
-namespace arangodb::replication2::storage::wal {
+namespace arangodb::replication2::storage::wal::test {
 
-struct StreamReader {
-  explicit StreamReader(std::string const& data)
-      : StreamReader(data.data(), data.size()) {}
-
-  StreamReader(void const* data, std::size_t size)
-      : _data(static_cast<uint8_t const*>(data)), _end(_data + size) {}
-
-  auto data() const -> void const* { return _data; }
-  auto size() const -> std::size_t { return _end - _data; }
-
-  template<typename T>
-  T read() {
-    static_assert(std::is_trivially_copyable<T>::value,
-                  "T must be trivially copyable");
-    TRI_ASSERT(size() >= sizeof(T));
-
-    T result;
-    memcpy(&result, _data, sizeof(T));
-    _data += sizeof(T);
-    return result;
-  }
-
-  void skip(std::size_t size) {
-    TRI_ASSERT(this->size() >= size);
-    _data += size;
-  }
-
- private:
-  uint8_t const* _data;
-  uint8_t const* _end;
+struct MockFileReader : IFileReader {
+  MOCK_METHOD(std::string, path, (), (const, override));
+  MOCK_METHOD(Result, read, (void*, std::size_t), (override));
+  MOCK_METHOD(void, seek, (std::uint64_t), (override));
+  MOCK_METHOD(std::uint64_t, position, (), (const, override));
+  MOCK_METHOD(std::uint64_t, size, (), (const, override));
 };
 
-}  // namespace arangodb::replication2::storage::wal
+}  // namespace arangodb::replication2::storage::wal::test

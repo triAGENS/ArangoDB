@@ -24,6 +24,7 @@
 #pragma once
 
 #include <gmock/gmock.h>
+#include <string_view>
 
 #include "Basics/Result.h"
 #include "Replication2/Storage/WAL/IFileReader.h"
@@ -39,6 +40,8 @@ struct MockFileManager : IFileManager {
   MOCK_METHOD(std::unique_ptr<IFileWriter>, createWriter, (std::string const&),
               (override));
   MOCK_METHOD(void, removeAll, (), (override));
+  MOCK_METHOD(void, moveFile, (std::string_view, std::string_view), (override));
+  MOCK_METHOD(void, deleteFile, (std::string_view), (override));
 };
 
 }  // namespace arangodb::replication2::storage::wal::test

@@ -33,7 +33,16 @@ namespace arangodb::replication2::storage::wal {
 struct IFileReader;
 
 struct LogReader {
+  // constructs a LogReader with the given FileReader
+  // Expects that the FileReader is positioned at the start of the file and
+  // validates the file header
   explicit LogReader(std::unique_ptr<IFileReader> reader);
+
+  // constructs a LogReader with the given FileReader without validating the
+  // file header. Instead the given firstEntry is stored as file offset for the
+  // first entry in the file
+  // Currently this constructor is only used for testing
+  LogReader(std::unique_ptr<IFileReader> reader, std::uint64_t firstEntry);
 
   void seek(std::uint64_t pos);
 

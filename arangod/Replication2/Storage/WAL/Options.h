@@ -24,42 +24,13 @@
 #pragma once
 
 #include <cstdint>
-#include <type_traits>
-
-#include "Assertions/Assert.h"
 
 namespace arangodb::replication2::storage::wal {
 
-struct StreamReader {
-  explicit StreamReader(std::string const& data)
-      : StreamReader(data.data(), data.size()) {}
-
-  StreamReader(void const* data, std::size_t size)
-      : _data(static_cast<uint8_t const*>(data)), _end(_data + size) {}
-
-  auto data() const -> void const* { return _data; }
-  auto size() const -> std::size_t { return _end - _data; }
-
-  template<typename T>
-  T read() {
-    static_assert(std::is_trivially_copyable<T>::value,
-                  "T must be trivially copyable");
-    TRI_ASSERT(size() >= sizeof(T));
-
-    T result;
-    memcpy(&result, _data, sizeof(T));
-    _data += sizeof(T);
-    return result;
-  }
-
-  void skip(std::size_t size) {
-    TRI_ASSERT(this->size() >= size);
-    _data += size;
-  }
-
- private:
-  uint8_t const* _data;
-  uint8_t const* _end;
+struct Options {
+  // threshold for the size of a log file - once this threshold is reached the
+  // current log file is closed and a new one is created
+  std::uint64_t logFileSizeThreshold = 64 * 1024 * 1024;
 };
 
 }  // namespace arangodb::replication2::storage::wal

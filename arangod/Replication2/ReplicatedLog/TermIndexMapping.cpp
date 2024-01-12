@@ -142,7 +142,12 @@ void TermIndexMapping::insert(storage::IteratorPosition position,
     }
   });
 
-  ADB_PROD_ASSERT(iter->second.range.to == idx);
+  ADB_PROD_ASSERT(iter->second.range.to == idx)
+      << "iter->second.range: " << iter->second.range << ", startPos "
+      << iter->second.startPosition.index() << "; "
+      << iter->second.startPosition.fileOffset() << ", position " << idx << "; "
+      << position.fileOffset() << " iter->first: " << iter->first << " term "
+      << term;
   iter->second.range.to = idx + 1;
 }
 

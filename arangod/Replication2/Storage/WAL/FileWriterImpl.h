@@ -51,7 +51,9 @@ struct FileWriterImplPosix final : IFileWriter {
 
   void sync() override;
 
-  auto getReader() const -> std::unique_ptr<IFileReader> override;
+  [[nodiscard]] auto size() const -> std::uint64_t override;
+
+  [[nodiscard]] auto getReader() const -> std::unique_ptr<IFileReader> override;
 
  private:
   std::filesystem::path _path;

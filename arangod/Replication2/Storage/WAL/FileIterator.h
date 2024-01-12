@@ -23,13 +23,16 @@
 
 #pragma once
 
+#include <memory>
 #include "Replication2/ReplicatedLog/PersistedLogEntry.h"
+#include "Replication2/Storage/WAL/LogPersistor.h"
 #include "Replication2/Storage/WAL/LogReader.h"
 
 namespace arangodb::replication2::storage::wal {
 
 struct FileIterator : PersistedLogIterator {
-  FileIterator(IteratorPosition position, std::unique_ptr<IFileReader> reader);
+  FileIterator(IteratorPosition position, std::unique_ptr<IFileReader> reader,
+               std::function<std::unique_ptr<IFileReader>()> moveToNextFile);
 
   auto next() -> std::optional<PersistedLogEntry> override;
 
@@ -37,6 +40,7 @@ struct FileIterator : PersistedLogIterator {
   void moveToFirstEntry(IteratorPosition position);
 
   LogReader _reader;
+  std::function<std::unique_ptr<IFileReader>()> _moveToNextFile;
 };
 
 }  // namespace arangodb::replication2::storage::wal

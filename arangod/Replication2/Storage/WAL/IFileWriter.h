@@ -44,16 +44,18 @@ struct IFileWriter {
   virtual auto path() const -> std::string = 0;
 
   template<typename T>
-  [[nodiscard]] Result append(T const& v) {
+  [[nodiscard]] auto append(T const& v) -> Result {
     static_assert(std::is_trivially_copyable_v<T>);
     return append({reinterpret_cast<char const*>(&v), sizeof(T)});
   }
 
-  [[nodiscard]] virtual Result append(std::string_view data) = 0;
+  [[nodiscard]] virtual auto append(std::string_view data) -> Result = 0;
 
   virtual void truncate(std::uint64_t size) = 0;
 
   virtual void sync() = 0;
+
+  [[nodiscard]] virtual auto size() const -> std::uint64_t = 0;
 
   [[nodiscard]] virtual auto getReader() const
       -> std::unique_ptr<IFileReader> = 0;

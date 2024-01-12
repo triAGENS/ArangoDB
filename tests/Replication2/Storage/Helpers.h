@@ -24,42 +24,23 @@
 #pragma once
 
 #include <cstdint>
-#include <type_traits>
+#include <string>
 
-#include "Assertions/Assert.h"
+#include "Replication2/ReplicatedLog/InMemoryLogEntry.h"
+#include "Replication2/ReplicatedLog/LogCommon.h"
 
-namespace arangodb::replication2::storage::wal {
+namespace arangodb::replication2::storage::wal::test {
 
-struct StreamReader {
-  explicit StreamReader(std::string const& data)
-      : StreamReader(data.data(), data.size()) {}
+auto createEmptyBuffer() -> std::string;
 
-  StreamReader(void const* data, std::size_t size)
-      : _data(static_cast<uint8_t const*>(data)), _end(_data + size) {}
+auto createBufferWithLogEntries(std::uint64_t firstIndex,
+                                std::uint64_t lastIndex, LogTerm term)
+    -> std::string;
 
-  auto data() const -> void const* { return _data; }
-  auto size() const -> std::size_t { return _end - _data; }
+auto makeNormalLogEntry(std::uint64_t term, std::uint64_t index,
+                        std::string payload) -> InMemoryLogEntry;
 
-  template<typename T>
-  T read() {
-    static_assert(std::is_trivially_copyable<T>::value,
-                  "T must be trivially copyable");
-    TRI_ASSERT(size() >= sizeof(T));
+auto makeMetaLogEntry(std::uint64_t term, std::uint64_t index,
+                      LogMetaPayload payload) -> InMemoryLogEntry;
 
-    T result;
-    memcpy(&result, _data, sizeof(T));
-    _data += sizeof(T);
-    return result;
-  }
-
-  void skip(std::size_t size) {
-    TRI_ASSERT(this->size() >= size);
-    _data += size;
-  }
-
- private:
-  uint8_t const* _data;
-  uint8_t const* _end;
-};
-
-}  // namespace arangodb::replication2::storage::wal
+}  // namespace arangodb::replication2::storage::wal::test

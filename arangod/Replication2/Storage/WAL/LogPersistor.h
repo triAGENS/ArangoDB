@@ -23,10 +23,12 @@
 
 #pragma once
 
-#include <set>
+#include <map>
 #include <memory>
 
+#include "Basics/Guarded.h"
 #include "Replication2/Storage/ILogPersistor.h"
+#include "Replication2/Storage/WAL/Options.h"
 
 namespace arangodb::replication2::storage::wal {
 
@@ -34,7 +36,16 @@ struct IFileManager;
 struct IFileWriter;
 
 struct LogPersistor : ILogPersistor {
-  LogPersistor(LogId logId, std::shared_ptr<IFileManager> fileManager);
+  struct LogFile {
+    std::string filename;
+    TermIndexPair first;
+    TermIndexPair last;
+
+    bool operator==(LogFile const& other) const = default;
+  };
+
+  LogPersistor(LogId logId, std::shared_ptr<IFileManager> fileManager,
+               Options options);
 
   [[nodiscard]] auto getIterator(IteratorPosition position)
       -> std::unique_ptr<PersistedLogIterator> override;
@@ -57,22 +68,42 @@ struct LogPersistor : ILogPersistor {
 
   auto drop() -> Result override;
 
- private:
-  struct LogFile {
-    std::string filename;
-    TermIndexPair first;
-    TermIndexPair last;
+  auto fileSet() const -> std::map<LogIndex, LogFile>;
 
-    bool operator<(LogFile const& other) const {
-      return first.index < other.first.index;
-    }
+  auto lastWrittenEntry() const -> std::optional<TermIndexPair> {
+    return _lastWrittenEntry;
+  }
+
+ private:
+  struct ActiveFile {
+    std::unique_ptr<IFileWriter> writer;
+    std::optional<LogIndex> firstIndex;
   };
+  struct Files {
+    // we map from lastIndex to LogFile, so we can easily find the file
+    // containing a specific index note that we need a sorted map with pointer
+    // stability!
+    std::map<LogIndex, LogFile> fileSet;
+    ActiveFile activeFile;
+  };
+
+  void loadFileSet();
+  [[nodiscard]] auto addToFileSet(Files& f, std::string const& file) -> Result;
+  void validateFileSet();
+  void createActiveLogFile();
+
+  void finishActiveLogFile(Files& f);
+  void createNewActiveLogFile(Files& f);
+  auto removeBackFromFile(IFileWriter& writer, LogIndex start)
+      -> ResultT<SequenceNumber>;
 
   LogId const _logId;
   std::shared_ptr<IFileManager> const _fileManager;
-  std::set<LogFile> _fileSet;
-  std::unique_ptr<IFileWriter> _activeFile;
+  Guarded<Files> _files;
   std::optional<TermIndexPair> _lastWrittenEntry;
+  Options _options;
 };
+
+std::ostream& operator<<(std::ostream& s, LogPersistor::LogFile const&);
 
 }  // namespace arangodb::replication2::storage::wal
