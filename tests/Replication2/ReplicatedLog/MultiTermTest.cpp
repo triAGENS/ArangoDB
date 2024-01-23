@@ -22,7 +22,6 @@
 
 #include <utility>
 
-#include "Replication2/ReplicatedLog/types.h"
 #include "Replication2/Helper/ReplicatedLogTestSetup.h"
 
 // TODO Remove this conditional as soon as we've upgraded MSVC.

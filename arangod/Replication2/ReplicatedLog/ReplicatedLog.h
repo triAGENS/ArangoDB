@@ -24,6 +24,7 @@
 #pragma once
 
 #include "Basics/Guarded.h"
+#include "Cluster/ClusterTypes.h"
 #include "Replication2/LoggerContext.h"
 #include "Replication2/ReplicatedLog/ILogInterfaces.h"
 #include "Replication2/ReplicatedLog/LogCommon.h"

@@ -24,8 +24,7 @@
 
 #include "Basics/voc-errors.h"
 
-#include "Replication2/ReplicatedLog/types.h"
-#include "Replication2/ReplicatedLog/NetworkMessages.h"
+#include "Replication2/ReplicatedLog/ReplicatedLog.h"
 
 namespace arangodb::replication2::test {
 

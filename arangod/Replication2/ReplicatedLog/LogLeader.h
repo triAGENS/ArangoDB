@@ -47,7 +47,6 @@
 #include "Replication2/ReplicatedLog/LogStatus.h"
 #include "Replication2/ReplicatedLog/NetworkMessages.h"
 #include "Replication2/ReplicatedLog/WaitForBag.h"
-#include "Replication2/ReplicatedLog/types.h"
 #include "Replication2/ReplicatedLog/ReplicatedLog.h"
 #include "Replication2/Storage/IteratorPosition.h"
 #include "Scheduler/Scheduler.h"

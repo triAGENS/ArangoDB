@@ -22,6 +22,7 @@
 
 #include "Cluster/ClusterInfo.h"
 
+#include "Agency/AgencyPaths.h"
 #include "ApplicationFeatures/ApplicationServer.h"
 #include "Basics/RecursiveLocker.h"
 #include "Basics/ScopeGuard.h"

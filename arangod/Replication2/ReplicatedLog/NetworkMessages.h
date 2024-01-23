@@ -46,7 +46,7 @@
 
 #include "Replication2/ReplicatedLog/LogCommon.h"
 #include "Replication2/ReplicatedLog/InMemoryLogEntry.h"
-#include "Replication2/ReplicatedLog/types.h"
+#include "Replication2/ReplicatedLog/AppendEntriesErrorReason.h"
 
 namespace arangodb {
 class Result;

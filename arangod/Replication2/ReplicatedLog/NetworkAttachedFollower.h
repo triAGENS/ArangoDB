@@ -23,7 +23,8 @@
 
 #pragma once
 
-#include "Replication2/ReplicatedLog/types.h"
+#include "Replication2/ReplicatedLog/LogId.h"
+#include "Replication2/ReplicatedLog/ParticipantId.h"
 #include "Replication2/ReplicatedLog/ReplicatedLog.h"
 #include "Cluster/ClusterTypes.h"
 

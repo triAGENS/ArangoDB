@@ -23,6 +23,8 @@
 
 #include "LogEntry.h"
 
+#include <Assertions/Assert.h>
+
 namespace arangodb::replication2 {
 
 LogEntry::LogEntry(TermIndexPair termIndexPair,

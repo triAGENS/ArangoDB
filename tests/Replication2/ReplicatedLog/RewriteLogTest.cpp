@@ -21,9 +21,9 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "Replication2/ReplicatedLog/LogCore.h"
+
 #include "Replication2/ReplicatedLog/LogEntry.h"
 #include "Replication2/ReplicatedLog/LogStatus.h"
-#include "Replication2/ReplicatedLog/types.h"
 
 #include "Replication2/Helper/ReplicatedLogTestSetup.h"
 

@@ -21,63 +21,23 @@
 /// @author Tobias Gödderz
 ////////////////////////////////////////////////////////////////////////////////
 
-#include "types.h"
+#include "AppendEntriesErrorReason.h"
 
-#include <Basics/Exceptions.h>
 #include <Basics/application-exit.h>
+#include <Basics/Exceptions.h>
 #include <Basics/voc-errors.h>
-#include <Inspection/VPack.h>
+// #include <Inspection/VPack.h>
 #include <Logger/LogMacros.h>
-#include <velocypack/Builder.h>
-#include <velocypack/Iterator.h>
+// #include <velocypack/Builder.h>
+// #include <velocypack/Iterator.h>
 
-#include <cstddef>
-#include <functional>
-#include <utility>
+// #include <cstddef>
+// #include <functional>
+// #include <utility>
 
-using namespace arangodb;
-using namespace arangodb::replication2;
-using namespace arangodb::replication2::replicated_log;
+namespace arangodb::replication2::replicated_log {
 
-replicated_log::QuorumData::QuorumData(LogIndex index, LogTerm term,
-                                       std::vector<ParticipantId> quorum)
-    : index(index), term(term), quorum(std::move(quorum)) {}
-
-replicated_log::QuorumData::QuorumData(LogIndex index, LogTerm term)
-    : QuorumData(index, term, {}) {}
-
-replicated_log::QuorumData::QuorumData(VPackSlice slice) {
-  index = slice.get(StaticStrings::Index).extract<LogIndex>();
-  term = slice.get(StaticStrings::Term).extract<LogTerm>();
-  for (auto part : VPackArrayIterator(slice.get("quorum"))) {
-    quorum.push_back(part.copyString());
-  }
-}
-
-void replicated_log::QuorumData::toVelocyPack(
-    velocypack::Builder& builder) const {
-  VPackObjectBuilder ob(&builder);
-  builder.add(StaticStrings::Index, VPackValue(index.value));
-  builder.add(StaticStrings::Term, VPackValue(term.value));
-  {
-    VPackArrayBuilder ab(&builder, "quorum");
-    for (auto const& part : quorum) {
-      builder.add(VPackValue(part));
-    }
-  }
-}
-
-void replicated_log::LogStatistics::toVelocyPack(
-    velocypack::Builder& builder) const {
-  serialize(builder, *this);
-}
-
-auto replicated_log::LogStatistics::fromVelocyPack(velocypack::Slice slice)
-    -> LogStatistics {
-  return deserialize<LogStatistics>(slice);
-}
-
-auto replicated_log::AppendEntriesErrorReason::getErrorMessage() const noexcept
+auto AppendEntriesErrorReason::getErrorMessage() const noexcept
     -> std::string_view {
   switch (error) {
     case ErrorType::kNone:
@@ -105,6 +65,7 @@ auto replicated_log::AppendEntriesErrorReason::getErrorMessage() const noexcept
   FATAL_ERROR_ABORT();
 }
 
+namespace {
 constexpr static std::string_view kNoneString = "None";
 constexpr static std::string_view kInvalidLeaderIdString = "InvalidLeaderId";
 constexpr static std::string_view kLostLogCoreString = "LostLogCore";
@@ -117,9 +78,10 @@ constexpr static std::string_view kCommunicationErrorString =
     "CommunicationError";
 constexpr static std::string_view kPrevAppendEntriesInFlightString =
     "PrevAppendEntriesInFlight";
+}  // namespace
 
-auto replicated_log::AppendEntriesErrorReason::errorTypeFromString(
-    std::string_view str) -> ErrorType {
+auto AppendEntriesErrorReason::errorTypeFromString(std::string_view str)
+    -> ErrorType {
   if (str == kNoneString) {
     return ErrorType::kNone;
   } else if (str == kInvalidLeaderIdString) {
@@ -144,8 +106,8 @@ auto replicated_log::AppendEntriesErrorReason::errorTypeFromString(
                                 str.data());
 }
 
-auto replicated_log::to_string(
-    AppendEntriesErrorReason::ErrorType error) noexcept -> std::string_view {
+auto to_string(AppendEntriesErrorReason::ErrorType error) noexcept
+    -> std::string_view {
   switch (error) {
     case AppendEntriesErrorReason::ErrorType::kNone:
       return kNoneString;
@@ -174,7 +136,7 @@ auto replicated_log::to_string(
 
 constexpr static std::string_view kDetailsString = "details";
 
-void replicated_log::AppendEntriesErrorReason::toVelocyPack(
+void AppendEntriesErrorReason::toVelocyPack(
     velocypack::Builder& builder) const {
   VPackObjectBuilder ob(&builder);
   builder.add(StaticStrings::Error, VPackValue(to_string(error)));
@@ -184,8 +146,8 @@ void replicated_log::AppendEntriesErrorReason::toVelocyPack(
   }
 }
 
-auto replicated_log::AppendEntriesErrorReason::fromVelocyPack(
-    velocypack::Slice slice) -> AppendEntriesErrorReason {
+auto AppendEntriesErrorReason::fromVelocyPack(velocypack::Slice slice)
+    -> AppendEntriesErrorReason {
   auto errorSlice = slice.get(StaticStrings::Error);
   TRI_ASSERT(errorSlice.isString())
       << "Expected string, found: " << errorSlice.toJson();
@@ -196,56 +158,6 @@ auto replicated_log::AppendEntriesErrorReason::fromVelocyPack(
     details = detailsSlice.copyString();
   }
   return {error, std::move(details)};
-}
-
-auto FollowerState::withUpToDate() noexcept -> FollowerState {
-  return FollowerState(std::in_place, UpToDate{});
-}
-
-auto FollowerState::withErrorBackoff(
-    std::chrono::duration<double, std::milli> duration,
-    std::size_t retryCount) noexcept -> FollowerState {
-  return FollowerState(std::in_place, ErrorBackoff{duration, retryCount});
-}
-
-auto FollowerState::withRequestInFlight(
-    std::chrono::duration<double, std::milli> duration) noexcept
-    -> FollowerState {
-  return FollowerState(std::in_place, RequestInFlight{duration});
-}
-
-auto FollowerState::fromVelocyPack(velocypack::Slice slice) -> FollowerState {
-  auto state = slice.get("state").extract<std::string_view>();
-  if (state == static_strings::errorBackoffString) {
-    return FollowerState{std::in_place,
-                         velocypack::deserialize<ErrorBackoff>(slice)};
-  } else if (state == static_strings::requestInFlightString) {
-    return FollowerState{std::in_place,
-                         velocypack::deserialize<RequestInFlight>(slice)};
-  } else {
-    return FollowerState{std::in_place,
-                         velocypack::deserialize<UpToDate>(slice)};
-  }
-}
-
-void FollowerState::toVelocyPack(velocypack::Builder& builder) const {
-  std::visit([&](auto const& v) { velocypack::serialize(builder, v); }, value);
-}
-
-auto to_string(FollowerState const& state) -> std::string_view {
-  struct ToStringVisitor {
-    auto operator()(FollowerState::UpToDate const&) {
-      return static_strings::upToDateString;
-    }
-    auto operator()(FollowerState::ErrorBackoff const& err) {
-      return static_strings::errorBackoffString;
-    }
-    auto operator()(FollowerState::RequestInFlight const& rif) {
-      return static_strings::requestInFlightString;
-    }
-  };
-
-  return std::visit(ToStringVisitor{}, state.value);
 }
 
 auto AppendEntriesErrorReasonTypeStringTransformer::toSerialized(
@@ -282,29 +194,4 @@ auto AppendEntriesErrorReasonTypeStringTransformer::fromSerialized(
   return {};
 }
 
-auto replicated_log::to_string(LocalStateMachineStatus status) noexcept
-    -> std::string_view {
-  switch (status) {
-    case LocalStateMachineStatus::kUnconfigured:
-      return kStringUnconfigured;
-    case LocalStateMachineStatus::kConnecting:
-      return kStringConnecting;
-    case LocalStateMachineStatus::kRecovery:
-      return kStringRecovery;
-    case LocalStateMachineStatus::kAcquiringSnapshot:
-      return kStringAcquiringSnapshot;
-    case LocalStateMachineStatus::kOperational:
-      return kStringOperational;
-  }
-  LOG_TOPIC("e3242", ERR, Logger::REPLICATION2)
-      << "Unhandled replicated state status: "
-      << static_cast<std::underlying_type_t<decltype(status)>>(status);
-  TRI_ASSERT(false);
-  return "(unknown status code)";
-}
-
-auto replicated_log::operator<<(std::ostream& ostream,
-                                LocalStateMachineStatus const& status)
-    -> std::ostream& {
-  return ostream << to_string(status);
-}
+}  // namespace arangodb::replication2::replicated_log

@@ -33,7 +33,6 @@
 #include "Replication2/ReplicatedLog/LogLeader.h"
 #include "Replication2/ReplicatedLog/LogStatus.h"
 #include "Replication2/ReplicatedLog/ReplicatedLog.h"
-#include "Replication2/ReplicatedLog/types.h"
 
 namespace arangodb::replication2::test {
 

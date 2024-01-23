@@ -28,7 +28,6 @@
 #include "Cluster/ClusterTypes.h"
 #include "Cluster/Utils/PlanShardToServerMappping.h"
 #include "Inspection/Access.h"
-#include "Replication2/ReplicatedLog/types.h"
 #include "VocBase/voc-types.h"
 #include "VocBase/Properties/KeyGeneratorProperties.h"
 #include "VocBase/Identifiers/DataSourceId.h"

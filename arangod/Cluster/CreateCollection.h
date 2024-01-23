@@ -27,7 +27,7 @@
 #include "ActionBase.h"
 #include "ActionDescription.h"
 #include "Cluster/ClusterTypes.h"
-#include "Replication2/ReplicatedLog/LogCommon.h"
+#include "Replication2/ReplicatedLog/LogId.h"
 #include "VocBase/voc-types.h"
 
 #include <chrono>

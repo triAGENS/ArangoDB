@@ -22,6 +22,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 #pragma once
 
+#include <Basics/Result.h>
+#include <Basics/ResultT.h>
 #include "Replication2/Storage/IPersistor.h"
 #include "Replication2/Storage/PersistedStateInfo.h"
 

@@ -25,7 +25,6 @@
 
 #include "Replication2/ReplicatedLog/Components/IStateHandleManager.h"
 #include "Basics/Guarded.h"
-#include "Replication2/ReplicatedLog/types.h"
 #include "Replication2/ReplicatedState/StateStatus.h"
 
 namespace arangodb::replication2::replicated_log {

@@ -22,6 +22,7 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
+#include "Replication2/Exceptions/ParticipantResignedException.h"
 #include "Replication2/ReplicatedLog/Components/LogFollower.h"
 #include "Replication2/Mocks/FakeStorageEngineMethods.h"
 #include "Replication2/Mocks/FakeAsyncExecutor.h"

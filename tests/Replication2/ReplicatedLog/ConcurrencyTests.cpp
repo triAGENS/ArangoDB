@@ -23,7 +23,6 @@
 #include <velocypack/Slice.h>
 
 #include "Replication2/ReplicatedLog/ILogInterfaces.h"
-#include "Replication2/ReplicatedLog/types.h"
 #include "Replication2/Helper/TestHelper.h"
 
 #include <Basics/ThreadGuard.h>

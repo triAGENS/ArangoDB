@@ -22,6 +22,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 #pragma once
 
+// TODO - move these inspectors to their respective types and remove this file
+
 #include "AgencyLogSpecification.h"
 
 #include "Inspection/Transformers.h"
@@ -61,18 +63,6 @@ auto constexpr Owner = std::string_view{"owner"};
 auto constexpr AssumedWriteConcern = std::string_view{"assumedWriteConcern"};
 auto constexpr AssumedWaitForSync = std::string_view{"assumedWaitForSync"};
 }  // namespace static_strings
-
-template<class Inspector>
-auto inspect(Inspector& f, ServerInstanceReference& x) {
-  return f.object(x).fields(f.field(StaticStrings::ServerId, x.serverId),
-                            f.field(StaticStrings::RebootId, x.rebootId));
-}
-
-template<class Inspector>
-auto inspect(Inspector& f, LogPlanTermSpecification& x) {
-  return f.object(x).fields(f.field(StaticStrings::Term, x.term),
-                            f.field(StaticStrings::Leader, x.leader));
-}
 
 template<class Inspector>
 auto inspect(Inspector& f, LogPlanSpecification& x) {

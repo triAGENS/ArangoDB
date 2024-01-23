@@ -24,7 +24,7 @@
 
 #include "Job.h"
 #include "Supervision.h"
-#include "Replication2/ReplicatedLog/types.h"
+#include "Replication2/ReplicatedLog/LogId.h"
 
 namespace arangodb::consensus {
 

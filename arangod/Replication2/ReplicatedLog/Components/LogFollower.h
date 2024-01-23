@@ -24,23 +24,20 @@
 
 #include "Replication2/LoggerContext.h"
 #include "Replication2/ReplicatedLog/ILogInterfaces.h"
-#include "Replication2/ReplicatedLog/LogCommon.h"
 #include "Replication2/ReplicatedLog/LogStatus.h"
+#include "Replication2/ReplicatedLog/ParticipantId.h"
 #include "Replication2/ReplicatedLog/NetworkMessages.h"
-#include "Replication2/ReplicatedLog/ReplicatedLogMetrics.h"
-#include "Replication2/ReplicatedLog/WaitForBag.h"
-#include "Replication2/ReplicatedLog/types.h"
 #include "Replication2/ReplicatedLog/ReplicatedLog.h"
-#include "Replication2/Exceptions/ParticipantResignedException.h"
-#include "TermInformation.h"
+#include "Replication2/ReplicatedLog/Components/TermInformation.h"
 
 #include <Basics/Guarded.h>
-#include <Futures/Future.h>
 
-#include <condition_variable>
-#include <map>
 #include <memory>
-#include <mutex>
+
+namespace arangodb::futures {
+template<typename T>
+class Future;
+}  // namespace arangodb::futures
 
 namespace arangodb::replication2::replicated_log {
 inline namespace comp {
@@ -56,6 +53,8 @@ struct MessageIdManager;
 }  // namespace arangodb::replication2::replicated_log
 
 namespace arangodb::replication2::replicated_log {
+
+struct ReplicatedLogMetrics;
 
 struct FollowerManager {
   explicit FollowerManager(

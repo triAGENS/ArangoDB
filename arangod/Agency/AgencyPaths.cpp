@@ -22,7 +22,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "AgencyPaths.h"
-#include <Replication2/ReplicatedLog/LogCommon.h>
+#include <Replication2/ReplicatedLog/LogId.h>
 
 using namespace arangodb;
 using namespace arangodb::cluster;

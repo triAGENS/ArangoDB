@@ -26,7 +26,6 @@
 
 #include "Replication2/ReplicatedLog/LogCore.h"
 #include "Replication2/ReplicatedLog/LogLeader.h"
-#include "Replication2/ReplicatedLog/types.h"
 #include "Metrics/Histogram.h"
 #include "Metrics/LogScale.h"
 

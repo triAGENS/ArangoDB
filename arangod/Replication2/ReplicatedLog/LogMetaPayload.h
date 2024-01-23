@@ -25,6 +25,8 @@
 
 #include "Replication2/ReplicatedLog/AgencyLogSpecification.h"
 
+#include "Inspection/Transformers.h"
+
 namespace arangodb::replication2 {
 
 struct LogMetaPayload {

@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <Assertions/Assert.h>
 #include "Replication2/ReplicatedLog/LogEntry.h"
 #include "Replication2/Storage/IteratorPosition.h"
 

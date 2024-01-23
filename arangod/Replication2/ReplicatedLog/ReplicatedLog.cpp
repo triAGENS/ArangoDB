@@ -29,6 +29,7 @@
 #include "Replication2/ReplicatedLog/IRebootIdCache.h"
 #include "Replication2/ReplicatedLog/InMemoryLog.h"
 #include "Replication2/ReplicatedLog/LogLeader.h"
+#include "Replication2/ReplicatedLog/ReplicatedLogMetrics.h"
 #include "Replication2/ReplicatedLog/AgencySpecificationInspectors.h"
 #include "Replication2/ReplicatedLog/Components/LogFollower.h"
 #include "Replication2/Storage/IStorageEngineMethods.h"

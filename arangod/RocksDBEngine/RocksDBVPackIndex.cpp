@@ -75,6 +75,7 @@
 #include <velocypack/Builder.h>
 #include <velocypack/Iterator.h>
 #include <velocypack/Slice.h>
+#include <velocypack/String.h>
 
 #include "Containers/Enumerate.h"
 

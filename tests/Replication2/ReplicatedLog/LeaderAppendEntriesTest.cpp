@@ -21,10 +21,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "Replication2/Helper/ReplicatedLogTestSetup.h"
-#include "Replication2/Mocks/FakeAbstractFollower.h"
 
 #include "Basics/voc-errors.h"
-#include "Replication2/ReplicatedLog/types.h"
 
 // TODO Remove this conditional as soon as we've upgraded MSVC.
 #ifdef DISABLE_I_HAS_SCHEDULER

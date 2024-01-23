@@ -30,7 +30,6 @@
 #include "Replication2/ReplicatedLog/ReplicatedLog.h"
 #include "Replication2/ReplicatedLog/ReplicatedLogMetrics.h"
 #include "Replication2/ReplicatedLog/ReplicatedLogMetrics.h"
-#include "Replication2/ReplicatedLog/types.h"
 #include "Replication2/Storage/IStorageEngineMethods.h"
 
 #include "Replication2/Mocks/FakeStorageEngineMethods.h"

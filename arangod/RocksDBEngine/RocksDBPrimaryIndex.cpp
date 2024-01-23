@@ -77,6 +77,7 @@
 #include <velocypack/Builder.h>
 #include <velocypack/Collection.h>
 #include <velocypack/Slice.h>
+#include <velocypack/String.h>
 
 using namespace arangodb;
 using namespace arangodb::basics;

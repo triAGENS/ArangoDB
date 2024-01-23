@@ -77,8 +77,7 @@ JoinExecutor::~JoinExecutor() {
 }
 
 JoinExecutor::JoinExecutor(Fetcher& fetcher, Infos& infos)
-    : _fetcher(fetcher),
-      _infos(infos),
+    : _infos(infos),
       _trx{_infos.query->newTrxContext()},
       _resourceMonitor(_infos.query->resourceMonitor()) {
   constructStrategy();
