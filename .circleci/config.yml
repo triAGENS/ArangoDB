@@ -18,9 +18,6 @@ parameters:
   build-windows-image:
     type: string
     default: ""
-  replication-two:
-    type: boolean
-    default: false # We use replication1 as default.
   skip-windows-tests:
     type: boolean
     default: true 
@@ -99,7 +96,7 @@ jobs:
           name: Generate config
           command: |
             pip install pyyaml
-            python3 ".circleci/generate_config.py" <<# pipeline.parameters.skip-windows-tests >> --skip-windows <</ pipeline.parameters.skip-windows-tests >> <<# pipeline.parameters.replication-two >> -rt <</ pipeline.parameters.replication-two >> -o generated_config.yml ./.circleci/base_config.yml << parameters.definitions >>
+            python3 ".circleci/generate_config.py" <<# pipeline.parameters.skip-windows-tests >> --skip-windows <</ pipeline.parameters.skip-windows-tests >> -o generated_config.yml ./.circleci/base_config.yml << parameters.definitions >>
 
       - continuation/continue:
           configuration_path: generated_config.yml # use newly generated config to continue

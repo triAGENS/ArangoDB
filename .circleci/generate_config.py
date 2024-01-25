@@ -85,9 +85,6 @@ def parse_arguments():
         "--all", help="output all test, ignore other filters", action="store_true"
     )
     parser.add_argument(
-        "-rt", "--replication_two", default=False, action='store_true', help="flag if we should enable replication two tests"
-    )
-    parser.add_argument(
         "--skip-windows", default=False, action='store_true', help="flag if we should skip windows tests"
     )
     return parser.parse_args()
@@ -296,7 +293,7 @@ def create_test_job(test, cluster, edition, arch, dist, replication_version=1):
     return result
 
 
-def add_test_jobs_to_workflow(config, tests, workflow, edition, arch, dist, repl2):
+def add_test_jobs_to_workflow(config, tests, workflow, edition, arch, dist):
     jobs = config["workflows"][workflow]["jobs"]
     for test in tests:
         if "!" + dist in test["flags"]:
@@ -305,10 +302,9 @@ def add_test_jobs_to_workflow(config, tests, workflow, edition, arch, dist, repl
             jobs.append(
                 {f"run-{dist}-tests": create_test_job(test, True, edition, arch, dist)}
             )
-            if repl2:
-                jobs.append(
-                    {f"run-{dist}-tests": create_test_job(test, True, edition, arch, dist, 2)}
-                )
+            jobs.append(
+                {f"run-{dist}-tests": create_test_job(test, True, edition, arch, dist, 2)}
+            )
         elif "single" in test["flags"]:
             jobs.append(
                 {f"run-{dist}-tests": create_test_job(test, False, edition, arch, dist)}
@@ -317,10 +313,9 @@ def add_test_jobs_to_workflow(config, tests, workflow, edition, arch, dist, repl
             jobs.append(
                 {f"run-{dist}-tests": create_test_job(test, True, edition, arch, dist)}
             )
-            if repl2:
-                jobs.append(
-                    {f"run-{dist}-tests": create_test_job(test, True, edition, arch, dist, 2)}
-                )
+            jobs.append(
+                {f"run-{dist}-tests": create_test_job(test, True, edition, arch, dist, 2)}
+            )
             jobs.append(
                 {f"run-{dist}-tests": create_test_job(test, False, edition, arch, dist)}
             )
@@ -334,27 +329,27 @@ def get_arch(workflow):
     raise Exception(f"Cannot extract architecture from workflow {workflow}")
 
 
-def generate_output(config, tests, enterprise, repl2, skip_windows):
+def generate_output(config, tests, enterprise, skip_windows):
     """generate output"""
     workflows = config["workflows"]
     edition = "ee" if enterprise else "ce"
     for workflow, jobs in workflows.items():
         if ("windows" in workflow) and enterprise and not skip_windows:
             arch = get_arch(workflow)
-            add_test_jobs_to_workflow(config, tests, workflow, edition, arch, "windows", repl2)
+            add_test_jobs_to_workflow(config, tests, workflow, edition, arch, "windows") 
         if (
             ("linux" in workflow)
             and (enterprise and "enterprise" in workflow)
             or (not enterprise and "community" in workflow)
         ):
             arch = get_arch(workflow)
-            add_test_jobs_to_workflow(config, tests, workflow, edition, arch, "linux", repl2)
+            add_test_jobs_to_workflow(config, tests, workflow, edition, arch, "linux")
 
 
 def generate_jobs(config, args, tests, enterprise):
     """generate job definitions"""
     tests = filter_tests(args, tests, enterprise)
-    generate_output(config, tests, enterprise, args.replication_two, args.skip_windows)
+    generate_output(config, tests, enterprise, args.skip_windows)
 
 
 def main():
