@@ -1,6 +1,8 @@
 3.12.0-alpha.1 (XXXX-XX-XX)
 ---------------------------
 
+* FE-436: rename `multi_delimiter` analyzer property to `delimiters` on web UI.
+
 * Updated ArangoDB Starter to v0.18.3-preview-2.
 
 * FE-424: Adjusted Foxx service install button placement.
