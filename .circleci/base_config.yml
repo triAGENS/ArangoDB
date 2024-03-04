@@ -14,6 +14,9 @@ parameters:
   enterprise-branch:
     type: string
     default: ""
+  dont-cancel-pipelines:
+    type: boolean
+    default: false
   nightly:
     type: boolean
     default: false

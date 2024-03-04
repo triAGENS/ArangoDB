@@ -15,6 +15,9 @@ parameters:
   rebuild-test-docker-images:
     type: boolean
     default: false
+  dont-cancel-pipelines:
+    type: boolean
+    default: false
   build-docker-image:
     type: string
     default: ""
@@ -54,6 +57,50 @@ jobs:
                 echo "Intentional build failure - to run an actual build please trigger a pipeline manually."
                 exit 1
       - run: echo "Check successful - generating config."
+
+  cancel-redundant-pipelines:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: "Cancel redundant pipelines"
+          command: |
+            if [ "<< pipeline.parameters.dont-cancel-pipelines >>" == "true" ]; then
+              echo "Cancelling of redundant pipelines is disabled, not cancelling any pipelines"
+            elif [ "<< pipeline.parameters.nightly >>" == "true" ]; then
+              echo "Nightly build - not cancelling any pipelines"
+            elif [[ "$CIRCLE_BRANCH" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)$ ]] || [ "$CIRCLE_BRANCH" == "devel" ]; then
+              echo "Branch is a release branch or devel, not cancelling any pipelines"
+            else
+              ## Get the name of the workflow and the related pipeline number
+              CURRENT_PIPELINE_NUM=$(curl --header "Circle-Token: $CIRCLECI_TOKEN" --request GET "https://circleci.com/api/v2/workflow/${CIRCLE_WORKFLOW_ID}" | jq -r '.pipeline_number')
+
+              ## Get the IDs of pipelines created by the current user on the same branch. (Only consider pipelines that have a pipeline number inferior to the current pipeline)
+              PIPE_IDS=$(curl --header "Circle-Token: $CIRCLECI_TOKEN" --request GET "https://circleci.com/api/v2/project/gh/arangodb/arangodb/pipeline?branch=$CIRCLE_BRANCH" | \
+                jq -r --arg CIRCLE_USERNAME "$CIRCLE_USERNAME" --argjson CURRENT_PIPELINE_NUM "$CURRENT_PIPELINE_NUM" '.items[]|select(.state == "created")|select(.trigger.actor.login == $CIRCLE_USERNAME)|select(.number < $CURRENT_PIPELINE_NUM)|.id')
+
+              ## Get the IDs of currently running/on_hold workflows
+              if [ ! -z "$PIPE_IDS" ]; then
+                for PIPE_ID in $PIPE_IDS
+                do
+                  curl --header "Circle-Token: $CIRCLECI_TOKEN" --request GET "https://circleci.com/api/v2/pipeline/${PIPE_ID}/workflow" | \
+                    jq -r '.items[]|select(.status == "on_hold" or .status == "running") | .id' >> WF_to_cancel.txt
+                done
+              fi
+
+              ## Cancel any currently running/on_hold workflow with the same name
+              if [ -s WF_to_cancel.txt ]; then
+                echo "Cancelling the following workflow(s):"
+                cat WF_to_cancel.txt 
+                while read WF_ID;
+                  do
+                    curl --header "Circle-Token: $CIRCLECI_TOKEN" --request POST https://circleci.com/api/v2/workflow/$WF_ID/cancel
+                  done < WF_to_cancel.txt
+              else
+                echo "Nothing to cancel"
+              fi
+            fi
 
   generate-config:
     docker:
@@ -134,7 +181,11 @@ workflows:
       # we always create a workflow and let the build fail in check-build-trigger unless it has been triggered manually
       # or runs on the devel branch (see condition in check-build-trigger)
       - check-build-trigger
+      - cancel-redundant-pipelines:
+          context: [ circleci-token ]
+          requires:
+            - check-build-trigger
       - generate-config:
           definitions: "tests/test-definitions.txt"
           requires:
-            - check-build-trigger
+            - cancel-redundant-pipelines
