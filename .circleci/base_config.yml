@@ -1,35 +1,19 @@
 version: 2.1
 
-orbs:
-  aws-cli: circleci/aws-cli@4.1.1
-  aws-ecr: circleci/aws-ecr@9.0.1
-  
 parameters:
   enterprise-commit:
     type: string
     default: ""
-  arangosh_args:
-    type: string
-    default: ""
-  use-minimal-debug-info:
-    type: boolean
-    default: true
   build-docker-image:
     type: string
-    default: "arangodb/ubuntubuildarangodb-devel:7"
+    default: "arangodb/ubuntubuildarangodb-devel:3"
   test-docker-image:
     type: string
-    default: public.ecr.aws/b0b8h2r4/test-ubuntu:23.10-5b6113b7
+    default: public.ecr.aws/b0b8h2r4/test-ubuntu:23.10-fc8ee57e
   # Unused here, but it will be forwarded from config and will cause errors if not defined
   enterprise-branch:
     type: string
     default: ""
-  dont-cancel-pipelines:
-    type: boolean
-    default: false
-  create-docker-images:
-    type: boolean
-    default: false
   nightly:
     type: boolean
     default: false
@@ -39,18 +23,6 @@ parameters:
   sanitizer:
     type: string
     default: ""
-  ui:
-    type: string
-    default: "on"
-  ui-deployment:
-    type: string
-    default: ""
-  ui-testsuites:
-    type: string
-    default: ""
-  rta-branch:
-    type: string
-    default: "main"
   c-compiler:
     type: string
     default: "clang"
@@ -60,15 +32,16 @@ parameters:
   # these are basically global constants
   build-targets:
     type: string
-    default: "arangodb"
-    # The arangodb target consists of arangod and the list of client-tools which already
-    # conditionally contains arangobackup and arangosh, depending on whether we build in
-    # enterprise mode, and whether we build with V8 or not.
-    # This should also improve build times because this way the individual targets can be
-    # built in parallel (a list of individual targets is built serially).
+    default: "arangod arangoimport arangoexport arangodump arangorestore arangobench frontend"
   test-build-targets:
     type: string
     default: "arangodbtests fuertetest"
+  enterprise-build-targets:
+    type: string
+    default: "arangobackup"
+  v8-build-targets:
+    type: string
+    default: "arangosh"
 
 commands:
   checkout-arangodb:
@@ -131,12 +104,6 @@ jobs:
           destination: "/home/circleci/project"
       - checkout-enterprise:
           destination: "/home/circleci/project/enterprise"
-      - run:
-          name: Checkout rta-makedata
-          command: |
-            # we are only interested in the rta-makedata submodule because we want to run eslint on it,
-            # but we do not care about the other submodules (specifically we do _not_ want to clone v8)
-            git submodule update --init 3rdParty/rta-makedata
       - persist_to_workspace:
           root: .
           paths:
@@ -158,23 +125,6 @@ jobs:
           name: Check LogIDs
           command: |
             python3 utils/checkLogIds.py
-
-  check-metrics-docs:
-    docker:
-      - image: cimg/python:3.11.1
-    resource_class: small
-    steps:
-      - attach_workspace:
-          at: .
-      - run:
-          name: Install pyyaml
-          command: |
-            python -m pip install --upgrade pip
-            pip install pyyaml
-      - run:
-          name: Check LogIDs
-          command: |
-            python3 utils/generateAllMetricsDocumentation.py
 
   clang-format:
     docker:
@@ -223,50 +173,12 @@ jobs:
       - run:
           name: Install eslint
           command: |
-            apk add --no-cache npm curl jq
+            apk add --no-cache npm
             npm -g install eslint@8.46.0
       - run:
           name: Run eslint
           command: |
             utils/eslint.sh
-      - run:
-          name: "Cancel other workflows"
-          when: on_fail
-          command: |
-            ## Get the IDs of currently running/on_hold workflows, but exclude ourselves
-            curl --header "Circle-Token: $CIRCLECI_TOKEN" --request GET "https://circleci.com/api/v2/pipeline/${CIRCLE_PIPELINE_ID}/workflow" | \
-                jq -r '.items[]|select(.id != "'${CIRCLE_WORKFLOW_ID}'" and (.status == "on_hold" or .status == "running")) | .id' >> WF_to_cancel.txt
-
-            ## Cancel any currently running/on_hold workflow with the same name
-            if [ -s WF_to_cancel.txt ]; then
-              echo "Cancelling the following workflow(s):"
-              cat WF_to_cancel.txt 
-              while read WF_ID;
-                do
-                  curl --header "Circle-Token: $CIRCLECI_TOKEN" --request POST https://circleci.com/api/v2/workflow/$WF_ID/cancel
-                done < WF_to_cancel.txt
-            else
-              echo "Nothing to cancel"
-            fi
-
-  build-frontend:
-    docker:
-      - image: << pipeline.parameters.build-docker-image >>
-    resource_class: large
-    steps:
-      - checkout-arangodb:
-          with-submodules: false
-          destination: "/root/project"
-      - run:
-          name: Build frontend
-          command: |
-            cd js/apps/system/_admin/aardvark/APP/react
-            yarn install
-            yarn build
-      - persist_to_workspace:
-          root: .
-          paths:
-            - js/apps/system/_admin/aardvark/APP/react/build
 
   compile-linux:
     parameters:
@@ -288,8 +200,6 @@ jobs:
       s3-prefix:
         type: string
         default: ""
-      arch:
-          type: string
     docker:
       - image: << pipeline.parameters.build-docker-image >>
     resource_class: << parameters.resource-class >>
@@ -315,69 +225,22 @@ jobs:
       - run:
           name: Configure
           command: |
-            MINIMAL_DEBUGINFO="OFF"
-            if [ << pipeline.parameters.use-minimal-debug-info >> = true ]; then
-              MINIMAL_DEBUGINFO="ON"
-            fi
-            cmake --preset << parameters.preset >> \
-              -DCMAKE_C_COMPILER=<< pipeline.parameters.c-compiler >> \
-              -DCMAKE_CXX_COMPILER=<< pipeline.parameters.cxx-compiler >> \
-              -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=lld" \
-              -DCMAKE_LIBRARY_PATH=$OPENSSL_ROOT_DIR/lib \
-              -DCMAKE_C_COMPILER_LAUNCHER=sccache \
-              -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
-              -DOPENSSL_ROOT_DIR=/opt \
-              -DUSE_MINIMAL_DEBUGINFO=$MINIMAL_DEBUGINFO \
-              -DCMAKE_INSTALL_PREFIX=/
+            cmake --preset << parameters.preset >> -DCMAKE_C_COMPILER=<< pipeline.parameters.c-compiler >> -DCMAKE_CXX_COMPILER=<< pipeline.parameters.cxx-compiler >> -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=lld" -DCMAKE_LIBRARY_PATH=$OPENSSL_ROOT_DIR/lib -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DOPENSSL_ROOT_DIR=/opt
       - run:
           name: Build
           command: |
             TARGETS="<< pipeline.parameters.build-targets >>"
+            if [ << parameters.build-v8 >> = true ]; then
+              TARGETS="$TARGETS << pipeline.parameters.v8-build-targets >>"
+            fi
+            if [ << parameters.enterprise >> = true ]; then
+              TARGETS="$TARGETS << pipeline.parameters.enterprise-build-targets >>"
+            fi
             if [ << parameters.build-tests >> = true ]; then
               TARGETS="$TARGETS << pipeline.parameters.test-build-targets >>"
             fi
             echo "Building targets: $TARGETS"
-            cmake --build --preset << parameters.preset >> --parallel 16 --target $TARGETS
-      - when:
-          condition:
-            or:
-              -  not:
-                  equal: [ << pipeline.parameters.ui >>, ""]
-              - << pipeline.parameters.create-docker-images >>
-          steps:
-            - run:
-                root: .
-                name: get aux binaries
-                command: |
-                  set -x
-                  STARTER_REV=$(grep -Po "STARTER_REV \"\Kv\d+\.\d+\.\d+[a-z0-9-]*" VERSIONS)
-                  RCLONE_VERSION=$(grep -Po "RCLONE_VERSION \"\K\d+\.\d+\.\d+" VERSIONS)
-                  arch="<<parameters.arch>>"
-                  if test "$arch" == "x64"; then
-                    arch="amd64"
-                  fi
-                  curl -s -L -o build/bin/arangodb "https://github.com/arangodb-helper/arangodb/releases/download/$STARTER_REV/arangodb-linux-$arch"
-                  chmod a+x build/bin/arangodb
-                  if [ << parameters.enterprise >> = true ]; then
-                    curl -s -L -o build/bin/rclone-arangodb "https://github.com/arangodb/oskar/raw/master/rclone/v$RCLONE_VERSION/rclone-arangodb-linux-$arch"
-                    chmod a+x build/bin/rclone-arangodb
-                  fi
-      - when:
-          condition: << pipeline.parameters.create-docker-images >>
-          steps:
-            - run:
-                name: Create install package
-                command: |
-                  mkdir install
-                  # Note: ATM this will rebuild the frontend
-                  DESTDIR=`pwd`/install cmake --build --preset << parameters.preset >> --parallel 16 --target install
-                  cp build/bin/arangodb ./install/usr/bin/
-                  if [ << parameters.enterprise >> = true ]; then
-                    cp build/bin/rclone-arangodb ./install/usr/bin/
-                  fi
-                  strip ./install/usr/bin/arango*
-                  strip ./install/usr/sbin/arangod
-                  tar -czf install.tar.gz -C install ./
+            cmake --build --preset << parameters.preset >> --parallel 8 --target $TARGETS
       - run:
           name: Size leaderboard
           command: |
@@ -389,10 +252,6 @@ jobs:
             find build/ -iname *.o -delete || true
             find build/ -iname *.o.d -delete || true
             rm js/apps/system/_admin/aardvark/APP/react/node_modules -rf
-      - run:
-          name: List build artifacts
-          command: |
-            ls -Ssha build/bin/
       - run:
           name: SCCache Statistics
           command: sccache -s
@@ -406,11 +265,8 @@ jobs:
             - persist_to_workspace:
                 root: .
                 paths:
-                  - VERSIONS
-                  - ARANGO-VERSION
                   - build/compile_commands.json
                   - CMakePresets.json
-                  - install.tar.gz
                   - build/bin
                   - build/etc
                   - build/3rdParty/iresearch/external/snowball/libstemmer/
@@ -428,36 +284,6 @@ jobs:
                   - ubsan_arangodb_suppressions.txt
                   - lsan_arangodb_suppressions.txt
 
-  create-docker-image:
-    parameters:
-      resource-class:
-          type: string
-      arch:
-          type: string
-      tag:
-          type: string
-    docker:
-      - image: cimg/base:current
-    resource_class: << parameters.resource-class >>
-    steps:
-      - aws-cli/setup:
-          role_arn: "arn:aws:iam::242063586340:role/CircleCI-Container-Handler"
-      - aws-ecr/ecr_login:
-          public_registry: true
-      - setup_remote_docker:
-            docker_layer_caching: true
-      - attach_workspace:
-          at: .
-      - run:
-          name: Create Docker Image
-          command: |
-            cd scripts/docker/deploy
-            mkdir install
-            tar -xzf ../../../install.tar.gz -C install
-            docker build --platform linux/<< parameters.arch >> --build-arg arch=<< parameters.arch >> -t << parameters.tag >> --file deploy-alpine.dockerfile .
-            echo "Pushing image << parameters.tag >>"
-            docker push << parameters.tag >>
-
   run-linux-tests:
     docker:
       - image: << pipeline.parameters.test-docker-image >>
@@ -466,9 +292,6 @@ jobs:
         type: string
       suites:
         type: string
-      arangosh_args:
-        type: string
-        default: ""
       size:
         type: string
       extraArgs:
@@ -491,59 +314,31 @@ jobs:
           name: Enabled coredumps
           command: ulimit -c unlimited
       - run:
-          name: Log processes
-          command: |
-            export PS_FORMAT="pid,%cpu,%mem,rss,thcount,oom,oomadj,args"
-            ps | head -n 1
-            echo "======"
-            while true; do
-              sleep 3
-              ps -a | grep "[a]rangod " || true | while read line ; do echo "$(date +"%T") > $line" ; done ;
-              echo "======"
-            done
-          background: true
-      - when:
-          condition:
-            not:
-              equal: [ << pipeline.parameters.sanitizer >>, ""]
-          steps:
-            - run:
-                name: Symbolizer server
-                command: ./utils/llvm-symbolizer-server.py
-                background: true
-      - run:
           name: Run << parameters.suiteName >> tests
           # we increase the no_output_timeout so our own timeout mechanism can kick in and gather more information
           no_output_timeout: 20m
           command: |
             mkdir work
-            if [ "<< pipeline.parameters.sanitizer >>" = "alubsan" ]; then
-              export ASAN_OPTIONS="log_exe_name=true:log_path=`pwd`/work/alubsan.log:handle_ioctl=true:check_initialization_order=true:detect_container_overflow=true:detect_stack_use_after_return=false:detect_odr_violation=1:strict_init_order=true:external_symbolizer_path=`pwd`/utils/llvm-symbolizer-client.py"
-              export LSAN_OPTIONS="log_exe_name=true:log_path=`pwd`/work/alubsan.log:suppressions=lsan_arangodb_suppressions.txt:print_suppressions=0"
-              export UBSAN_OPTIONS="log_exe_name=true:log_path=`pwd`/work/alubsan.log:print_stacktrace=1:suppressions=ubsan_arangodb_suppressions.txt:print_suppressions=0:external_symbolizer_path=`pwd`/utils/llvm-symbolizer-client.py"
+            if [ << pipeline.parameters.sanitizer >> = "alubsan" ]; then
+              export ASAN_OPTIONS="log_exe_name=true:log_path=`pwd`/work/asan.log:handle_ioctl=true:check_initialization_order=true:detect_container_overflow=true:detect_stack_use_after_return=false:detect_odr_violation=1:strict_init_order=true"
+              export LSAN_OPTIONS="log_exe_name=true:log_path=`pwd`/work/lsan.log:suppressions=lsan_arangodb_suppressions.txt:print_suppressions=0"
+              export UBSAN_OPTIONS="log_exe_name=true:log_path=`pwd`/work/ubsan.log:print_stacktrace=1:suppressions=ubsan_arangodb_suppressions.txt:print_suppressions=0"
               export SAN_MODE=alubsan
-            elif [ "<< pipeline.parameters.sanitizer >>" = "tsan" ]; then
-              export TSAN_OPTIONS="log_exe_name=true:log_path=`pwd`/work/tsan.log:detect_deadlocks=true:second_deadlock_stack=1:suppressions=tsan_arangodb_suppressions.txt:print_suppressions=0:external_symbolizer_path=`pwd`/utils/llvm-symbolizer-client.py"
+            elif [ << pipeline.parameters.sanitizer >> = "tsan" ]; then
+              export TSAN_OPTIONS="log_exe_name=true:log_path=`pwd`/work/tsan.log:detect_deadlocks=true:second_deadlock_stack=1:suppressions=tsan_arangodb_suppressions.txt:print_suppressions=0"
               export SAN_MODE=tsan
             fi
-
-            # check if promtool is available and if so set the environment variable to enable the according tests
-            if command -v promtool &> /dev/null; then
-              export PROMTOOL_PATH=`command -v promtool`
-            fi
-
-            export TIMELIMIT=<< parameters.timeLimit >>
             # Note: we need the leading space for extraArgs to avoid a parsing issue in argparse
-            python3 -u scripts/test/test_launch_controller.py << parameters.suites >> \
-              --arangosh_args '<< parameters.arangosh_args >>' \
+            export TIMELIMIT=<< parameters.timeLimit >>
+            python3 scripts/test/test_launch_controller.py << parameters.suites >> \
               --testBuckets $CIRCLE_NODE_TOTAL/$CIRCLE_NODE_INDEX \
               --cluster << parameters.cluster >> \
-              --extraArgs ' << parameters.extraArgs >>'
+              --extraArgs " << parameters.extraArgs >>" \
+              --definition tests/test-definitions.txt
       - run:
           name: Copy test results
           when: always
           command: |
-            ls -la ./work/
             mkdir test-results
             find testrunXml -iname *xml -exec cp "{}" --target-directory=./test-results \;
       - store_artifacts:
@@ -583,87 +378,6 @@ jobs:
       - store_artifacts:
           destination: hotbackup-test
           path: /tmp/test-workdir
-
-  run-rta-tests:
-    machine:
-      image: ubuntu-2204:current
-    resource_class: large
-    parameters:
-      suiteName:
-        type: string
-      enterprise:
-        type: string
-      deployment:
-        type: string
-      filterStatement:
-        type: string
-      browser:
-        type: string
-      rta-branch:
-        type: string
-        default: "main"
-      arangosh_args:
-        type: string
-        default: ""
-    steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "f9:49:75:1a:ad:44:89:10:4b:3c:70:70:ba:d3:c3:ce"
-      - attach_workspace:
-          at: work/ArangoDB
-      - run:
-          name: Clone RTA
-          command: |
-            mkdir work/release-test-automation
-            cd work/release-test-automation
-            git clone git@github.com:arangodb/release-test-automation.git .
-            git checkout << pipeline.parameters.rta-branch >>
-      - run:
-          name: Run << parameters.suiteName >> tests
-          no_output_timeout: 20m
-          command: |
-            pwd
-            export SOURCE=nightlypublic
-            export RTA_EDITION=<< parameters.enterprise >>
-            if [ "<< pipeline.parameters.sanitizer >>" = "alubsan" ]; then
-              export ASAN_OPTIONS="log_exe_name=true:log_path=/work/alubsan.log:handle_ioctl=true:check_initialization_order=true:detect_container_overflow=true:detect_stack_use_after_return=false:detect_odr_violation=1:strict_init_order=true:external_symbolizer_path=/utils/llvm-symbolizer-client.py"
-              export LSAN_OPTIONS="log_exe_name=true:log_path=/work/alubsan.log:suppressions=lsan_arangodb_suppressions.txt:print_suppressions=0"
-              export UBSAN_OPTIONS="log_exe_name=true:log_path=/work/alubsan.log:print_stacktrace=1:suppressions=ubsan_arangodb_suppressions.txt:print_suppressions=0:external_symbolizer_path=/utils/llvm-symbolizer-client.py"
-              export SAN_MODE=alubsan
-              cp work/ArangoDB/ubsan_arangodb_suppressions.txt work/ArangoDB/build/bin/ubsan_arangodb_suppressions.txt
-              cp work/ArangoDB/tsan_arangodb_suppressions.txt work/ArangoDB/build/bin/tsan_arangodb_suppressions.txt
-              cp work/ArangoDB/lsan_arangodb_suppressions.txt work/ArangoDB/build/bin/lsan_arangodb_suppressions.txt
-            elif [ "<< pipeline.parameters.sanitizer >>" = "tsan" ]; then
-              sudo sysctl vm.mmap_rnd_bits=28
-              export TSAN_OPTIONS="log_exe_name=true:log_path=/work/tsan.log:detect_deadlocks=true:second_deadlock_stack=1:suppressions=tsan_arangodb_suppressions.txt:print_suppressions=0:external_symbolizer_path=/utils/llvm-symbolizer-client.py"
-              export SAN_MODE=tsan
-              cp work/ArangoDB/ubsan_arangodb_suppressions.txt work/ArangoDB/build/bin/ubsan_arangodb_suppressions.txt
-              cp work/ArangoDB/tsan_arangodb_suppressions.txt work/ArangoDB/build/bin/tsan_arangodb_suppressions.txt
-              cp work/ArangoDB/lsan_arangodb_suppressions.txt work/ArangoDB/build/bin/lsan_arangodb_suppressions.txt
-            fi
-            mkdir -p  work/release-test-automation/allure-results work/release-test-automation/allure-config
-            cd work/release-test-automation
-            bash -x ./jenkins/circleci_tar.sh \
-              --no-checkdata \
-              --no-run-upgrade  \
-              --selenium << parameters.browser >> \
-              --starter-mode << parameters.deployment >> \
-              << parameters.filterStatement >>
-            exit_code=$?
-            docker run \
-             -v $(pwd)/allure-report:/allure-report \
-             -v $(pwd)/allure-results:/allure-results \
-             -v $(pwd)/allure-config:/allure-config \
-             smartcosmos/allure-commandline generate /allure-results -o /allure-report --clean
-             exit $(($exit_code + $(cat ./test_dir/status.json) ))
-      - store_artifacts:
-          destination: << parameters.suiteName >>
-          path: ./work/release-test-automation/test_dir
-      - store_artifacts:
-          destination: << parameters.suiteName >>
-          path: ./work/release-test-automation/allure-report
-      - store_test_results:
-          path: ./test-results/
 
   run-cppcheck:
     docker:
@@ -718,17 +432,12 @@ workflows:
           name: check-log-ids
           requires:
             - minimal-checkout
-      - check-metrics-docs:
-          name: check-metrics-docs
-          requires:
-            - minimal-checkout
       - clang-format:
           name: clang-format
           requires:
             - minimal-checkout
       - eslint:
           name: eslint
-          context: [ circleci-token ]
           requires:
             - minimal-checkout
   # all other workflows are defined in generate_config.py

@@ -12,19 +12,7 @@ parameters:
     # contains a branch with the same name as the arangodb repo. If this is the case
     # we use it, otherwise we fall back to "devel".
     default: ""
-  arangosh_args:
-    type: string
-    default: ""
-  use-minimal-debug-info:
-    type: boolean
-    default: true
-  create-docker-images:
-    type: boolean
-    default: false
   rebuild-test-docker-images:
-    type: boolean
-    default: false
-  dont-cancel-pipelines:
     type: boolean
     default: false
   build-docker-image:
@@ -45,18 +33,7 @@ parameters:
   sanitizer:
     type: string
     default: "" # should be empty, "tsan" or "alubsan"
-  ui:
-    type: string
-    default: "on"
-  ui-deployment:
-    type: string
-    default: ""
-  ui-testsuites:
-    type: string
-    default: ""
-  rta-branch:
-    type: string
-    default: "main"
+
 # our defined job, and its steps
 jobs:
   # this is in a separate job from "setup" to make it as cheap as possible (because it uses the bare base image)
@@ -78,53 +55,10 @@ jobs:
                 exit 1
       - run: echo "Check successful - generating config."
 
-  cancel-redundant-pipelines:
-    docker:
-      - image: cimg/base:current
-    resource_class: small
-    steps:
-      - run:
-          name: "Cancel redundant pipelines"
-          command: |
-            if [ "<< pipeline.parameters.dont-cancel-pipelines >>" == "true" ]; then
-              echo "Cancelling of redundant pipelines is disabled, not cancelling any pipelines"
-            elif [ "<< pipeline.parameters.nightly >>" == "true" ]; then
-              echo "Nightly build - not cancelling any pipelines"
-            elif [[ "$CIRCLE_BRANCH" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)$ ]] || [ "$CIRCLE_BRANCH" == "devel" ]; then
-              echo "Branch is a release branch or devel, not cancelling any pipelines"
-            else
-              ## Get the name of the workflow and the related pipeline number
-              CURRENT_PIPELINE_NUM=$(curl --header "Circle-Token: $CIRCLECI_TOKEN" --request GET "https://circleci.com/api/v2/workflow/${CIRCLE_WORKFLOW_ID}" | jq -r '.pipeline_number')
-
-              ## Get the IDs of pipelines created by the current user on the same branch. (Only consider pipelines that have a pipeline number inferior to the current pipeline)
-              PIPE_IDS=$(curl --header "Circle-Token: $CIRCLECI_TOKEN" --request GET "https://circleci.com/api/v2/project/gh/arangodb/arangodb/pipeline?branch=$CIRCLE_BRANCH" | \
-                jq -r --arg CIRCLE_USERNAME "$CIRCLE_USERNAME" --argjson CURRENT_PIPELINE_NUM "$CURRENT_PIPELINE_NUM" '.items[]|select(.state == "created")|select(.trigger.actor.login == $CIRCLE_USERNAME)|select(.number < $CURRENT_PIPELINE_NUM)|.id')
-
-              ## Get the IDs of currently running/on_hold workflows
-              if [ ! -z "$PIPE_IDS" ]; then
-                for PIPE_ID in $PIPE_IDS
-                do
-                  curl --header "Circle-Token: $CIRCLECI_TOKEN" --request GET "https://circleci.com/api/v2/pipeline/${PIPE_ID}/workflow" | \
-                    jq -r '.items[]|select(.status == "on_hold" or .status == "running") | .id' >> WF_to_cancel.txt
-                done
-              fi
-
-              ## Cancel any currently running/on_hold workflow with the same name
-              if [ -s WF_to_cancel.txt ]; then
-                echo "Cancelling the following workflow(s):"
-                cat WF_to_cancel.txt 
-                while read WF_ID;
-                  do
-                    curl --header "Circle-Token: $CIRCLECI_TOKEN" --request POST https://circleci.com/api/v2/workflow/$WF_ID/cancel
-                  done < WF_to_cancel.txt
-              else
-                echo "Nothing to cancel"
-              fi
-            fi
-
   generate-config:
     docker:
       - image: cimg/python:3.11.1
+    resource_class: small
     executor: continuation/default
     parameters:
       definitions:
@@ -133,21 +67,6 @@ jobs:
         type: string
         default: "devel"
     steps:
-      - run:
-          name: Print pipeline parameters
-          command: |
-            echo "enterprise-branch: << pipeline.parameters.enterprise-branch >>"
-            echo "create-docker-images: << pipeline.parameters.create-docker-images >>"
-            echo "rebuild-test-docker-images: << pipeline.parameters.rebuild-test-docker-images >>"
-            echo "build-docker-image: << pipeline.parameters.build-docker-image >>"
-            echo "nightly: << pipeline.parameters.nightly >>"
-            echo "replication-two: << pipeline.parameters.replication-two >>"
-            echo "c-compiler: << pipeline.parameters.c-compiler >>"
-            echo "cxx-compiler: << pipeline.parameters.cxx-compiler >>"
-            echo "sanitizer: << pipeline.parameters.sanitizer >>"
-            echo "ui: << pipeline.parameters.ui >>"
-            echo "ui-deployment: << pipeline.parameters.ui-deployment >>"
-            echo "ui-testsuites: << pipeline.parameters.ui-testsuites >>"
       - run:
           name: Checkout
           command: |
@@ -163,18 +82,28 @@ jobs:
           name: Determine enterprise branch
           command: |
             ssh-keyscan github.com >> ~/.ssh/known_hosts
-            ENTERPRISE_BRANCH=<< pipeline.parameters.enterprise-branch >>
-            echo "Found setting for ENTERPRISE_BRANCH: $ENTERPRISE_BRANCH"
-            if test -z "$ENTERPRISE_BRANCH" ; then
+            if [ "<< pipeline.parameters.enterprise-branch >>" == "" ]; then
               set +e
+              DEFAULT_ENTERPRISE_BRANCH=`curl -s https://api.github.com/repos/arangodb/arangodb/commits/$CIRCLE_SHA1/pulls | jq -e -r ".[0].base.ref"`
+              if [ "$?" == "0" ] ; then
+                echo "Found associated PR, using base branch '$DEFAULT_ENTERPRISE_BRANCH' as default enterprise branch"
+              elif [[ "$CIRCLE_BRANCH" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)$ ]]; then
+                echo "Building for release branch '$CIRCLE_BRANCH' - using that als default enterprise branch"
+                DEFAULT_ENTERPRISE_BRANCH=$CIRCLE_BRANCH
+              else
+                echo "Did not find associated PR, falling back to '<< parameters.default-enterprise-branch >>' as default enterprise branch"
+                DEFAULT_ENTERPRISE_BRANCH=<< parameters.default-enterprise-branch >>
+              fi
+
               git ls-remote --exit-code --heads git@github.com:arangodb/enterprise.git "$CIRCLE_BRANCH"
               if [ "$?" == "0" ] ; then
                 ENTERPRISE_BRANCH=$CIRCLE_BRANCH
               else
-                ENTERPRISE_BRANCH=devel
+                ENTERPRISE_BRANCH=$DEFAULT_ENTERPRISE_BRANCH
               fi
               set -e
-              echo "Actually using this for ENTERPRISE_BRANCH: $ENTERPRISE_BRANCH"
+            else
+              ENTERPRISE_BRANCH=<< pipeline.parameters.enterprise-branch >>
             fi
             ENTERPRISE_COMMIT=`git ls-remote --heads git@github.com:arangodb/enterprise.git $ENTERPRISE_BRANCH | cut -f1`
             echo "Using enterprise branch $ENTERPRISE_BRANCH (sha $ENTERPRISE_COMMIT)"
@@ -189,11 +118,7 @@ jobs:
             else
               pip install pyyaml
               python3 ".circleci/generate_config.py" --sanitizer "<< pipeline.parameters.sanitizer >>" \
-                --ui "<< pipeline.parameters.ui >>" \
-                --ui-deployment "<< pipeline.parameters.ui-deployment >>" \
-                --ui-testsuites "<< pipeline.parameters.ui-testsuites >>" \
                 <<# pipeline.parameters.nightly >> --nightly <</ pipeline.parameters.nightly >> \
-                <<# pipeline.parameters.create-docker-images >> --create-docker-images <</ pipeline.parameters.create-docker-images >> \
                 <<# pipeline.parameters.replication-two >> -rt <</ pipeline.parameters.replication-two >> \
                 -o continuation_config.yml ./.circleci/base_config.yml << parameters.definitions >>
             fi
@@ -209,11 +134,7 @@ workflows:
       # we always create a workflow and let the build fail in check-build-trigger unless it has been triggered manually
       # or runs on the devel branch (see condition in check-build-trigger)
       - check-build-trigger
-      - cancel-redundant-pipelines:
-          context: [ circleci-token ]
-          requires:
-            - check-build-trigger
       - generate-config:
           definitions: "tests/test-definitions.txt"
           requires:
-            - cancel-redundant-pipelines
+            - check-build-trigger
