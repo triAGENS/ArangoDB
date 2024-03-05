@@ -1609,7 +1609,7 @@
            "type": "object"
           },
           "protocol": {
-           "description": "The transport protocol, one of `\"http\"`, `\"https\"`, `\"velocystream\"`\n",
+           "description": "The transport protocol, one of `\"http\"`, `\"https\"`\n",
            "type": "string"
           },
           "rawRequestBody": {
@@ -2365,10 +2365,6 @@
           "description": "One of the possible log topics.\n",
           "type": "string"
          },
-         "ldap": {
-          "description": "One of the possible log topics (_Enterprise Edition only_).\n",
-          "type": "string"
-         },
          "libiresearch": {
           "description": "One of the possible log topics.\n",
           "type": "string"
@@ -2390,10 +2386,6 @@
           "type": "string"
          },
          "performance": {
-          "description": "One of the possible log topics.\n",
-          "type": "string"
-         },
-         "pregel": {
           "description": "One of the possible log topics.\n",
           "type": "string"
          },
@@ -2609,6 +2601,50 @@
     "summary": "Get the metrics",
     "tags": [
      "Monitoring"
+    ]
+   }
+  },
+  "/_admin/options": {
+   "get": {
+    "description": "Return the effective configuration of the queried _arangod_ instance as\nset by startup options on the command-line and via a configuration file.\n\n{{\u003c security \u003e}}\nThis endpoint may reveal sensitive information about the deployment!\n{{\u003c /security \u003e}}\n\nThe endpoint can only be accessed via the `_system` database.\nIn addition, the `--server.options-api` startup option controls the\nrequired privileges to access the option endpoints and allows you to\ndisable them entirely. The option can have the following values:\n- `disabled`: the option endpoints are disabled\n- `jwt`: the option endpoints can only be accessed using a superuser JWT (default)\n- `admin`: the option endpoints can only be accessed by users with\n  *Administrate* access level for the `_system` database\n- `public`: every user with access to the `_system` database can access\n  the option endpoints\n",
+    "operationId": "getEffectiveStartupOptions",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object"
+        }
+       }
+      },
+      "description": "An object with startup option names as keys and their effective\nvalue as values. The values can be of different data types, typically\nnumbers, strings, or arrays thereof.\n"
+     }
+    },
+    "summary": "Get the startup option configuration",
+    "tags": [
+     "Administration"
+    ]
+   }
+  },
+  "/_admin/options-description": {
+   "get": {
+    "description": "Return the startup options available to configure the queried _arangod_\ninstance, similar to the `--dump-options` startup option.\n\nThe endpoint can only be accessed via the `_system` database.\nIn addition, the `--server.options-api` startup option controls the\nrequired privileges to access the option endpoints and allows you to\ndisable them entirely. The option can have the following values:\n- `disabled`: the option endpoints are disabled\n- `jwt`: the option endpoints can only be accessed using a superuser JWT (default)\n- `admin`: the option endpoints can be accessed by admin users in the `_system`\n  database only.\n- `public`: every user with access to the `_system` database can access\n  the option endpoints.\n",
+    "operationId": "getAvailableStartupOptions",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object"
+        }
+       }
+      },
+      "description": "An object with startup option names as keys and sub-objects as values.\nThe structure of each sub-object is as follows:\n- `section` (string): The part before the dot of a startup option\n  (`--section.param`), or `\"\"` if it is a general option that doesn't\n  belong to a section\n- `description` (string): A succinct explanation of the startup option\n- `longDescription` (string, *optional*): Additional details about the\n  startup option if available\n- `category` (string): Either `\"option\"` for regular options or `\"command\"`\n  if using the option performs an action and then terminates the process\n- `hidden` (boolean): Whether the option is uncommon. If yes, then\n  the `--help` command does not list it, but `--help-all` lists every\n  startup option\n- `type` (string): the data type of the option, typically one of\n  `\"uint64\"`, `\"uint32\"`, `\"int64\"`, `\"int32\"`, `\"double\"`, `\"boolean\"`,\n  `\"string\"`, `\"string...\"`\n- `experimental` (boolean): Whether the option relates to a feature\n  that is not ready for production yet\n- `obsolete` (boolean): Whether the option has been deprecated and\n  no effect anymore\n- `enterpriseOnly` (boolean): Whether the option is only available in\n  the Enterprise Edition. The Community Edition does have most of the\n  Enterprise Edition startup options and they are thus not reported\n- `requiresValue` (boolean): Whether the option can be specified\n  without a value to enable it\n- `os` (array of strings): The operating systems the startup option\n  is supported on, typically `[\"linux\", \"macos\", \"windows\"]`. On an\n  OS that does not support a specific option, the option is not\n  reported\n- `component` (array of strings): A list of server roles the startup\n  option is available on. If it is supported by all cluster node types\n  as well as the single server deployment mode, then the value is\n  `[\"coordinator\", \"dbserver\", \"agent\", \"single\"]`\n- `introducedIn` (array of strings\\|null): A list of versions the\n  startup option has been added in. Does not include later minor and\n  major versions then the current version, and the information may\n  get removed once all listed versions reach their end of life\n- `deprecatedIn` (array of strings\\|null): A list of versions the\n  startup option has been marked for deprecation in. It can still\n  be used until fully removed. Does not include later minor and\n  major versions then the current version, and the information may\n  get removed once all listed versions reach their end of life\n- `values` (string, *optional*):\n  A description of the possible values you can set\n- `default` (any, *optional*): The standard value if the option is not set\n- `dynamic` (boolean): Whether the default value is calculated based\n  on the target host configuration, e.g. available memory\n- `required` (boolean): Whether the option must be specified\n- `base` (number, *optional*): the unit for a numeric option\n- `minValue` (number, *optional*): The minimum value for a numeric option\n- `maxValue` (number, *optional*): The maximum value for a numeric option\n- `minInclusive` (boolean, *optional*): Whether the minimum value is\n  included in the allowed value range\n- `maxInclusive` (boolean, *optional*): Whether the maximum value is\n  included in the allowed value range\n"
+     }
+    },
+    "summary": "Get the available startup options",
+    "tags": [
+     "Administration"
     ]
    }
   },
@@ -2976,7 +3012,7 @@
     "operationId": "startShutdown",
     "parameters": [
      {
-      "description": "\u003csmall\u003eIntroduced in: v3.7.12, v3.8.1, v3.9.0\u003c/small\u003e\n\nIf set to `true`, this initiates a soft shutdown. This is only available\non Coordinators. When issued, the Coordinator tracks a number of ongoing\noperations, waits until all have finished, and then shuts itself down\nnormally. It will still accept new operations.\n\nThis feature can be used to make restart operations of Coordinators less\nintrusive for clients. It is designed for setups with a load balancer in front\nof Coordinators. Remove the designated Coordinator from the load balancer before\nissuing the soft-shutdown. The remaining Coordinators will internally forward\nrequests that need to be handled by the designated Coordinator. All other\nrequests will be handled by the remaining Coordinators, reducing the designated\nCoordinator's load.\n\nThe following types of operations are tracked:\n\n - AQL cursors (in particular streaming cursors)\n - Transactions (in particular stream transactions)\n - Pregel runs (conducted by this Coordinator)\n - Ongoing asynchronous requests (using the `x-arango-async: store` HTTP header)\n - Finished asynchronous requests, whose result has not yet been\n   collected\n - Queued low priority requests (most normal requests)\n - Ongoing low priority requests\n",
+      "description": "\u003csmall\u003eIntroduced in: v3.7.12, v3.8.1, v3.9.0\u003c/small\u003e\n\nIf set to `true`, this initiates a soft shutdown. This is only available\non Coordinators. When issued, the Coordinator tracks a number of ongoing\noperations, waits until all have finished, and then shuts itself down\nnormally. It will still accept new operations.\n\nThis feature can be used to make restart operations of Coordinators less\nintrusive for clients. It is designed for setups with a load balancer in front\nof Coordinators. Remove the designated Coordinator from the load balancer before\nissuing the soft-shutdown. The remaining Coordinators will internally forward\nrequests that need to be handled by the designated Coordinator. All other\nrequests will be handled by the remaining Coordinators, reducing the designated\nCoordinator's load.\n\nThe following types of operations are tracked:\n\n - AQL cursors (in particular streaming cursors)\n - Transactions (in particular stream transactions)\n - Ongoing asynchronous requests (using the `x-arango-async: store` HTTP header)\n - Finished asynchronous requests, whose result has not yet been\n   collected\n - Queued low priority requests (most normal requests)\n - Ongoing low priority requests\n",
       "in": "query",
       "name": "soft",
       "required": false,
@@ -2996,7 +3032,7 @@
     ]
    },
    "get": {
-    "description": "\u003csmall\u003eIntroduced in: v3.7.12, v3.8.1, v3.9.0\u003c/small\u003e\n\nThis call reports progress about a soft Coordinator shutdown (see\ndocumentation of `DELETE /_admin/shutdown?soft=true`).\nIn this case, the following types of operations are tracked:\n\n - AQL cursors (in particular streaming cursors)\n - Transactions (in particular stream transactions)\n - Pregel runs (conducted by this Coordinator)\n - Ongoing asynchronous requests (using the `x-arango-async: store` HTTP header)\n - Finished asynchronous requests, whose result has not yet been\n   collected\n - Queued low priority requests (most normal requests)\n - Ongoing low priority requests\n\nThis API is only available on Coordinators.\n",
+    "description": "\u003csmall\u003eIntroduced in: v3.7.12, v3.8.1, v3.9.0\u003c/small\u003e\n\nThis call reports progress about a soft Coordinator shutdown (see\ndocumentation of `DELETE /_admin/shutdown?soft=true`).\nIn this case, the following types of operations are tracked:\n\n - AQL cursors (in particular streaming cursors)\n - Transactions (in particular stream transactions)\n - Ongoing asynchronous requests (using the `x-arango-async: store` HTTP header)\n - Finished asynchronous requests, whose result has not yet been\n   collected\n - Queued low priority requests (most normal requests)\n - Ongoing low priority requests\n\nThis API is only available on Coordinators.\n",
     "operationId": "getShutdownProgress",
     "responses": {
      "200": {
@@ -3028,10 +3064,6 @@
            "description": "Number of ongoing asynchronous requests.\n",
            "type": "number"
           },
-          "pregelConductors": {
-           "description": "Number of ongoing Pregel jobs.\n",
-           "type": "number"
-          },
           "softShutdownOngoing": {
            "description": "Whether a soft shutdown of the Coordinator is in progress.\n",
            "type": "boolean"
@@ -3047,7 +3079,6 @@
           "transactions",
           "pendingJobs",
           "doneJobs",
-          "pregelConductors",
           "lowPrioOngoingRequests",
           "lowPrioQueuedRequests",
           "allClear"
@@ -3980,6 +4011,32 @@
     ]
    }
   },
+  "/_admin/usage-metrics": {
+   "get": {
+    "description": "Returns detailed shard usage metrics on DB-Servers.\n\nThese metrics can be enabled by setting the `--server.export-shard-usage-metrics`\nstartup option to `enabled-per-shard` to make DB-Servers collect per-shard\nusage metrics, or to `enabled-per-shard-per-user` to make DB-Servers collect\nusage metrics per shard and per user whenever a shard is accessed.\n",
+    "operationId": "getUsageMetrics",
+    "parameters": [
+     {
+      "description": "Returns the usage metrics of the specified server. If no `serverId` is given,\nthe asked server will reply. This parameter is only meaningful on Coordinators.\n",
+      "in": "query",
+      "name": "serverId",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Metrics were returned successfully.\n"
+     }
+    },
+    "summary": "Get usage metrics",
+    "tags": [
+     "Monitoring"
+    ]
+   }
+  },
   "/_api/analyzer": {
    "get": {
     "description": "Retrieves a an array of all Analyzer definitions.\nThe resulting array contains objects with the following attributes:\n- `name`: the Analyzer name\n- `type`: the Analyzer type\n- `properties`: the properties used to configure the specified type\n- `features`: the set of features to set on the Analyzer generated fields\n",
@@ -4769,7 +4826,7 @@
           "type": "boolean"
          },
          "writeConcern": {
-          "description": "Write concern for this collection (default: 1).\nIt determines how many copies of each shard are required to be\nin sync on the different DB-Servers. If there are less than these many copies\nin the cluster, a shard refuses to write. Writes to shards with enough\nup-to-date copies succeed at the same time, however. The value of\n`writeConcern` cannot be greater than `replicationFactor`.\nFor SatelliteCollections, the `writeConcern` is automatically controlled to\nequal the number of DB-Servers and has a value of `0`. _(cluster only)_\n",
+          "description": "Determines how many copies of each shard are required to be\nin sync on the different DB-Servers. If there are less than these many copies\nin the cluster, a shard refuses to write. Writes to shards with enough\nup-to-date copies succeed at the same time, however. The value of\n`writeConcern` cannot be greater than `replicationFactor`.\n\nIf `distributeShardsLike` is set, the default `writeConcern`\nis that of the prototype collection.\nFor SatelliteCollections, the `writeConcern` is automatically controlled to\nequal the number of DB-Servers and has a value of `0`.\nOtherwise, the default value is controlled by the current database's\ndefault `writeConcern`, which uses the `--cluster.write-concern`\nstartup option as default, which defaults to `1`. _(cluster only)_\n",
           "type": "integer"
          }
         },
@@ -4936,7 +4993,7 @@
            "type": "boolean"
           },
           "writeConcern": {
-           "description": "Determines how many copies of each shard are required to be\nin-sync on the different DB-Servers. If there are less than these many copies\nin the cluster, a shard refuses to write. Writes to shards with enough\nup-to-date copies succeed at the same time, however. The value of\n`writeConcern` cannot be greater than `replicationFactor`.\nFor SatelliteCollections, the `writeConcern` is automatically controlled to\nequal the number of DB-Servers and has a value of `0`. _(cluster only)_\n",
+           "description": "Determines how many copies of each shard are required to be\nin-sync on the different DB-Servers. If there are less than these many copies\nin the cluster, a shard refuses to write. Writes to shards with enough\nup-to-date copies succeed at the same time, however. The value of\n`writeConcern` cannot be greater than `replicationFactor`.\n\nIf `distributeShardsLike` is set, the default `writeConcern`\nis that of the prototype collection.\nFor SatelliteCollections, the `writeConcern` is automatically controlled to\nequal the number of DB-Servers and has a value of `0`.\nOtherwise, the default value is controlled by the current database's\ndefault `writeConcern`, which uses the `--cluster.write-concern`\nstartup option as default, which defaults to `1`. _(cluster only)_\n",
            "type": "integer"
           }
          },
@@ -5113,6 +5170,15 @@
       "in": "path",
       "name": "collection-name",
       "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "description": "To make this operation a part of a Stream Transaction, set this header to the\ntransaction ID returned by the `POST /_api/transaction/begin` call.\n",
+      "in": "header",
+      "name": "x-arango-trx-id",
+      "required": false,
       "schema": {
        "type": "string"
       }
@@ -5448,7 +5514,7 @@
            "type": "boolean"
           },
           "writeConcern": {
-           "description": "Determines how many copies of each shard are required to be\nin-sync on the different DB-Servers. If there are less than these many copies\nin the cluster, a shard refuses to write. Writes to shards with enough\nup-to-date copies succeed at the same time, however. The value of\n`writeConcern` cannot be greater than `replicationFactor`.\nFor SatelliteCollections, the `writeConcern` is automatically controlled to\nequal the number of DB-Servers and has a value of `0`. _(cluster only)_\n",
+           "description": "Determines how many copies of each shard are required to be\nin-sync on the different DB-Servers. If there are less than these many copies\nin the cluster, a shard refuses to write. Writes to shards with enough\nup-to-date copies succeed at the same time, however. The value of\n`writeConcern` cannot be greater than `replicationFactor`.\n\nIf `distributeShardsLike` is set, the default `writeConcern`\nis that of the prototype collection.\nFor SatelliteCollections, the `writeConcern` is automatically controlled to\nequal the number of DB-Servers and has a value of `0`.\nOtherwise, the default value is controlled by the current database's\ndefault `writeConcern`, which uses the `--cluster.write-concern`\nstartup option as default, which defaults to `1`. _(cluster only)_\n",
            "type": "integer"
           }
          },
@@ -5553,7 +5619,7 @@
           "type": "boolean"
          },
          "writeConcern": {
-          "description": "Write concern for this collection (default: 1).\nIt determines how many copies of each shard are required to be\nin sync on the different DB-Servers. If there are less than these many copies\nin the cluster, a shard refuses to write. Writes to shards with enough\nup-to-date copies succeed at the same time, however. The value of\n`writeConcern` cannot be greater than `replicationFactor`.\nFor SatelliteCollections, the `writeConcern` is automatically controlled to\nequal the number of DB-Servers and has a value of `0`. _(cluster only)_\n",
+          "description": "Determines how many copies of each shard are required to be\nin sync on the different DB-Servers. If there are less than these many copies\nin the cluster, a shard refuses to write. Writes to shards with enough\nup-to-date copies succeed at the same time, however. The value of\n`writeConcern` cannot be greater than `replicationFactor`.\n\nIf `distributeShardsLike` is set, the default `writeConcern`\nis that of the prototype collection.\nFor SatelliteCollections, the `writeConcern` is automatically controlled to\nequal the number of DB-Servers and has a value of `0`.\nOtherwise, the default value is controlled by the current database's\ndefault `writeConcern`, which uses the `--cluster.write-concern`\nstartup option as default, which defaults to `1`. _(cluster only)_\n",
           "type": "integer"
          }
         },
@@ -5791,6 +5857,15 @@
       "schema": {
        "type": "boolean"
       }
+     },
+     {
+      "description": "To make this operation a part of a Stream Transaction, set this header to the\ntransaction ID returned by the `POST /_api/transaction/begin` call.\n",
+      "in": "header",
+      "name": "x-arango-trx-id",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
      }
     ],
     "responses": {
@@ -5833,905 +5908,6 @@
     "summary": "Unload a collection",
     "tags": [
      "Collections"
-    ]
-   }
-  },
-  "/_api/control_pregel": {
-   "get": {
-    "description": "Returns a list of currently running and recently finished Pregel jobs without\nretrieving their results.\n",
-    "operationId": "listPregelJobs",
-    "responses": {
-     "200": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "description": "A list of objects describing the Pregel jobs.\n",
-         "items": {
-          "properties": {
-           "algorithm": {
-            "description": "The algorithm used by the job.\n",
-            "type": "string"
-           },
-           "computationTime": {
-            "description": "The algorithm execution time. Is shown when the computation started.\n",
-            "type": "number"
-           },
-           "created": {
-            "description": "The date and time when the job was created.\n",
-            "type": "string"
-           },
-           "detail": {
-            "description": "The Pregel run details.\n",
-            "properties": {
-             "aggregatedStatus": {
-              "description": "The aggregated details of the full Pregel run. The values are totals of all the\nDB-Server.\n",
-              "properties": {
-               "allGssStatus": {
-                "description": "Information about the global supersteps.\n",
-                "properties": {
-                 "items": {
-                  "description": "A list of objects with details for each global superstep.\n",
-                  "items": {
-                   "properties": {
-                    "memoryBytesUsedForMessages": {
-                     "description": "The number of bytes used in memory for the messages in this step.\n",
-                     "type": "integer"
-                    },
-                    "messagesReceived": {
-                     "description": "The number of messages received in this step.\n",
-                     "type": "integer"
-                    },
-                    "messagesSent": {
-                     "description": "The number of messages sent in this step.\n",
-                     "type": "integer"
-                    },
-                    "verticesProcessed": {
-                     "description": "The number of vertices that have been processed in this step.\n",
-                     "type": "integer"
-                    }
-                   },
-                   "type": "object"
-                  },
-                  "type": "array"
-                 }
-                },
-                "type": "object"
-               },
-               "graphStoreStatus": {
-                "description": "The status of the in memory graph.\n",
-                "properties": {
-                 "edgesLoaded": {
-                  "description": "The number of edges that are loaded from the database into memory.\n",
-                  "type": "integer"
-                 },
-                 "memoryBytesUsed": {
-                  "description": "The number of bytes used in-memory for the loaded graph.\n",
-                  "type": "integer"
-                 },
-                 "verticesLoaded": {
-                  "description": "The number of vertices that are loaded from the database into memory.\n",
-                  "type": "integer"
-                 },
-                 "verticesStored": {
-                  "description": "The number of vertices that are written back to the database after the Pregel\ncomputation finished. It is only set if the `store` parameter is set to `true`.\n",
-                  "type": "integer"
-                 }
-                },
-                "type": "object"
-               },
-               "timeStamp": {
-                "description": "The time at which the status was measured.\n",
-                "type": "string"
-               }
-              },
-              "required": [
-               "timeStamp"
-              ],
-              "type": "object"
-             },
-             "workerStatus": {
-              "description": "The details of the Pregel for every DB-Server. Each object key is a DB-Server ID,\n\nand each value is a nested object similar to the `aggregatedStatus` attribute.\n\nIn a single server deployment, there is only a single entry with an empty string as key.\n",
-              "type": "object"
-             }
-            },
-            "required": [
-             "aggregatedStatus",
-             "workerStatus"
-            ],
-            "type": "object"
-           },
-           "edgeCount": {
-            "description": "The total number of edges processed.\n",
-            "type": "integer"
-           },
-           "expires": {
-            "description": "The date and time when the job results expire. The expiration date is only\nmeaningful for jobs that were completed, canceled or resulted in an error. Such jobs\nare cleaned up by the garbage collection when they reach their expiration date/time.\n",
-            "type": "string"
-           },
-           "gss": {
-            "description": "The number of global supersteps executed.\n",
-            "type": "integer"
-           },
-           "gssTimes": {
-            "description": "Computation time of each global super step. Is shown when the computation started.\n",
-            "items": {
-             "type": "number"
-            },
-            "type": "array"
-           },
-           "id": {
-            "description": "The ID of the Pregel job, as a string.\n",
-            "type": "string"
-           },
-           "reports": {
-            "description": "This attribute is used by Programmable Pregel Algorithms (`ppa`, experimental).\nThe value is only populated once the algorithm has finished.\n",
-            "items": {
-             "type": "object"
-            },
-            "type": "array"
-           },
-           "startupTime": {
-            "description": "The startup runtime of the execution.\nThe startup time includes the data loading time and can be substantial.\n",
-            "type": "number"
-           },
-           "state": {
-            "description": "The state of the execution. The following values can be returned:\n- `\"none\"`: The Pregel run has not started yet.\n- `\"loading\"`: The graph is being loaded from the database into memory before\n  executing the algorithm.\n- `\"running\"`: The algorithm is executing normally.\n- `\"storing\"`: The algorithm finished, but the results are still being written\n  back into the collections. Only occurs if the `store` parameter is set to `true`.\n- `\"done\"`: The execution is done. This means that storing is also done.\n  This event is announced in the server log (requires at least the `info`\n  log level for the `pregel` log topic).\n- `\"canceled\"`: The execution was permanently canceled, either by the user or by\n  an error.\n- `\"in error\"`: The execution is in an error state. This can be caused by\n  primary DB-Servers being unreachable or unresponsive. The execution\n  might recover later, or switch to `\"canceled\"` if it is not able to recover\n  successfully.\n- `\"recovering\"`: The execution is actively recovering and\n  switches back to `running` if the recovery is successful.\n- `\"fatal error\"`: The execution has failed and cannot recover.\n",
-            "type": "string"
-           },
-           "storageTime": {
-            "description": "The time for storing the results if the job includes results storage.\nIs shown when the storing started.\n",
-            "type": "number"
-           },
-           "totalRuntime": {
-            "description": "The total runtime of the execution up to now (if the execution is still ongoing).\n",
-            "type": "number"
-           },
-           "ttl": {
-            "description": "The TTL (time to live) value for the job results, specified in seconds.\nThe TTL is used to calculate the expiration date for the job's results.\n",
-            "type": "number"
-           },
-           "vertexCount": {
-            "description": "The total number of vertices processed.\n",
-            "type": "integer"
-           }
-          },
-          "required": [
-           "id",
-           "algorithm",
-           "created",
-           "ttl",
-           "state",
-           "gss",
-           "totalRuntime",
-           "startupTime",
-           "computationTime",
-           "reports",
-           "detail"
-          ],
-          "type": "object"
-         },
-         "type": "array"
-        }
-       }
-      },
-      "description": "Is returned when the list of jobs can be retrieved successfully.\n"
-     }
-    },
-    "summary": "List the running Pregel jobs",
-    "tags": [
-     "Pregel"
-    ]
-   },
-   "post": {
-    "description": "To start an execution you need to specify the algorithm name and a named graph\n(SmartGraph in cluster). Alternatively you can specify the vertex and edge\ncollections. Additionally you can specify custom parameters which vary for each\nalgorithm.\n",
-    "operationId": "createPregelJob",
-    "requestBody": {
-     "content": {
-      "application/json": {
-       "schema": {
-        "properties": {
-         "algorithm": {
-          "description": "Name of the algorithm. One of:\n- `\"pagerank\"` - Page Rank\n- `\"sssp\"` - Single-Source Shortest Path\n- `\"connectedcomponents\"` - Connected Components\n- `\"wcc\"` - Weakly Connected Components\n- `\"scc\"` - Strongly Connected Components\n- `\"hits\"` - Hyperlink-Induced Topic Search\n- `\"effectivecloseness\"` - Effective Closeness\n- `\"linerank\"` - LineRank\n- `\"labelpropagation\"` - Label Propagation\n- `\"slpa\"` - Speaker-Listener Label Propagation\n",
-          "type": "string"
-         },
-         "edgeCollections": {
-          "description": "List of edge collection names.\nPlease note that there are special sharding requirements for collections in order\nto be used with Pregel.\n",
-          "items": {
-           "type": "string"
-          },
-          "type": "array"
-         },
-         "graphName": {
-          "description": "Name of a graph. Either this or the parameters `vertexCollections` and\n`edgeCollections` are required.\nPlease note that there are special sharding requirements for graphs in order\nto be used with Pregel.\n",
-          "type": "string"
-         },
-         "params": {
-          "description": "General as well as algorithm-specific options.\n\nThe most important general option is \"store\", which controls whether the results\ncomputed by the Pregel job are written back into the source collections or not.\n\nAnother important general option is \"parallelism\", which controls the number of\nparallel threads that work on the Pregel job at most. If \"parallelism\" is not\nspecified, a default value may be used. In addition, the value of \"parallelism\"\nmay be effectively capped at some server-specific value.\n\nThe option \"useMemoryMaps\" controls whether to use disk based files to store\ntemporary results. This might make the computation disk-bound, but allows you to\nrun computations which would not fit into main memory. It is recommended to set\nthis flag for larger datasets.\n\nThe attribute \"shardKeyAttribute\" specifies the shard key that edge collections are\nsharded after (default: `\"vertex\"`).\n",
-          "type": "object"
-         },
-         "vertexCollections": {
-          "description": "List of vertex collection names.\nPlease note that there are special sharding requirements for collections in order\nto be used with Pregel.\n",
-          "items": {
-           "type": "string"
-          },
-          "type": "array"
-         }
-        },
-        "required": [
-         "algorithm"
-        ],
-        "type": "object"
-       }
-      }
-     }
-    },
-    "responses": {
-     "200": {
-      "description": "HTTP 200 is returned in case the Pregel was successfully created and the reply\nbody is a string with the `id` to query for the status or to cancel the\nexecution.\n"
-     },
-     "400": {
-      "description": "An HTTP 400 error is returned if the set of collections for the Pregel job includes\na system collection, or if the collections to not conform to the sharding requirements\nfor Pregel jobs.\n"
-     },
-     "403": {
-      "description": "An HTTP 403 error is returned if there are not sufficient privileges to access\nthe collections specified for the Pregel job.\n"
-     },
-     "404": {
-      "description": "An HTTP 404 error is returned if the specified \"algorithm\" is not found, or the\ngraph specified in \"graphName\" is not found, or at least one the collections\nspecified in \"vertexCollections\" or \"edgeCollections\" is not found.\n"
-     }
-    },
-    "summary": "Start a Pregel job execution",
-    "tags": [
-     "Pregel"
-    ]
-   }
-  },
-  "/_api/control_pregel/history": {
-   "delete": {
-    "description": "Removes the persisted execution statistics of all past Pregel jobs.\n",
-    "operationId": "deleteAllPregelJobStatistics",
-    "responses": {
-     "200": {
-      "description": "is returned if all persisted execution statistics have been successfully deleted.\n"
-     }
-    },
-    "summary": "Remove the execution statistics of all past Pregel jobs",
-    "tags": [
-     "Pregel"
-    ]
-   },
-   "get": {
-    "description": "Returns a list of currently running and finished Pregel jobs without retrieving\ntheir results.\n\nThe execution statistics are persisted to a system collection and kept until you\nremove them, whereas the `/_api/control_pregel` endpoint only keeps the\ninformation temporarily in memory.\n",
-    "operationId": "listPregelJobsStatisics",
-    "responses": {
-     "200": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "description": "A list of objects describing the Pregel jobs.\n",
-         "items": {
-          "properties": {
-           "algorithm": {
-            "description": "The algorithm used by the job.\n",
-            "type": "string"
-           },
-           "computationTime": {
-            "description": "The algorithm execution time. Is shown when the computation started.\n",
-            "type": "number"
-           },
-           "created": {
-            "description": "The date and time when the job was created.\n",
-            "type": "string"
-           },
-           "detail": {
-            "description": "The Pregel run details.\n",
-            "properties": {
-             "aggregatedStatus": {
-              "description": "The aggregated details of the full Pregel run. The values are totals of all the\nDB-Server.\n",
-              "properties": {
-               "allGssStatus": {
-                "description": "Information about the global supersteps.\n",
-                "properties": {
-                 "items": {
-                  "description": "A list of objects with details for each global superstep.\n",
-                  "items": {
-                   "properties": {
-                    "memoryBytesUsedForMessages": {
-                     "description": "The number of bytes used in memory for the messages in this step.\n",
-                     "type": "integer"
-                    },
-                    "messagesReceived": {
-                     "description": "The number of messages received in this step.\n",
-                     "type": "integer"
-                    },
-                    "messagesSent": {
-                     "description": "The number of messages sent in this step.\n",
-                     "type": "integer"
-                    },
-                    "verticesProcessed": {
-                     "description": "The number of vertices that have been processed in this step.\n",
-                     "type": "integer"
-                    }
-                   },
-                   "type": "object"
-                  },
-                  "type": "array"
-                 }
-                },
-                "type": "object"
-               },
-               "graphStoreStatus": {
-                "description": "The status of the in memory graph.\n",
-                "properties": {
-                 "edgesLoaded": {
-                  "description": "The number of edges that are loaded from the database into memory.\n",
-                  "type": "integer"
-                 },
-                 "memoryBytesUsed": {
-                  "description": "The number of bytes used in-memory for the loaded graph.\n",
-                  "type": "integer"
-                 },
-                 "verticesLoaded": {
-                  "description": "The number of vertices that are loaded from the database into memory.\n",
-                  "type": "integer"
-                 },
-                 "verticesStored": {
-                  "description": "The number of vertices that are written back to the database after the Pregel\ncomputation finished. It is only set if the `store` parameter is set to `true`.\n",
-                  "type": "integer"
-                 }
-                },
-                "type": "object"
-               },
-               "timeStamp": {
-                "description": "The time at which the status was measured.\n",
-                "type": "string"
-               }
-              },
-              "required": [
-               "timeStamp"
-              ],
-              "type": "object"
-             },
-             "workerStatus": {
-              "description": "The details of the Pregel for every DB-Server. Each object key is a DB-Server ID,\n\nand each value is a nested object similar to the `aggregatedStatus` attribute.\n\nIn a single server deployment, there is only a single entry with an empty string as key.\n",
-              "type": "object"
-             }
-            },
-            "required": [
-             "aggregatedStatus",
-             "workerStatus"
-            ],
-            "type": "object"
-           },
-           "edgeCount": {
-            "description": "The total number of edges processed.\n",
-            "type": "integer"
-           },
-           "expires": {
-            "description": "The date and time when the job results expire. The expiration date is only\nmeaningful for jobs that were completed, canceled or resulted in an error. Such jobs\nare cleaned up by the garbage collection when they reach their expiration date/time.\n",
-            "type": "string"
-           },
-           "gss": {
-            "description": "The number of global supersteps executed.\n",
-            "type": "integer"
-           },
-           "gssTimes": {
-            "description": "Computation time of each global super step. Is shown when the computation started.\n",
-            "items": {
-             "type": "number"
-            },
-            "type": "array"
-           },
-           "id": {
-            "description": "The ID of the Pregel job, as a string.\n",
-            "type": "string"
-           },
-           "reports": {
-            "description": "This attribute is used by Programmable Pregel Algorithms (`ppa`, experimental).\nThe value is only populated once the algorithm has finished.\n",
-            "items": {
-             "type": "object"
-            },
-            "type": "array"
-           },
-           "startupTime": {
-            "description": "The startup runtime of the execution.\nThe startup time includes the data loading time and can be substantial.\n",
-            "type": "number"
-           },
-           "state": {
-            "description": "The state of the execution. The following values can be returned:\n- `\"none\"`: The Pregel run has not started yet.\n- `\"loading\"`: The graph is being loaded from the database into memory before\n  executing the algorithm.\n- `\"running\"`: The algorithm is executing normally.\n- `\"storing\"`: The algorithm finished, but the results are still being written\n  back into the collections. Only occurs if the `store` parameter is set to `true`.\n- `\"done\"`: The execution is done. This means that storing is also done.\n  This event is announced in the server log (requires at least the `info`\n  log level for the `pregel` log topic).\n- `\"canceled\"`: The execution was permanently canceled, either by the user or by\n  an error.\n- `\"in error\"`: The execution is in an error state. This can be caused by\n  primary DB-Servers being unreachable or unresponsive. The execution\n  might recover later, or switch to `\"canceled\"` if it is not able to recover\n  successfully.\n- `\"recovering\"`: The execution is actively recovering and\n  switches back to `running` if the recovery is successful.\n- `\"fatal error\"`: The execution has failed and cannot recover.\n",
-            "type": "string"
-           },
-           "storageTime": {
-            "description": "The time for storing the results if the job includes results storage.\nIs shown when the storing started.\n",
-            "type": "number"
-           },
-           "totalRuntime": {
-            "description": "The total runtime of the execution up to now (if the execution is still ongoing).\n",
-            "type": "number"
-           },
-           "ttl": {
-            "description": "The TTL (time to live) value for the job results, specified in seconds.\nThe TTL is used to calculate the expiration date for the job's results.\n",
-            "type": "number"
-           },
-           "vertexCount": {
-            "description": "The total number of vertices processed.\n",
-            "type": "integer"
-           }
-          },
-          "required": [
-           "id",
-           "algorithm",
-           "created",
-           "ttl",
-           "state",
-           "gss",
-           "totalRuntime",
-           "startupTime",
-           "computationTime",
-           "reports",
-           "detail"
-          ],
-          "type": "object"
-         },
-         "type": "array"
-        }
-       }
-      },
-      "description": "is returned if the list of jobs can be retrieved successfully.\n"
-     }
-    },
-    "summary": "Get the execution statistics of all Pregel jobs",
-    "tags": [
-     "Pregel"
-    ]
-   }
-  },
-  "/_api/control_pregel/history/{id}": {
-   "delete": {
-    "description": "Removes the persisted execution statistics of a finished Pregel job.\n",
-    "operationId": "deletePregelJobStatistics",
-    "parameters": [
-     {
-      "description": "The Pregel job identifier.\n",
-      "in": "path",
-      "name": "id",
-      "required": true,
-      "schema": {
-       "type": "number"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "is returned if the Pregel job ID is valid.\n"
-     },
-     "404": {
-      "description": "is returned if no Pregel job with the specified ID is found or if the ID\nis invalid.\n"
-     }
-    },
-    "summary": "Remove the execution statistics of a past Pregel job",
-    "tags": [
-     "Pregel"
-    ]
-   },
-   "get": {
-    "description": "Returns the current state of the execution, the current global superstep, the\nruntime, the global aggregator values, as well as the number of sent and\nreceived messages.\n\nThe execution statistics are persisted to a system collection and kept until you\nremove them, whereas the `/_api/control_pregel/{id}` endpoint only keeps the\ninformation temporarily in memory.\n",
-    "operationId": "getPregelJobStatistics",
-    "parameters": [
-     {
-      "description": "Pregel job identifier.\n",
-      "in": "path",
-      "name": "id",
-      "required": true,
-      "schema": {
-       "type": "number"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "description": "The information about the Pregel job.\n",
-         "properties": {
-          "algorithm": {
-           "description": "The algorithm used by the job.\n",
-           "type": "string"
-          },
-          "computationTime": {
-           "description": "The algorithm execution time. Is shown when the computation started.\n",
-           "type": "number"
-          },
-          "created": {
-           "description": "The date and time when the job was created.\n",
-           "type": "string"
-          },
-          "detail": {
-           "description": "The Pregel run details.\n",
-           "properties": {
-            "aggregatedStatus": {
-             "description": "The aggregated details of the full Pregel run. The values are totals of all the\nDB-Server.\n",
-             "properties": {
-              "allGssStatus": {
-               "description": "Information about the global supersteps.\n",
-               "properties": {
-                "items": {
-                 "description": "A list of objects with details for each global superstep.\n",
-                 "items": {
-                  "properties": {
-                   "memoryBytesUsedForMessages": {
-                    "description": "The number of bytes used in memory for the messages in this step.\n",
-                    "type": "integer"
-                   },
-                   "messagesReceived": {
-                    "description": "The number of messages received in this step.\n",
-                    "type": "integer"
-                   },
-                   "messagesSent": {
-                    "description": "The number of messages sent in this step.\n",
-                    "type": "integer"
-                   },
-                   "verticesProcessed": {
-                    "description": "The number of vertices that have been processed in this step.\n",
-                    "type": "integer"
-                   }
-                  },
-                  "type": "object"
-                 },
-                 "type": "array"
-                }
-               },
-               "type": "object"
-              },
-              "graphStoreStatus": {
-               "description": "The status of the in memory graph.\n",
-               "properties": {
-                "edgesLoaded": {
-                 "description": "The number of edges that are loaded from the database into memory.\n",
-                 "type": "integer"
-                },
-                "memoryBytesUsed": {
-                 "description": "The number of bytes used in-memory for the loaded graph.\n",
-                 "type": "integer"
-                },
-                "verticesLoaded": {
-                 "description": "The number of vertices that are loaded from the database into memory.\n",
-                 "type": "integer"
-                },
-                "verticesStored": {
-                 "description": "The number of vertices that are written back to the database after the Pregel\ncomputation finished. It is only set if the `store` parameter is set to `true`.\n",
-                 "type": "integer"
-                }
-               },
-               "type": "object"
-              },
-              "timeStamp": {
-               "description": "The time at which the status was measured.\n",
-               "type": "string"
-              }
-             },
-             "required": [
-              "timeStamp"
-             ],
-             "type": "object"
-            },
-            "workerStatus": {
-             "description": "The details of the Pregel for every DB-Server. Each object key is a DB-Server ID,\n\nand each value is a nested object similar to the `aggregatedStatus` attribute.\n\nIn a single server deployment, there is only a single entry with an empty string as key.\n",
-             "type": "object"
-            }
-           },
-           "required": [
-            "aggregatedStatus",
-            "workerStatus"
-           ],
-           "type": "object"
-          },
-          "edgeCount": {
-           "description": "The total number of edges processed.\n",
-           "type": "integer"
-          },
-          "expires": {
-           "description": "The date and time when the job results expire. The expiration date is only\nmeaningful for jobs that were completed, canceled or resulted in an error. Such jobs\nare cleaned up by the garbage collection when they reach their expiration date/time.\n",
-           "type": "string"
-          },
-          "gss": {
-           "description": "The number of global supersteps executed.\n",
-           "type": "integer"
-          },
-          "gssTimes": {
-           "description": "Computation time of each global super step. Is shown when the computation started.\n",
-           "items": {
-            "type": "number"
-           },
-           "type": "array"
-          },
-          "id": {
-           "description": "The ID of the Pregel job, as a string.\n",
-           "type": "string"
-          },
-          "reports": {
-           "description": "This attribute is used by Programmable Pregel Algorithms (`ppa`, experimental).\nThe value is only populated once the algorithm has finished.\n",
-           "items": {
-            "type": "object"
-           },
-           "type": "array"
-          },
-          "startupTime": {
-           "description": "The startup runtime of the execution.\nThe startup time includes the data loading time and can be substantial.\n",
-           "type": "number"
-          },
-          "state": {
-           "description": "The state of the execution. The following values can be returned:\n- `\"none\"`: The Pregel run has not started yet.\n- `\"loading\"`: The graph is being loaded from the database into memory before\n  executing the algorithm.\n- `\"running\"`: The algorithm is executing normally.\n- `\"storing\"`: The algorithm finished, but the results are still being written\n  back into the collections. Only occurs if the `store` parameter is set to `true`.\n- `\"done\"`: The execution is done. This means that storing is also done.\n  This event is announced in the server log (requires at least the `info`\n  log level for the `pregel` log topic).\n- `\"canceled\"`: The execution was permanently canceled, either by the user or by\n  an error.\n- `\"in error\"`: The execution is in an error state. This can be caused by\n  primary DB-Servers being unreachable or unresponsive. The execution\n  might recover later, or switch to `\"canceled\"` if it is not able to recover\n  successfully.\n- `\"recovering\"`: The execution is actively recovering and\n  switches back to `running` if the recovery is successful.\n- `\"fatal error\"`: The execution has failed and cannot recover.\n",
-           "type": "string"
-          },
-          "storageTime": {
-           "description": "The time for storing the results if the job includes results storage.\nIs shown when the storing started.\n",
-           "type": "number"
-          },
-          "totalRuntime": {
-           "description": "The total runtime of the execution up to now (if the execution is still ongoing).\n",
-           "type": "number"
-          },
-          "ttl": {
-           "description": "The TTL (time to live) value for the job results, specified in seconds.\nThe TTL is used to calculate the expiration date for the job's results.\n",
-           "type": "number"
-          },
-          "vertexCount": {
-           "description": "The total number of vertices processed.\n",
-           "type": "integer"
-          }
-         },
-         "required": [
-          "id",
-          "algorithm",
-          "created",
-          "ttl",
-          "state",
-          "gss",
-          "totalRuntime",
-          "startupTime",
-          "computationTime",
-          "reports",
-          "detail"
-         ],
-         "type": "object"
-        }
-       }
-      },
-      "description": "is returned if the Pregel job ID is valid and the execution statistics are\nreturned along with the response.\n"
-     },
-     "404": {
-      "description": "is returned if no Pregel job with the specified ID is found or if the ID\nis invalid.\n"
-     }
-    },
-    "summary": "Get the execution statistics of a Pregel job",
-    "tags": [
-     "Pregel"
-    ]
-   }
-  },
-  "/_api/control_pregel/{id}": {
-   "delete": {
-    "description": "Cancel an execution which is still running, and discard any intermediate\nresults. This immediately frees all memory taken up by the execution, and\nmakes you lose all intermediary data.\n\nYou might get inconsistent results if you requested to store the results and\nthen cancel an execution when it is already in its `\"storing\"` state (or\n`\"done\"` state in versions prior to 3.7.1). The data is written multi-threaded\ninto all collection shards at once. This means there are multiple transactions\nsimultaneously. A transaction might already be committed when you cancel the\nexecution job. Therefore, you might see some updated documents, while other\ndocuments have no or stale results from a previous execution.\n",
-    "operationId": "deletePregelJob",
-    "parameters": [
-     {
-      "description": "Pregel execution identifier.\n",
-      "in": "path",
-      "name": "id",
-      "required": true,
-      "schema": {
-       "type": "number"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "HTTP 200 is returned if the job execution ID was valid.\n"
-     },
-     "404": {
-      "description": "An HTTP 404 error is returned if no Pregel job with the specified execution number\nis found or the execution number is invalid.\n"
-     }
-    },
-    "summary": "Cancel a Pregel job execution",
-    "tags": [
-     "Pregel"
-    ]
-   },
-   "get": {
-    "description": "Returns the current state of the execution, the current global superstep, the\nruntime, the global aggregator values as well as the number of sent and\nreceived messages.\n",
-    "operationId": "getPregelJob",
-    "parameters": [
-     {
-      "description": "Pregel execution identifier.\n",
-      "in": "path",
-      "name": "id",
-      "required": true,
-      "schema": {
-       "type": "number"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "description": "The information about the Pregel job.\n",
-         "properties": {
-          "algorithm": {
-           "description": "The algorithm used by the job.\n",
-           "type": "string"
-          },
-          "computationTime": {
-           "description": "The algorithm execution time. Is shown when the computation started.\n",
-           "type": "number"
-          },
-          "created": {
-           "description": "The date and time when the job was created.\n",
-           "type": "string"
-          },
-          "detail": {
-           "description": "The Pregel run details.\n",
-           "properties": {
-            "aggregatedStatus": {
-             "description": "The aggregated details of the full Pregel run. The values are totals of all the\nDB-Server.\n",
-             "properties": {
-              "allGssStatus": {
-               "description": "Information about the global supersteps.\n",
-               "properties": {
-                "items": {
-                 "description": "A list of objects with details for each global superstep.\n",
-                 "items": {
-                  "properties": {
-                   "memoryBytesUsedForMessages": {
-                    "description": "The number of bytes used in memory for the messages in this step.\n",
-                    "type": "integer"
-                   },
-                   "messagesReceived": {
-                    "description": "The number of messages received in this step.\n",
-                    "type": "integer"
-                   },
-                   "messagesSent": {
-                    "description": "The number of messages sent in this step.\n",
-                    "type": "integer"
-                   },
-                   "verticesProcessed": {
-                    "description": "The number of vertices that have been processed in this step.\n",
-                    "type": "integer"
-                   }
-                  },
-                  "type": "object"
-                 },
-                 "type": "array"
-                }
-               },
-               "type": "object"
-              },
-              "graphStoreStatus": {
-               "description": "The status of the in memory graph.\n",
-               "properties": {
-                "edgesLoaded": {
-                 "description": "The number of edges that are loaded from the database into memory.\n",
-                 "type": "integer"
-                },
-                "memoryBytesUsed": {
-                 "description": "The number of bytes used in-memory for the loaded graph.\n",
-                 "type": "integer"
-                },
-                "verticesLoaded": {
-                 "description": "The number of vertices that are loaded from the database into memory.\n",
-                 "type": "integer"
-                },
-                "verticesStored": {
-                 "description": "The number of vertices that are written back to the database after the Pregel\ncomputation finished. It is only set if the `store` parameter is set to `true`.\n",
-                 "type": "integer"
-                }
-               },
-               "type": "object"
-              },
-              "timeStamp": {
-               "description": "The time at which the status was measured.\n",
-               "type": "string"
-              }
-             },
-             "required": [
-              "timeStamp"
-             ],
-             "type": "object"
-            },
-            "workerStatus": {
-             "description": "The details of the Pregel for every DB-Server. Each object key is a DB-Server ID,\n\nand each value is a nested object similar to the `aggregatedStatus` attribute.\n\nIn a single server deployment, there is only a single entry with an empty string as key.\n",
-             "type": "object"
-            }
-           },
-           "required": [
-            "aggregatedStatus",
-            "workerStatus"
-           ],
-           "type": "object"
-          },
-          "edgeCount": {
-           "description": "The total number of edges processed.\n",
-           "type": "integer"
-          },
-          "expires": {
-           "description": "The date and time when the job results expire. The expiration date is only\nmeaningful for jobs that were completed, canceled or resulted in an error. Such jobs\nare cleaned up by the garbage collection when they reach their expiration date/time.\n",
-           "type": "string"
-          },
-          "gss": {
-           "description": "The number of global supersteps executed.\n",
-           "type": "integer"
-          },
-          "gssTimes": {
-           "description": "Computation time of each global super step. Is shown when the computation started.\n",
-           "items": {
-            "type": "number"
-           },
-           "type": "array"
-          },
-          "id": {
-           "description": "The ID of the Pregel job, as a string.\n",
-           "type": "string"
-          },
-          "reports": {
-           "description": "This attribute is used by Programmable Pregel Algorithms (`ppa`, experimental).\nThe value is only populated once the algorithm has finished.\n",
-           "items": {
-            "type": "object"
-           },
-           "type": "array"
-          },
-          "startupTime": {
-           "description": "The startup runtime of the execution.\nThe startup time includes the data loading time and can be substantial.\n",
-           "type": "number"
-          },
-          "state": {
-           "description": "The state of the execution. The following values can be returned:\n- `\"none\"`: The Pregel run has not started yet.\n- `\"loading\"`: The graph is being loaded from the database into memory before\n  executing the algorithm.\n- `\"running\"`: The algorithm is executing normally.\n- `\"storing\"`: The algorithm finished, but the results are still being written\n  back into the collections. Only occurs if the `store` parameter is set to `true`.\n- `\"done\"`: The execution is done. This means that storing is also done.\n  This event is announced in the server log (requires at least the `info`\n  log level for the `pregel` log topic).\n- `\"canceled\"`: The execution was permanently canceled, either by the user or by\n  an error.\n- `\"in error\"`: The execution is in an error state. This can be caused by\n  primary DB-Servers being unreachable or unresponsive. The execution\n  might recover later, or switch to `\"canceled\"` if it is not able to recover\n  successfully.\n- `\"recovering\"`: The execution is actively recovering and\n  switches back to `running` if the recovery is successful.\n- `\"fatal error\"`: The execution has failed and cannot recover.\n",
-           "type": "string"
-          },
-          "storageTime": {
-           "description": "The time for storing the results if the job includes results storage.\nIs shown when the storing started.\n",
-           "type": "number"
-          },
-          "totalRuntime": {
-           "description": "The total runtime of the execution up to now (if the execution is still ongoing).\n",
-           "type": "number"
-          },
-          "ttl": {
-           "description": "The TTL (time to live) value for the job results, specified in seconds.\nThe TTL is used to calculate the expiration date for the job's results.\n",
-           "type": "number"
-          },
-          "vertexCount": {
-           "description": "The total number of vertices processed.\n",
-           "type": "integer"
-          }
-         },
-         "required": [
-          "id",
-          "algorithm",
-          "created",
-          "ttl",
-          "state",
-          "gss",
-          "totalRuntime",
-          "startupTime",
-          "computationTime",
-          "reports",
-          "detail"
-         ],
-         "type": "object"
-        }
-       }
-      },
-      "description": "HTTP 200 is returned in case the job execution ID was valid and the state is\nreturned along with the response.\n"
-     },
-     "404": {
-      "description": "An HTTP 404 error is returned if no Pregel job with the specified execution number\nis found or the execution number is invalid.\n"
-     }
-    },
-    "summary": "Get a Pregel job execution status",
-    "tags": [
-     "Pregel"
     ]
    }
   },
@@ -8220,7 +7396,7 @@
             "type": "string"
            },
            "writeConcern": {
-            "description": "Default write concern for new collections created in this database.\nIt determines how many copies of each shard are required to be\nin sync on the different DB-Servers. If there are less than these many copies\nin the cluster, a shard refuses to write. Writes to shards with enough\nup-to-date copies succeed at the same time, however. The value of\n`writeConcern` cannot be greater than `replicationFactor`.\nFor SatelliteCollections, the `writeConcern` is automatically controlled to\nequal the number of DB-Servers and has a value of `0`. _(cluster only)_\n",
+            "description": "Default write concern for new collections created in this database.\nIt determines how many copies of each shard are required to be\nin sync on the different DB-Servers. If there are less than these many copies\nin the cluster, a shard refuses to write. Writes to shards with enough\nup-to-date copies succeed at the same time, however. The value of\n`writeConcern` cannot be greater than `replicationFactor`.\n\nFor SatelliteCollections, the `writeConcern` is automatically controlled to\nequal the number of DB-Servers and has a value of `0`.\nOtherwise, the default value is controlled by the `--cluster.write-concern`\nstartup option, which defaults to `1`. _(cluster only)_\n",
             "type": "number"
            }
           },
@@ -8415,6 +7591,15 @@
       "schema": {
        "type": "boolean"
       }
+     },
+     {
+      "description": "To make this operation a part of a Stream Transaction, set this header to the\ntransaction ID returned by the `POST /_api/transaction/begin` call.\n",
+      "in": "header",
+      "name": "x-arango-trx-id",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
      }
     ],
     "requestBody": {
@@ -8540,6 +7725,24 @@
       "required": false,
       "schema": {
        "type": "boolean"
+      }
+     },
+     {
+      "description": "You can use the `versionAttribute` option for external versioning support.\nIf set, the attribute with the name specified by the option is looked up in the\nstored document and the attribute value is compared numerically to the value of\nthe versioning attribute in the supplied document that is supposed to update it.\n\nIf the version number in the new document is higher (rounded down to a whole number)\nthan in the document that already exists in the database, then the update\noperation is performed normally. This is also the case if the new versioning\nattribute has a non-numeric value, if it is a negative number, or if the\nattribute doesn't exist in the supplied or stored document.\n\nIf the version number in the new document is lower or equal to what exists in\nthe database, the operation is not performed and the existing document thus not\nchanged. No error is returned in this case.\n\nThe attribute can only be a top-level attribute.\n\nYou can check if `_oldRev` and `_rev` are different to determine if the\ndocument has been changed.\n",
+      "in": "query",
+      "name": "versionAttribute",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "description": "To make this operation a part of a Stream Transaction, set this header to the\ntransaction ID returned by the `POST /_api/transaction/begin` call.\n",
+      "in": "header",
+      "name": "x-arango-trx-id",
+      "required": false,
+      "schema": {
+       "type": "string"
       }
      }
     ],
@@ -8679,6 +7882,24 @@
       "schema": {
        "type": "boolean"
       }
+     },
+     {
+      "description": "Only applicable if `overwrite` is set to `true` or `overwriteMode`\nis set to `update` or `replace`.\n\nYou can use the `versionAttribute` option for external versioning support.\nIf set, the attribute with the name specified by the option is looked up in the\nstored document and the attribute value is compared numerically to the value of\nthe versioning attribute in the supplied document that is supposed to update/replace it.\n\nIf the version number in the new document is higher (rounded down to a whole number)\nthan in the document that already exists in the database, then the update/replace\noperation is performed normally. This is also the case if the new versioning\nattribute has a non-numeric value, if it is a negative number, or if the\nattribute doesn't exist in the supplied or stored document.\n\nIf the version number in the new document is lower or equal to what exists in\nthe database, the operation is not performed and the existing document thus not\nchanged. No error is returned in this case.\n\nThe attribute can only be a top-level attribute.\n\nYou can check if `_oldRev` (if present) and `_rev` are different to determine if the\ndocument has been changed.\n",
+      "in": "query",
+      "name": "versionAttribute",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "description": "To make this operation a part of a Stream Transaction, set this header to the\ntransaction ID returned by the `POST /_api/transaction/begin` call.\n",
+      "in": "header",
+      "name": "x-arango-trx-id",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
      }
     ],
     "requestBody": {
@@ -8792,6 +8013,24 @@
       "required": false,
       "schema": {
        "type": "boolean"
+      }
+     },
+     {
+      "description": "You can use the `versionAttribute` option for external versioning support.\nIf set, the attribute with the name specified by the option is looked up in the\nstored document and the attribute value is compared numerically to the value of\nthe versioning attribute in the supplied document that is supposed to replace it.\n\nIf the version number in the new document is higher (rounded down to a whole number)\nthan in the document that already exists in the database, then the replace\noperation is performed normally. This is also the case if the new versioning\nattribute has a non-numeric value, if it is a negative number, or if the\nattribute doesn't exist in the supplied or stored document.\n\nIf the version number in the new document is lower or equal to what exists in\nthe database, the operation is not performed and the existing document thus not\nchanged. No error is returned in this case.\n\nThe attribute can only be a top-level attribute.\n\nYou can check if `_oldRev` and `_rev` are different to determine if the\ndocument has been changed.\n",
+      "in": "query",
+      "name": "versionAttribute",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "description": "To make this operation a part of a Stream Transaction, set this header to the\ntransaction ID returned by the `POST /_api/transaction/begin` call.\n",
+      "in": "header",
+      "name": "x-arango-trx-id",
+      "required": false,
+      "schema": {
+       "type": "string"
       }
      }
     ],
@@ -9019,6 +8258,24 @@
       "schema": {
        "type": "boolean"
       }
+     },
+     {
+      "description": "Only applicable if `overwrite` is set to `true` or `overwriteMode`\nis set to `update` or `replace`.\n\nYou can use the `versionAttribute` option for external versioning support.\nIf set, the attribute with the name specified by the option is looked up in the\nstored document and the attribute value is compared numerically to the value of\nthe versioning attribute in the supplied document that is supposed to update/replace it.\n\nIf the version number in the new document is higher (rounded down to a whole number)\nthan in the document that already exists in the database, then the update/replace\noperation is performed normally. This is also the case if the new versioning\nattribute has a non-numeric value, if it is a negative number, or if the\nattribute doesn't exist in the supplied or stored document.\n\nIf the version number in the new document is lower or equal to what exists in\nthe database, the operation is not performed and the existing document thus not\nchanged. No error is returned in this case.\n\nThe attribute can only be a top-level attribute.\n\nYou can check if `_oldRev` (if present) and `_rev` are different to determine if the\ndocument has been changed.\n",
+      "in": "query",
+      "name": "versionAttribute",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "description": "To make this operation a part of a Stream Transaction, set this header to the\ntransaction ID returned by the `POST /_api/transaction/begin` call.\n",
+      "in": "header",
+      "name": "x-arango-trx-id",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
      }
     ],
     "requestBody": {
@@ -9128,6 +8385,15 @@
       "description": "You can conditionally remove a document based on a target revision id by\nusing the `if-match` HTTP header.\n",
       "in": "header",
       "name": "If-Match",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "description": "To make this operation a part of a Stream Transaction, set this header to the\ntransaction ID returned by the `POST /_api/transaction/begin` call.\n",
+      "in": "header",
+      "name": "x-arango-trx-id",
       "required": false,
       "schema": {
        "type": "string"
@@ -9413,9 +8679,27 @@
       }
      },
      {
+      "description": "You can use the `versionAttribute` option for external versioning support.\nIf set, the attribute with the name specified by the option is looked up in the\nstored document and the attribute value is compared numerically to the value of\nthe versioning attribute in the supplied document that is supposed to update it.\n\nIf the version number in the new document is higher (rounded down to a whole number)\nthan in the document that already exists in the database, then the update\noperation is performed normally. This is also the case if the new versioning\nattribute has a non-numeric value, if it is a negative number, or if the\nattribute doesn't exist in the supplied or stored document.\n\nIf the version number in the new document is lower or equal to what exists in\nthe database, the operation is not performed and the existing document thus not\nchanged. No error is returned in this case.\n\nThe attribute can only be a top-level attribute.\n\nYou can check if `_oldRev` and `_rev` are different to determine if the\ndocument has been changed.\n",
+      "in": "query",
+      "name": "versionAttribute",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
       "description": "You can conditionally update a document based on a target revision id by\nusing the `if-match` HTTP header.\n",
       "in": "header",
       "name": "If-Match",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "description": "To make this operation a part of a Stream Transaction, set this header to the\ntransaction ID returned by the `POST /_api/transaction/begin` call.\n",
+      "in": "header",
+      "name": "x-arango-trx-id",
       "required": false,
       "schema": {
        "type": "string"
@@ -9548,9 +8832,27 @@
       }
      },
      {
+      "description": "You can use the `versionAttribute` option for external versioning support.\nIf set, the attribute with the name specified by the option is looked up in the\nstored document and the attribute value is compared numerically to the value of\nthe versioning attribute in the supplied document that is supposed to replace it.\n\nIf the version number in the new document is higher (rounded down to a whole number)\nthan in the document that already exists in the database, then the replace\noperation is performed normally. This is also the case if the new versioning\nattribute has a non-numeric value, if it is a negative number, or if the\nattribute doesn't exist in the supplied or stored document.\n\nIf the version number in the new document is lower or equal to what exists in\nthe database, the operation is not performed and the existing document thus not\nchanged. No error is returned in this case.\n\nThe attribute can only be a top-level attribute.\n\nYou can check if `_oldRev` and `_rev` are different to determine if the\ndocument has been changed.\n",
+      "in": "query",
+      "name": "versionAttribute",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
       "description": "You can conditionally replace a document based on a target revision id by\nusing the `if-match` HTTP header.\n",
       "in": "header",
       "name": "If-Match",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "description": "To make this operation a part of a Stream Transaction, set this header to the\ntransaction ID returned by the `POST /_api/transaction/begin` call.\n",
+      "in": "header",
+      "name": "x-arango-trx-id",
       "required": false,
       "schema": {
        "type": "string"
@@ -12418,6 +11720,15 @@
       "schema": {
        "type": "boolean"
       }
+     },
+     {
+      "description": "To make this operation a part of a Stream Transaction, set this header to the\ntransaction ID returned by the `POST /_api/transaction/begin` call.\n",
+      "in": "header",
+      "name": "x-arango-trx-id",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
      }
     ],
     "requestBody": {
@@ -13254,6 +12565,15 @@
       "schema": {
        "type": "string"
       }
+     },
+     {
+      "description": "To make this operation a part of a Stream Transaction, set this header to the\ntransaction ID returned by the `POST /_api/transaction/begin` call.\n",
+      "in": "header",
+      "name": "x-arango-trx-id",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
      }
     ],
     "responses": {
@@ -13556,6 +12876,15 @@
       "schema": {
        "type": "string"
       }
+     },
+     {
+      "description": "To make this operation a part of a Stream Transaction, set this header to the\ntransaction ID returned by the `POST /_api/transaction/begin` call.\n",
+      "in": "header",
+      "name": "x-arango-trx-id",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
      }
     ],
     "responses": {
@@ -13840,6 +13169,15 @@
       "description": "If the \"If-Match\" header is given, then it must contain exactly one ETag. The document is updated,\nif it has the same revision as the given ETag. Otherwise a HTTP 412 is returned. As an alternative\nyou can supply the ETag in an attribute rev in the URL.\n",
       "in": "header",
       "name": "if-match",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "description": "To make this operation a part of a Stream Transaction, set this header to the\ntransaction ID returned by the `POST /_api/transaction/begin` call.\n",
+      "in": "header",
+      "name": "x-arango-trx-id",
       "required": false,
       "schema": {
        "type": "string"
@@ -14302,6 +13640,15 @@
       "description": "If the \"If-Match\" header is given, then it must contain exactly one ETag. The document is updated,\nif it has the same revision as the given ETag. Otherwise a HTTP 412 is returned. As an alternative\nyou can supply the ETag in an attribute rev in the URL.\n",
       "in": "header",
       "name": "if-match",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "description": "To make this operation a part of a Stream Transaction, set this header to the\ntransaction ID returned by the `POST /_api/transaction/begin` call.\n",
+      "in": "header",
+      "name": "x-arango-trx-id",
       "required": false,
       "schema": {
        "type": "string"
@@ -15635,6 +14982,15 @@
       "schema": {
        "type": "boolean"
       }
+     },
+     {
+      "description": "To make this operation a part of a Stream Transaction, set this header to the\ntransaction ID returned by the `POST /_api/transaction/begin` call.\n",
+      "in": "header",
+      "name": "x-arango-trx-id",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
      }
     ],
     "requestBody": {
@@ -15939,6 +15295,15 @@
       "schema": {
        "type": "string"
       }
+     },
+     {
+      "description": "To make this operation a part of a Stream Transaction, set this header to the\ntransaction ID returned by the `POST /_api/transaction/begin` call.\n",
+      "in": "header",
+      "name": "x-arango-trx-id",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
      }
     ],
     "responses": {
@@ -16221,6 +15586,15 @@
       "schema": {
        "type": "string"
       }
+     },
+     {
+      "description": "To make this operation a part of a Stream Transaction, set this header to the\ntransaction ID returned by the `POST /_api/transaction/begin` call.\n",
+      "in": "header",
+      "name": "x-arango-trx-id",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
      }
     ],
     "responses": {
@@ -16495,6 +15869,15 @@
       "description": "If the \"If-Match\" header is given, then it must contain exactly one ETag. The document is updated,\nif it has the same revision as the given ETag. Otherwise a HTTP 412 is returned. As an alternative\nyou can supply the ETag in an attribute rev in the URL.\n",
       "in": "header",
       "name": "if-match",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "description": "To make this operation a part of a Stream Transaction, set this header to the\ntransaction ID returned by the `POST /_api/transaction/begin` call.\n",
+      "in": "header",
+      "name": "x-arango-trx-id",
       "required": false,
       "schema": {
        "type": "string"
@@ -16897,6 +16280,15 @@
       "description": "If the \"If-Match\" header is given, then it must contain exactly one ETag. The document is updated,\nif it has the same revision as the given ETag. Otherwise a HTTP 412 is returned. As an alternative\nyou can supply the ETag in an attribute rev in the URL.\n",
       "in": "header",
       "name": "if-match",
+      "required": false,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "description": "To make this operation a part of a Stream Transaction, set this header to the\ntransaction ID returned by the `POST /_api/transaction/begin` call.\n",
+      "in": "header",
+      "name": "x-arango-trx-id",
       "required": false,
       "schema": {
        "type": "string"
@@ -17945,6 +17337,109 @@
     ]
    }
   },
+  "/_api/index#mdi": {
+   "post": {
+    "description": "Creates a multi-dimensional index for the collection `collection-name`, if\nit does not already exist. The call expects an object containing the index\ndetails.\n",
+    "operationId": "createIndexMdi",
+    "parameters": [
+     {
+      "description": "The collection name.\n",
+      "in": "query",
+      "name": "collection",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "properties": {
+         "estimates": {
+          "default": true,
+          "description": "This attribute controls whether index selectivity estimates are maintained for the\nindex. Not maintaining index selectivity estimates can have a slightly positive\nimpact on write performance.\n\nThe downside of turning off index selectivity estimates is that\nthe query optimizer is not able to determine the usefulness of different\ncompeting indexes in AQL queries when there are multiple candidate indexes to\nchoose from.\n\nThe `estimates` attribute is optional and defaults to `true` if not set.\nIt has no effect on indexes other than `persistent`, `mdi`, and `mdi-prefixed`.\nIt cannot be disabled for non-unique `mdi` indexes because they have a fixed\nselectivity estimate of `1`.\n",
+          "type": "boolean"
+         },
+         "fieldValueTypes": {
+          "description": "must be equal to `\"double\"`. Currently only doubles are supported as values.\n",
+          "type": "string"
+         },
+         "fields": {
+          "description": "An array of attribute names used for each dimension. Array expansions are not allowed.\n",
+          "items": {
+           "type": "string"
+          },
+          "type": "array"
+         },
+         "inBackground": {
+          "description": "You can set this option to `true` to create the index\nin the background, which will not write-lock the underlying collection for\nas long as if the index is built in the foreground. The default value is `false`.\n",
+          "type": "boolean"
+         },
+         "name": {
+          "description": "An easy-to-remember name for the index to look it up or refer to it in index hints.\nIndex names are subject to the same character restrictions as collection names.\nIf omitted, a name is auto-generated so that it is unique with respect to the\ncollection, e.g. `idx_832910498`.\n",
+          "type": "string"
+         },
+         "prefixFields": {
+          "description": "Requires `type` to be `\"mdi-prefixed\"`, and `prefixFields` needs to be set in this case.\n\nAn array of attribute names used as search prefix. Array expansions are not allowed.\n",
+          "items": {
+           "type": "string"
+          },
+          "type": "array"
+         },
+         "sparse": {
+          "default": false,
+          "description": "If `true`, then create a sparse index.\n",
+          "type": "boolean"
+         },
+         "storedValues": {
+          "description": "The optional `storedValues` attribute can contain an array of paths to additional\nattributes to store in the index. These additional attributes cannot be used for\nindex lookups or for sorting, but they can be used for projections. This allows an\nindex to fully cover more queries and avoid extra document lookups.\n\nYou can have the same attributes in `storedValues` and `fields` as the attributes\nin `fields` cannot be used for projections, but you can also store additional\nattributes that are not listed in `fields`.\nAttributes in `storedValues` cannot overlap with the attributes specified in\n`prefixFields`. There is no reason to store them in the index because you need\nto specify them in queries in order to use `mdi-prefixed` indexes.\n\nYou cannot create multiple multi-dimensional indexes with the same `sparse`,\n`unique`, `fields` and (for `mdi-prefixed` indexes) `prefixFields` attributes\nbut different `storedValues` settings. That means the value of `storedValues` is\nnot considered by index creation calls when checking if an index is already\npresent or needs to be created.\n\nIn unique indexes, only the index attributes in `fields` and (for `mdi-prefixed`\nindexes) `prefixFields` are checked for uniqueness. The index attributes in\n`storedValues` are not checked for their uniqueness.\n\nNon-existing attributes are stored as `null` values inside `storedValues`.\n\nThe maximum number of attributes in `storedValues` is 32.\n",
+          "items": {
+           "type": "string"
+          },
+          "type": "array"
+         },
+         "type": {
+          "description": "must be equal to `\"mdi\"` or `\"mdi-prefixed\"`.\n",
+          "type": "string"
+         },
+         "unique": {
+          "default": false,
+          "description": "if `true`, then create a unique index.\n",
+          "type": "boolean"
+         }
+        },
+        "required": [
+         "type",
+         "fields",
+         "fieldValueTypes"
+        ],
+        "type": "object"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "If the index already exists, then a *HTTP 200* is\nreturned.\n"
+     },
+     "201": {
+      "description": "If the index does not already exist and could be created, then a *HTTP 201*\nis returned.\n"
+     },
+     "400": {
+      "description": "If the index definition is invalid, then a *HTTP 400* is returned.\n"
+     },
+     "404": {
+      "description": "If the `collection-name` is unknown, then a *HTTP 404* is returned.\n"
+     }
+    },
+    "summary": "Create a multi-dimensional index",
+    "tags": [
+     "Indexes"
+    ]
+   }
+  },
   "/_api/index#persistent": {
    "post": {
     "description": "Creates a persistent index for the collection `collection-name`, if\nit does not already exist. The call expects an object containing the index\ndetails.\n\nIn a sparse index all documents will be excluded from the index that do not\ncontain at least one of the specified index attributes (i.e. `fields`) or that\nhave a value of `null` in any of the specified index attributes. Such documents\nwill not be indexed, and not be taken into account for uniqueness checks if\nthe `unique` flag is set.\n\nIn a non-sparse index, these documents will be indexed (for non-present\nindexed attributes, a value of `null` will be used) and will be taken into\naccount for uniqueness checks if the `unique` flag is set.\n\n\u003e **INFO:**\nUnique indexes on non-shard keys are not supported in cluster deployments.\n",
@@ -17974,7 +17469,7 @@
           "type": "boolean"
          },
          "estimates": {
-          "description": "This attribute controls whether index selectivity estimates are maintained for the\nindex. Not maintaining index selectivity estimates can have a slightly positive\nimpact on write performance.\n\nThe downside of turning off index selectivity estimates will be that\nthe query optimizer will not be able to determine the usefulness of different\ncompeting indexes in AQL queries when there are multiple candidate indexes to\nchoose from.\n\nThe `estimates` attribute is optional and defaults to `true` if not set. It will\nhave no effect on indexes other than `persistent`.\n",
+          "description": "This attribute controls whether index selectivity estimates are maintained for the\nindex. Not maintaining index selectivity estimates can have a slightly positive\nimpact on write performance.\n\nThe downside of turning off index selectivity estimates is that\nthe query optimizer is not able to determine the usefulness of different\ncompeting indexes in AQL queries when there are multiple candidate indexes to\nchoose from.\n\nThe `estimates` attribute is optional and defaults to `true` if not set.\nIt has no effect on indexes other than `persistent`, `mdi`, and `mdi-prefixed`.\n",
           "type": "boolean"
          },
          "fields": {
@@ -18110,84 +17605,6 @@
      }
     },
     "summary": "Create a TTL index",
-    "tags": [
-     "Indexes"
-    ]
-   }
-  },
-  "/_api/index#zkd": {
-   "post": {
-    "description": "Creates a multi-dimensional index for the collection `collection-name`, if\nit does not already exist. The call expects an object containing the index\ndetails.\n",
-    "operationId": "createIndexZkd",
-    "parameters": [
-     {
-      "description": "The collection name.\n",
-      "in": "query",
-      "name": "collection",
-      "required": true,
-      "schema": {
-       "type": "string"
-      }
-     }
-    ],
-    "requestBody": {
-     "content": {
-      "application/json": {
-       "schema": {
-        "properties": {
-         "fieldValueTypes": {
-          "description": "must be equal to `\"double\"`. Currently only doubles are supported as values.\n",
-          "type": "string"
-         },
-         "fields": {
-          "description": "an array of attribute names used for each dimension. Array expansions are not allowed.\n",
-          "items": {
-           "type": "string"
-          },
-          "type": "array"
-         },
-         "inBackground": {
-          "description": "You can set this option to `true` to create the index\nin the background, which will not write-lock the underlying collection for\nas long as if the index is built in the foreground. The default value is `false`.\n",
-          "type": "boolean"
-         },
-         "name": {
-          "description": "An easy-to-remember name for the index to look it up or refer to it in index hints.\nIndex names are subject to the same character restrictions as collection names.\nIf omitted, a name is auto-generated so that it is unique with respect to the\ncollection, e.g. `idx_832910498`.\n",
-          "type": "string"
-         },
-         "type": {
-          "description": "must be equal to `\"zkd\"`.\n",
-          "type": "string"
-         },
-         "unique": {
-          "description": "if `true`, then create a unique index.\n",
-          "type": "boolean"
-         }
-        },
-        "required": [
-         "type",
-         "fields",
-         "fieldValueTypes"
-        ],
-        "type": "object"
-       }
-      }
-     }
-    },
-    "responses": {
-     "200": {
-      "description": "If the index already exists, then a *HTTP 200* is\nreturned.\n"
-     },
-     "201": {
-      "description": "If the index does not already exist and could be created, then a *HTTP 201*\nis returned.\n"
-     },
-     "400": {
-      "description": "If the index definition is invalid, then a *HTTP 400* is returned.\n"
-     },
-     "404": {
-      "description": "If the `collection-name` is unknown, then a *HTTP 404* is returned.\n"
-     }
-    },
-    "summary": "Create a multi-dimensional index",
     "tags": [
      "Indexes"
     ]
@@ -18391,6 +17808,53 @@
     "summary": "Cancel an async job",
     "tags": [
      "Jobs"
+    ]
+   }
+  },
+  "/_api/key-generators": {
+   "get": {
+    "description": "Returns the available key generators for collections.\n",
+    "operationId": "getKeyGenerators",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "properties": {
+          "keyGenerators": {
+           "description": "The available document key generators.\n",
+           "example": [
+            "traditional",
+            "autoincrement",
+            "padded",
+            "uuid"
+           ],
+           "items": {
+            "enum": [
+             "padded",
+             "uuid",
+             "autoincrement",
+             "traditional"
+            ],
+            "type": "string"
+           },
+           "type": "array",
+           "uniqueItems": true
+          }
+         },
+         "required": [
+          "keyGenerators"
+         ],
+         "type": "object"
+        }
+       }
+      },
+      "description": "An object that contains a list of the available generators for document keys:\n- `\"padded\"`\n- `\"uuid\"`\n- `\"autoincrement\"`\n- `\"traditional\"`\n"
+     }
+    },
+    "summary": "Get the available key generators",
+    "tags": [
+     "Collections"
     ]
    }
   },
