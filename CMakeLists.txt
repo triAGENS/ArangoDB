@@ -27,6 +27,18 @@ endif ()
 
 string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_UPPER)
 
+if (APPLE)
+  if (NOT CMAKE_OSX_DEPLOYMENT_TARGET OR "${CMAKE_OSX_DEPLOYMENT_TARGET}" STREQUAL "")
+    if (NOT DEFINED ENV{MACOSX_DEPLOYMENT_TARGET} OR "ENV{MACOSX_DEPLOYMENT_TARGET}" STREQUAL "")
+      message(FATAL_ERROR "environment variable MACOSX_DEPLOYMENT_TARGET is missing")
+    else ()
+      set(CMAKE_OSX_DEPLOYMENT_TARGET "$ENV{MACOSX_DEPLOYMENT_TARGET}" CACHE STRING "deployment target for MacOSX; adjust to your system")
+    endif ()
+  else ()
+    set($ENV{MACOSX_DEPLOYMENT_TARGET} ${CMAKE_OSX_DEPLOYMENT_TARGET})
+  endif ()
+endif ()
+
 # where to find CMAKE modules
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
@@ -73,9 +85,9 @@ set(ARANGODB_VERSION_MINOR "12")
 
 # when building the nightly ARANGODB_VERSION_PATCH will be set
 if (NOT DEFINED ARANGODB_VERSION_PATCH)
-  set(ARANGODB_VERSION_PATCH "4")
-  set(ARANGODB_VERSION_RELEASE_TYPE "devel")
-  set(ARANGODB_VERSION_RELEASE_NUMBER "")
+  set(ARANGODB_VERSION_PATCH "0")
+  set(ARANGODB_VERSION_RELEASE_TYPE "beta")
+  set(ARANGODB_VERSION_RELEASE_NUMBER "1")
 else()
   unset (ARANGODB_VERSION_RELEASE_TYPE) # do not remove space
   unset (ARANGODB_VERSION_RELEASE_NUMBER) # do not remove space
@@ -238,7 +250,7 @@ configure_file(
 )
 
 option(ARANGODB_BUILD_DATE "Specific build date set from the outside (leave empty to auto-generate)" "")
-if (ARANGODB_BUILD_DATE STREQUAL "" OR ARANGODB_BUILD_DATE STREQUAL "OFF")
+if (ARANGODB_BUILD_DATE STREQUAL "")
   if (NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/lib/Basics/build-date.h")
     # auto-generate build date
     string(TIMESTAMP ARANGODB_BUILD_DATE "%Y-%m-%d %H:%M:%S")
@@ -361,44 +373,70 @@ if (VERBOSE)
 endif ()
 
 ################################################################################
-## OPERATING SYSTEM
+## OPERATION SYSTEM
 ################################################################################
 
-if(CMAKE_SYSTEM_NAME MATCHES ".*Linux")
-  set(LINUX TRUE)
-elseif (CMAKE_SYSTEM_NAME MATCHES "kFreeBSD.*")
-  set(FREEBSD TRUE)
-elseif (CMAKE_SYSTEM_NAME MATCHES "kNetBSD.*|NetBSD.*")
-  set(NETBSD TRUE)
-elseif (CMAKE_SYSTEM_NAME MATCHES "kOpenBSD.*|OpenBSD.*")
-  set(OPENBSD TRUE)
-elseif (CMAKE_SYSTEM_NAME MATCHES ".*GNU.*")
-  set(GNU TRUE)
-elseif (CMAKE_SYSTEM_NAME MATCHES ".*BSDI.*")
-  set(BSDI TRUE)
-elseif (CMAKE_SYSTEM_NAME MATCHES "DragonFly.*|FreeBSD")
-  set(FREEBSD TRUE)
-elseif (CMAKE_SYSTEM_NAME MATCHES "SYSV5.*")
-  set(SYSV5 TRUE)
+option(HOMEBREW
+  "whether to install for homebrew"
+  Off
+)
+
+if (UNIX AND NOT APPLE)
+  if(CMAKE_SYSTEM_NAME MATCHES ".*Linux")
+    set(LINUX TRUE)
+  elseif (CMAKE_SYSTEM_NAME MATCHES "kFreeBSD.*")
+    set(FREEBSD TRUE)
+  elseif (CMAKE_SYSTEM_NAME MATCHES "kNetBSD.*|NetBSD.*")
+    set(NETBSD TRUE)
+  elseif (CMAKE_SYSTEM_NAME MATCHES "kOpenBSD.*|OpenBSD.*")
+    set(OPENBSD TRUE)
+  elseif (CMAKE_SYSTEM_NAME MATCHES ".*GNU.*")
+    set(GNU TRUE)
+  elseif (CMAKE_SYSTEM_NAME MATCHES ".*BSDI.*")
+    set(BSDI TRUE)
+  elseif (CMAKE_SYSTEM_NAME MATCHES "DragonFly.*|FreeBSD")
+    set(FREEBSD TRUE)
+  elseif (CMAKE_SYSTEM_NAME MATCHES "SYSV5.*")
+    set(SYSV5 TRUE)
+  endif ()
+elseif (APPLE)
+  if (CMAKE_SYSTEM_NAME MATCHES ".*Darwin.*")
+    set(DARWIN TRUE)
+  elseif (CMAKE_SYSTEM_NAME MATCHES ".*MacOS.*")
+    set(DARWIN TRUE)
+  endif ()
+  find_program(BREW brew)
 endif ()
 
 # ------------------------------------------------------------------------------
 # user options
 # ------------------------------------------------------------------------------
 
-option(
-  USE_JEMALLOC
-  "use jemalloc memory allocator"
-  ON
-)
+if (APPLE)
+  SET(USE_JEMALLOC OFF)
+else ()
+  option(
+    USE_JEMALLOC
+    "use jemalloc memory allocator"
+    ON
+  )
+endif ()
 
-option(
-  USE_LIBUNWIND
-  "use libunwind for stack traces"
-  ON
-)
+if (LINUX)
+  option(
+    USE_LIBUNWIND
+    "use libunwind for stack traces"
+    ON
+  )
+else ()
+  SET(USE_LIBUNWIND OFF)
+endif ()
 
-option(USE_BUILD_ID_READER "Add code to read arangod's build-id from within arangod" ON)
+if (LINUX)
+   option(USE_BUILD_ID_READER "Add code to read arangod's build-id from within arangod" ON)
+else ()
+   set(USE_BUILD_ID_READER OFF)
+endif ()
 
 if (USE_BUILD_ID_READER)
   add_definitions(-DUSE_BUILD_ID_READER=true)
@@ -492,10 +530,21 @@ CheckCompilerVersion(
 )
 
 if (CMAKE_COMPILER_IS_CLANG) 
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "16.0")
-    message(WARNING "ArangoDB requires clang 16.0 or newer, building with older compiler versions is unsupported")
-  endif()
-  list(APPEND BASE_LIBS atomic)
+  if (APPLE)
+    if (NOT DEFINED ENV{MACOSX_DEPLOYMENT_TARGET} OR ENV{MACOSX_DEPLOYMENT_TARGET} STREQUAL "")
+      set(BASE_CXX_FLAGS "${BASE_CXX_FLAGS} -stdlib=libc++")
+    else ()
+      set(BASE_C_FLAGS "${BASE_C_FLAGS} -mmacosx-version-min=$ENV{MACOSX_DEPLOYMENT_TARGET}")
+      set(BASE_CXX_FLAGS "${BASE_CXX_FLAGS} -stdlib=libc++ -mmacosx-version-min=$ENV{MACOSX_DEPLOYMENT_TARGET}")
+      set(BASE_LD_FLAGS "${BASE_LD_FLAGS} -mmacosx-version-min=$ENV{MACOSX_DEPLOYMENT_TARGET}")
+    endif ()
+    add_definitions("-Wno-deprecated-declarations")
+  else ()
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10.0")
+      message(WARNING "ArangoDB requires clang 10.0 or newer, building with older compiler versions is unsupported")
+    endif()
+    list(APPEND BASE_LIBS atomic)
+  endif ()
 endif ()
 
 # need c++20
@@ -566,8 +615,8 @@ if (USE_MAINTAINER_MODE)
   add_definitions("-DIRESEARCH_DEBUG")
 
   add_definitions("-DARANGODB_ENABLE_MAINTAINER_MODE=1")
-  if ((CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_CLANG) AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_definitions("-D_FORTIFY_SOURCE=3")
+  if (CMAKE_COMPILER_IS_GNUCC AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_definitions("-D_FORTIFY_SOURCE=2")
   endif()
 
   find_package(FLEX)
@@ -644,7 +693,11 @@ endif()
 ## LIBRARY RESOLV
 ################################################################################
 
-set(SYS_LIBS ${SYS_LIBS} resolv rt)
+set(SYS_LIBS ${SYS_LIBS} resolv)
+
+if (NOT DARWIN)
+  set(SYS_LIBS ${SYS_LIBS} rt)
+endif ()
 
 # ------------------------------------------------------------------------------
 # IMPLICIT INCLUDES AND LIBRARY DIRECTORIES
@@ -788,9 +841,22 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   set(BASE_FLAGS "-Wall -Wextra -Wno-unused-parameter -Wno-deprecated-declarations ${BASE_FLAGS}")
   set(EXTRA_CXX_FLAGS "-Wnon-virtual-dtor")
   
-  if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "11.0")
+  if (NOT DARWIN AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "11.0")
     # clang 11 and higher supports -Wsuggest-override. older versions don't
     set(EXTRA_CXX_FLAGS "-Wsuggest-override ${EXTRA_CXX_FLAGS}")
+  endif ()
+
+  if (DARWIN AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "12.0" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "12.1")
+    # With the introduction of apple clang version 12.0.0 (clang-1200.0.32.2) the warning "range-loop-analysis" is now
+    # enabled by default or changed analysis behaviour. The compiler now complains about "wrong" usage of
+    # VPackObjectIterator and VPackArrayIterator - which is not the case.
+    #
+    # See example here: https://github.com/arangodb/arangodb/pull/12730
+    #
+    # Since we're stopping compilation on Apple in any warning case, we need to temporary disable that warning and
+    # check upcoming versions if the compiler behaviour will be fixed.
+    set(EXTRA_C_FLAGS "-Wno-range-loop-analysis")
+    set(EXTRA_CXX_FLAGS "${EXTRA_CXX_FLAGS} -Wno-range-loop-analysis")
   endif ()
 else ()
   # unknown compiler
@@ -882,7 +948,11 @@ if (NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/VERSIONS")
   message(FATAL_ERROR "expecting ${CMAKE_CURRENT_LIST_DIR}/VERSIONS")
 else ()
   file(READ "${CMAKE_CURRENT_LIST_DIR}/VERSIONS" ARANGODB_VERSIONS_CONTENT)
-  set (TARGET_OS "LINUX")
+  if (LINUX)
+    set (TARGET_OS "LINUX")
+  elseif (DARWIN)
+    set (TARGET_OS "MACOS")
+  endif ()
 
   if (USE_STRICT_OPENSSL_VERSION)
     set (OPENSSL_VERSION_PATTERN ".*OPENSSL_${TARGET_OS}[ ]+\"([^\"]*).*")
@@ -1097,7 +1167,6 @@ list(INSERT SYSTEM_LIBRARIES 0
   ${BT_LIBS}
   ${ZLIB_LIBS}
   ${ICU_LIBS}
-  ${ICU64_LIBS}
   ${OPENSSL_LIBRARIES}
   ${BASE_LIBS}
   ${SYS_LIBS}
