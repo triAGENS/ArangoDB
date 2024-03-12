@@ -1,6 +1,8 @@
 3.12.0-rc.1 (XXXX-XX-XX)
 ------------------------
 
+* Rebuilt included rclone v1.65.2 with go1.21.8.
+
 * Repair shard rebalancer if some server has no leaders of a collection but
   followers. Previously, this server was then not always considered for leader
   movements.
