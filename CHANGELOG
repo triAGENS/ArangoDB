@@ -502,17 +502,6 @@
 
 * Fix propagation of collection `writeConcern` changes to DB servers.
 
-* Make arangodump exclude the following cluster collection properties when
-  writing collection parameters files in a single server dump:
-  - replicationFactor
-  - writeConcern
-  - numberOfShards
-  - minReplicationFactor
-  - shardKeys
-  - shards
-  It is not really useful to write these attributes out when taking single
-  server dumps, because they don't have useful values.
-
 * Change default value of arangodump startup option `--use-parallel-dump` from
   `false` to `true`.
   This enables the more parallel dump procedure by default, which allows dumps

@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include "Basics/Common.h"
 #include "Cluster/Utils/ShardID.h"
 
 #include <functional>

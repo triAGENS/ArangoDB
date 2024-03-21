@@ -25,7 +25,6 @@
 
 #include "ApplicationFeatures/ApplicationServer.h"
 #include "Basics/StaticStrings.h"
-#include "Cluster/ServerState.h"
 #include "Logger/LogMacros.h"
 #include "Logger/Logger.h"
 #include "Logger/LoggerStream.h"
@@ -150,29 +149,17 @@ std::string ShardingFeature::getDefaultShardingStrategy(
   //      need to support collections created before 3.4
 
   // before 3.4, there were only hard-coded sharding strategies
+
+  // no sharding strategy found in collection meta data
 #ifdef USE_ENTERPRISE
   if (sharding->collection()->isSmart() &&
       sharding->collection()->type() == TRI_COL_TYPE_EDGE) {
     // smart edge collection
-    // no sharding strategy found in collection meta data
-    // On SingleServer we can safely go to the new Sharding Strategy
-    if (ServerState::instance()->isSingleServer()) {
-      return ShardingStrategyEnterpriseHashSmartEdge::NAME;
-    }
     return ShardingStrategyEnterpriseSmartEdgeCompat::NAME;
   }
-  // no sharding strategy found in collection meta data
-  // On SingleServer we can safely go to the new Sharding Strategy
-  if (ServerState::instance()->isSingleServer()) {
-    return ShardingStrategyHash::NAME;
-  }
+
   return ShardingStrategyEnterpriseCompat::NAME;
 #else
-  // no sharding strategy found in collection meta data
-  // On SingleServer we can safely go to the new Sharding Strategy
-  if (ServerState::instance()->isSingleServer()) {
-    return ShardingStrategyHash::NAME;
-  }
   return ShardingStrategyCommunityCompat::NAME;
 #endif
 }
