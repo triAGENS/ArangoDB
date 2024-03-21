@@ -1,5 +1,14 @@
-3.12.0 (XXXX-XX-XX)
+3.12.0 (2024-03-21)
 -------------------
+
+* Revert arangodump exclusion the following cluster collection properties when
+  writing collection parameters files in a single server dump:
+  - replicationFactor
+  - writeConcern
+  - numberOfShards
+  - minReplicationFactor
+  - shardKeys
+  - shards
 
 * Accept language settings found in the LANGUAGE file which previous versions
   have detected for the "C" locale. This is to allow upgrades from 3.11 if the
