@@ -43,6 +43,7 @@ namespace arangodb::aql {
 class AqlItemBlock;
 enum class ExecutionState;
 class Query;
+struct QueryAborter;
 class SharedAqlItemBlockPtr;
 
 /// Cursor managing an entire query result in-memory
@@ -99,7 +100,8 @@ class QueryStreamCursor final : public arangodb::Cursor {
  public:
   QueryStreamCursor(std::shared_ptr<aql::Query> q, size_t batchSize, double ttl,
                     bool isRetriable,
-                    transaction::OperationOrigin operationOrigin);
+                    transaction::OperationOrigin operationOrigin,
+                    std::shared_ptr<QueryAborter> aborter);
 
   ~QueryStreamCursor();
 

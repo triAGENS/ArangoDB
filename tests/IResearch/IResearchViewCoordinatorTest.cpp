@@ -40,6 +40,7 @@
 #include "Aql/ExecutionPlan.h"
 #include "Aql/Executor/NoResultsExecutor.h"
 #include "Aql/Query.h"
+#include "Aql/QueryAborter.h"
 #include "Aql/QueryRegistry.h"
 #include "Aql/SingleRowFetcher.h"
 #include "Aql/SortCondition.h"
@@ -7957,7 +7958,8 @@ TEST_F(IResearchViewCoordinatorTest, IResearchViewNode_createBlock) {
         arangodb::transaction::StandaloneContext::create(
             *vocbase, arangodb::transaction::OperationOriginTestCase{}),
         arangodb::aql::QueryString(std::string_view("RETURN 1")), nullptr);
-    query->prepareQuery();
+    auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+    query->prepareQuery(aborter);
 
     arangodb::aql::SingletonNode singleton(query->plan(),
                                            arangodb::aql::ExecutionNodeId{0});

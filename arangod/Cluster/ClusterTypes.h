@@ -166,3 +166,11 @@ struct QueryAnalyzerRevisions {
 std::ostream& operator<<(std::ostream& o,
                          arangodb::QueryAnalyzerRevisions const& r);
 }  // namespace arangodb
+
+template<>
+struct std::hash<arangodb::PeerState> {
+  inline size_t operator()(arangodb::PeerState const& value) const noexcept {
+    // TODO Optimize and include rebootId
+    return std::hash<std::string>{}(value.serverId);
+  }
+};

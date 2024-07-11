@@ -27,6 +27,7 @@
 
 #include "V8Server/v8-voccursor.h"
 #include "Aql/Query.h"
+#include "Aql/QueryAborter.h"
 #include "Aql/QueryCursor.h"
 #include "Aql/QueryResult.h"
 #include "Basics/StringUtils.h"
@@ -351,9 +352,10 @@ struct V8Cursor final {
         aql::QueryString(queryString), std::move(bindVars),
         aql::QueryOptions(options.slice()));
 
+    auto aborter = std::make_shared<aql::QueryAborter>(q);
     // specify ID 0 so it uses the external V8 context
     Cursor* cc = cursors->createQueryStream(std::move(q), batchSize, ttl,
-                                            isRetriable, origin);
+                                            isRetriable, origin, aborter);
     // a soft shutdown will throw here!
 
     arangodb::ScopeGuard releaseCursorGuard([&]() noexcept { cc->release(); });

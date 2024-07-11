@@ -40,6 +40,9 @@
 #include "Basics/FeatureFlags.h"
 #include "Cluster/AgencyCallbackRegistry.h"
 #include "Cluster/ClusterFeature.h"
+#include "Cluster/LeaseManager/LeaseManager.h"
+#include "Cluster/LeaseManager/LeaseManagerFeature.h"
+#include "Cluster/LeaseManager/LeaseManagerRestHandler.h"
 #include "Cluster/MaintenanceRestHandler.h"
 #include "Cluster/RestAgencyCallbacksHandler.h"
 #include "Cluster/RestClusterHandler.h"
@@ -929,6 +932,16 @@ void GeneralServerFeature::defineRemainingHandlers(
   f.addPrefixHandler(
       "/_admin/license",
       RestHandlerCreator<arangodb::RestLicenseHandler>::createNoData);
+
+  {
+    auto& leaseManagerFeature =
+        server().getFeature<cluster::LeaseManagerFeature>();
+    f.addPrefixHandler(
+        "/_admin/leases",
+        RestHandlerCreator<arangodb::cluster::LeaseManagerRestHandler>::
+            createData<cluster::LeaseManager*>,
+        &leaseManagerFeature.leaseManager());
+  }
 
 #ifdef USE_ENTERPRISE
   HotBackupFeature& backup = server().getFeature<HotBackupFeature>();

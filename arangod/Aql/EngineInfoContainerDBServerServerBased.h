@@ -50,12 +50,13 @@ namespace aql {
 class ExecutionNode;
 class GatherNode;
 class GraphNode;
-class QueryContext;
+class Query;
+struct QueryAborter;
 class QuerySnippet;
 
 class EngineInfoContainerDBServerServerBased {
  public:
-  explicit EngineInfoContainerDBServerServerBased(QueryContext& query) noexcept;
+  explicit EngineInfoContainerDBServerServerBased(Query& query) noexcept;
 
   // Insert a new node into the last engine on the stack
   // If this Node contains Collections, they will be added into the map
@@ -85,6 +86,7 @@ class EngineInfoContainerDBServerServerBased {
   //   simon: in v3.7 we get a global QueryId for all snippets on a server
   Result buildEngines(
       std::unordered_map<ExecutionNodeId, ExecutionNode*> const& nodesById,
+      std::shared_ptr<QueryAborter> queryAborter,
       MapRemoteToSnippet& snippetIds, aql::ServerQueryIdList& serverQueryIds,
       std::map<ExecutionNodeId, ExecutionNodeId>& nodeAliases);
 
@@ -117,7 +119,8 @@ class EngineInfoContainerDBServerServerBased {
   std::vector<bool> buildEngineInfo(
       QueryId clusterQueryId, VPackBuilder& infoBuilder, ServerID const& server,
       std::unordered_map<ExecutionNodeId, ExecutionNode*> const& nodesById,
-      std::map<ExecutionNodeId, ExecutionNodeId>& nodeAliases);
+      std::map<ExecutionNodeId, ExecutionNodeId>& nodeAliases,
+      cluster::LeaseId leaseId);
 
   arangodb::futures::Future<Result> buildSetupRequest(
       transaction::Methods& trx, ServerID const& server, VPackSlice infoSlice,
@@ -185,7 +188,7 @@ class EngineInfoContainerDBServerServerBased {
 
   std::vector<std::shared_ptr<QuerySnippet>> _closedSnippets;
 
-  QueryContext& _query;
+  Query& _query;
 
   // @brief List of all graphNodes that need to create TraverserEngines on
   // DBServers

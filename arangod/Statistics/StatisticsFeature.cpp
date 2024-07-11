@@ -24,7 +24,8 @@
 #include "StatisticsFeature.h"
 
 #include "ApplicationFeatures/ApplicationServer.h"
-#include "Aql/Query.h"
+#include "Aql/QueryMethods.h"
+#include "Aql/QueryResult.h"
 #include "Aql/QueryString.h"
 #include "Basics/NumberOfCores.h"
 #include "Basics/PhysicalMemory.h"
@@ -1128,14 +1129,13 @@ Result StatisticsFeature::getClusterSystemStatistics(
   result.openObject();
   {
     buildBindVars(StaticStrings::Statistics15Collection);
-    auto query = arangodb::aql::Query::create(
-        transaction::StandaloneContext::create(*sysVocbase, origin),
-        arangodb::aql::QueryString(stats15Query), bindVars);
-
-    query->queryOptions().cache = false;
-    query->queryOptions().skipAudit = true;
-
-    aql::QueryResult queryResult = query->executeSync();
+    aql::QueryOptions options;
+    options.cache = false;
+    options.skipAudit = true;
+    auto queryFuture = arangodb::aql::runStandaloneAqlQuery(
+        *sysVocbase, origin, aql::QueryString(stats15Query), bindVars,
+        std::move(options));
+    auto queryResult = std::move(queryFuture.waitAndGet());
 
     if (queryResult.result.fail()) {
       return queryResult.result;
@@ -1146,14 +1146,14 @@ Result StatisticsFeature::getClusterSystemStatistics(
 
   {
     buildBindVars(StaticStrings::StatisticsCollection);
-    auto query = arangodb::aql::Query::create(
-        transaction::StandaloneContext::create(*sysVocbase, origin),
-        arangodb::aql::QueryString(statsSamplesQuery), bindVars);
 
-    query->queryOptions().cache = false;
-    query->queryOptions().skipAudit = true;
-
-    aql::QueryResult queryResult = query->executeSync();
+    aql::QueryOptions options;
+    options.cache = false;
+    options.skipAudit = true;
+    auto queryFuture = arangodb::aql::runStandaloneAqlQuery(
+        *sysVocbase, origin, aql::QueryString(statsSamplesQuery), bindVars,
+        std::move(options));
+    auto queryResult = std::move(queryFuture.waitAndGet());
 
     if (queryResult.result.fail()) {
       return queryResult.result;

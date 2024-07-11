@@ -139,6 +139,16 @@ void QueryContext::addDataSource(  // track DataSource
 
 aql::Ast* QueryContext::ast() { return _ast.get(); }
 
+void QueryContext::addLeaseFromRemoteGuard(
+    cluster::LeaseManager::LeaseFromRemoteGuard&& guard) {
+  _leasesFromRemote.emplace_back(std::move(guard));
+}
+
+void QueryContext::addLeaseToRemoteGuard(
+    cluster::LeaseManager::LeaseToRemoteGuard&& guard) {
+  _leasesToRemote.emplace_back(std::move(guard));
+}
+
 void QueryContext::enterV8Executor() {
   THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_NOT_IMPLEMENTED,
                                  "V8 support not implemented");

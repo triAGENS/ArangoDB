@@ -27,7 +27,6 @@
 #include "Basics/ErrorCode.h"
 #include "Basics/ResultT.h"
 #include "Basics/ReadWriteLock.h"
-#include "Cluster/CallbackGuard.h"
 #include "Futures/Promise.h"
 
 #include <deque>
@@ -55,16 +54,11 @@ class QueryRegistry {
   /// @brief insert, this inserts the query <query> for the vocbase <vocbase>
   /// and the id <id> into the registry. It is in error if there is already
   /// a query for this <vocbase> and <id> combination and an exception will
-  /// be thrown in that case. The time to live <ttl> is in seconds and the
-  /// query will be deleted if it is not opened for that amount of time.
+  /// be thrown in that case.
   /// With keepLease == true the query will be kept open and it is guaranteed
   /// that the caller can continue to use it exclusively.
   /// This is identical to an atomic sequence of insert();open();
-  /// The callback guard needs to be stored with the query to prevent it from
-  /// firing. This is used for the RebootTracker to destroy the query when
-  /// the coordinator which created it restarts or fails.
-  void insertQuery(std::shared_ptr<ClusterQuery> query, double ttl,
-                   std::string_view qs, cluster::CallbackGuard guard);
+  void insertQuery(std::shared_ptr<ClusterQuery> query, std::string_view qs);
 
   /// @brief open, find a engine in the registry, if none is found, a nullptr
   /// is returned, otherwise, ownership of the query is transferred to the
@@ -115,9 +109,6 @@ class QueryRegistry {
   /// when the database gets dropped
   void destroy(std::string const& vocbase);
 
-  /// @brief expireQueries, this deletes all expired queries from the registry
-  void expireQueries();
-
   /// @brief return number of registered queries
   size_t numberRegisteredQueries();
 
@@ -145,11 +136,10 @@ class QueryRegistry {
   /// @brief a struct for all information regarding one query in the registry
   struct QueryInfo final {
     /// @brief constructor for a regular query entry
-    QueryInfo(std::shared_ptr<ClusterQuery> query, double ttl,
-              std::string_view qs, cluster::CallbackGuard guard);
+    QueryInfo(std::shared_ptr<ClusterQuery> query, std::string_view qs);
 
     /// @brief constructor for a tombstone entry
-    explicit QueryInfo(ErrorCode errorCode, double ttl);
+    explicit QueryInfo(ErrorCode errorCode);
     ~QueryInfo();
 
     std::shared_ptr<ClusterQuery> _query;  // the actual query pointer
@@ -158,9 +148,7 @@ class QueryRegistry {
     /// received the finish request
     futures::Promise<std::shared_ptr<ClusterQuery>> _promise;
 
-    double const _timeToLive;  // in seconds
-    double _expires;           // UNIX UTC timestamp of expiration
-    size_t _numEngines;        // used for legacy shutdown
+    size_t _numEngines;  // used for legacy shutdown
     size_t _numOpen;
 
     std::string _queryString;  // can be empty
@@ -168,8 +156,6 @@ class QueryRegistry {
     ErrorCode _errorCode;
     bool const _isTombstone;
     bool _finished = false;
-
-    cluster::CallbackGuard _rebootTrackerCallbackGuard;
   };
 
   struct EngineInfo final {

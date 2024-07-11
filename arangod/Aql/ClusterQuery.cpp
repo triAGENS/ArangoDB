@@ -117,7 +117,8 @@ void ClusterQuery::prepareFromVelocyPack(
     velocypack::Slice variables, velocypack::Slice snippets,
     velocypack::Slice traverserSlice, std::string const& user,
     velocypack::Builder& answerBuilder,
-    QueryAnalyzerRevisions const& analyzersRevision, bool fastPathLocking) {
+    QueryAnalyzerRevisions const& analyzersRevision, bool fastPathLocking,
+    std::shared_ptr<QueryAborter> queryAborter) {
   TRI_ASSERT(ServerState::instance()->isDBServer());
 
   LOG_TOPIC("45493", DEBUG, Logger::QUERIES)
@@ -203,7 +204,8 @@ void ClusterQuery::prepareFromVelocyPack(
     auto plan = ExecutionPlan::instantiateFromVelocyPack(_ast.get(), snippet);
     TRI_ASSERT(plan != nullptr);
 
-    ExecutionEngine::instantiateFromPlan(*this, *plan, planRegisters);
+    ExecutionEngine::instantiateFromPlan(*this, *plan, planRegisters,
+                                         queryAborter);
     _plans.push_back(std::move(plan));
   };
 
@@ -272,6 +274,9 @@ futures::Future<Result> ClusterQuery::finalizeClusterQuery(
     LOG_TOPIC("8ea28", DEBUG, Logger::QUERIES)
         << elapsedSince(_startTime) << " Query::finalizeSnippets post commit()"
         << " this: " << (uintptr_t)this;
+
+    // Query commited/aborted. We can clear the leases.
+    completeLeases();
 
     executionStatsGuard().doUnderLock([&](auto& executionStats) {
       executionStats.requests += _numRequests.load(std::memory_order_relaxed);

@@ -191,7 +191,8 @@ Cursor* CursorRepository::createFromQueryResult(aql::QueryResult&& result,
 
 Cursor* CursorRepository::createQueryStream(
     std::shared_ptr<arangodb::aql::Query> q, size_t batchSize, double ttl,
-    bool isRetriable, transaction::OperationOrigin operationOrigin) {
+    bool isRetriable, transaction::OperationOrigin operationOrigin,
+    std::shared_ptr<aql::QueryAborter> aborter) {
   TRI_ASSERT(q->queryOptions().stream);
 
   if (_softShutdownOngoing != nullptr &&
@@ -202,7 +203,7 @@ Cursor* CursorRepository::createQueryStream(
   }
 
   auto cursor = std::make_unique<aql::QueryStreamCursor>(
-      std::move(q), batchSize, ttl, isRetriable, operationOrigin);
+      std::move(q), batchSize, ttl, isRetriable, operationOrigin, aborter);
   cursor->use();
 
   return addCursor(std::move(cursor));

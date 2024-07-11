@@ -23,6 +23,7 @@
 
 #include "Aql/Query.h"
 
+#include "Aql/QueryAborter.h"
 #include "Aql/SharedQueryState.h"
 #include "Basics/ScopeGuard.h"
 #include "Basics/debugging.h"
@@ -53,8 +54,9 @@ static arangodb::aql::QueryResult executeQuery(
       ctx, arangodb::aql::QueryString(queryString), nullptr);
 
   arangodb::aql::QueryResult result;
+  auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
   while (true) {
-    auto state = query->execute(result);
+    auto state = query->execute(aborter, result);
     if (state == arangodb::aql::ExecutionState::WAITING) {
       query->sharedState()->waitForAsyncWakeup();
     } else {

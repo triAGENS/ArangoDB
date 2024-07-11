@@ -32,15 +32,15 @@
 #include "Aql/ExecutionEngine.h"
 #include "Aql/ExecutionNode/ExecutionNode.h"
 #include "Aql/ProfileLevel.h"
+#include "Aql/QueryAborter.h"
 #include "Aql/QueryRegistry.h"
 #include "Aql/SharedQueryState.h"
 #include "Basics/Exceptions.h"
 #include "Basics/StaticStrings.h"
 #include "Basics/StringUtils.h"
 #include "Basics/VelocyPackHelper.h"
-#include "Cluster/CallbackGuard.h"
-#include "Cluster/ClusterFeature.h"
-#include "Cluster/ClusterInfo.h"
+#include "Cluster/LeaseManager/LeaseId.h"
+#include "Cluster/LeaseManager/LeaseManagerFeature.h"
 #include "Cluster/RebootTracker.h"
 #include "Cluster/ServerState.h"
 #include "Cluster/TraverserEngine.h"
@@ -313,8 +313,7 @@ futures::Future<futures::Unit> RestAqlHandler::setupClusterQuery() {
   collectionBuilder.close();
 
   auto origin = transaction::OperationOriginAQL{"running AQL query"};
-
-  double const ttl = options.ttl;
+  
   // creates a StandaloneContext or a leased context
   auto q = ClusterQuery::create(
       clusterQueryId, co_await createTransactionContext(access, origin),
@@ -349,15 +348,14 @@ futures::Future<futures::Unit> RestAqlHandler::setupClusterQuery() {
     generateError(revisionRes);
     co_return;
   }
+  auto aborter = std::make_shared<aql::QueryAborter>(q);
   q->prepareFromVelocyPack(querySlice, collectionBuilder.slice(),
                            variablesSlice, snippetsSlice, traverserSlice,
                            _request->value(StaticStrings::UserString),
-                           answerBuilder, analyzersRevision, fastPath);
+                           answerBuilder, analyzersRevision, fastPath, aborter);
 
   answerBuilder.close();  // result
   answerBuilder.close();
-
-  cluster::CallbackGuard rGuard;
 
   // Now set an alarm for the case that the coordinator is restarted which
   // initiated this query. In that case, we want to drop our piece here:
@@ -365,19 +363,41 @@ futures::Future<futures::Unit> RestAqlHandler::setupClusterQuery() {
     LOG_TOPIC("42512", TRACE, Logger::AQL)
         << "Setting RebootTracker on coordinator " << coordinatorId
         << " for query with id " << q->id();
-    auto& clusterFeature = _server.getFeature<ClusterFeature>();
-    auto& clusterInfo = clusterFeature.clusterInfo();
-    rGuard = clusterInfo.rebootTracker().callMeOnChange(
-        {coordinatorId, rebootId},
-        [queryRegistry = _queryRegistry, vocbaseName = _vocbase.name(),
-         queryId = q->id()]() {
-          queryRegistry->destroyQuery(queryId, TRI_ERROR_TRANSACTION_ABORTED);
-          LOG_TOPIC("42511", DEBUG, Logger::AQL)
-              << "Query snippet destroyed as consequence of "
-                 "RebootTracker for coordinator, db="
-              << vocbaseName << " queryId=" << queryId;
-        },
-        "Query aborted since coordinator rebooted or failed.");
+    if (auto leaseSlice = querySlice.get("leaseId"); leaseSlice.isNumber()) {
+      cluster::LeaseId leaseId{leaseSlice.getNumber<uint64_t>()};
+      auto res =
+          server()
+              .getFeature<cluster::LeaseManagerFeature>()
+              .leaseManager()
+              .handoutLease(
+                  PeerState{.serverId = coordinatorId, .rebootId = rebootId},
+                  leaseId,
+                  [query = std::weak_ptr(q)]() noexcept -> std::string {
+                    if (auto q = query.lock(); q) {
+                      return fmt::format(
+                          "Query {} of transaction {} in database {} query: "
+                          "'{}'",
+                          q->id(), q->transactionId().id(), q->vocbase().name(),
+                          q->queryString().string());
+                    }
+                    return fmt::format("Already aborted query.");
+                  },
+                  [queryRegistry = _queryRegistry,
+                   vocbaseName = _vocbase.name(),
+                   queryId = q->id()]() noexcept {
+                    queryRegistry->destroyQuery(queryId,
+                                                TRI_ERROR_TRANSACTION_ABORTED);
+                    LOG_TOPIC("42511", DEBUG, Logger::AQL)
+                        << "Query snippet destroyed as consequence of "
+                           "RebootTracker for coordinator, db="
+                        << vocbaseName << " queryId=" << queryId;
+                  });
+      if (res.fail()) {
+        generateError(res.result());
+        co_return;
+      }
+      q->addLeaseToRemoteGuard((std::move(res.get())));
+    }
   }
 
   // query string
@@ -386,7 +406,7 @@ futures::Future<futures::Unit> RestAqlHandler::setupClusterQuery() {
     qs = qss.stringView();
   }
 
-  _queryRegistry->insertQuery(std::move(q), ttl, qs, std::move(rGuard));
+  _queryRegistry->insertQuery(std::move(q), qs);
 
   generateResult(rest::ResponseCode::OK, std::move(buffer));
 }

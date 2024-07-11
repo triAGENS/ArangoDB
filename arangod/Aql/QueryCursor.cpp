@@ -152,14 +152,15 @@ Result QueryResultCursor::dumpSync(VPackBuilder& builder) {
 
 QueryStreamCursor::QueryStreamCursor(
     std::shared_ptr<arangodb::aql::Query> q, size_t batchSize, double ttl,
-    bool isRetriable, transaction::OperationOrigin operationOrigin)
+    bool isRetriable, transaction::OperationOrigin operationOrigin,
+    std::shared_ptr<QueryAborter> aborter)
     : Cursor(TRI_NewServerSpecificTick(), batchSize, ttl, /*hasCount*/ false,
              isRetriable),
       _query(std::move(q)),
       _queryResultPos(0),
       _finalization(false),
       _allowDirtyReads(false) {
-  _query->prepareQuery();
+  _query->prepareQuery(aborter);
   _allowDirtyReads = _query->allowDirtyReads();  // is set by prepareQuery!
   TRI_IF_FAILURE("QueryStreamCursor::directKillAfterPrepare") {
     QueryStreamCursor::debugKillQuery();

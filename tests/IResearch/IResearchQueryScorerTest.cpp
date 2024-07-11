@@ -34,6 +34,7 @@
 #include "Aql/Expression.h"
 #include "Aql/OptimizerRule.h"
 #include "Aql/Query.h"
+#include "Aql/QueryAborter.h"
 #include "IResearch/IResearchFeature.h"
 #include "IResearch/IResearchVPackComparer.h"
 #include "IResearch/IResearchView.h"
@@ -542,7 +543,8 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+      query->prepareQuery(aborter);
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -649,7 +651,8 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+      query->prepareQuery(aborter);
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -761,7 +764,8 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+      query->prepareQuery(aborter);
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -872,7 +876,8 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+      query->prepareQuery(aborter);
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -984,7 +989,8 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+      query->prepareQuery(aborter);
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -1096,7 +1102,8 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+      query->prepareQuery(aborter);
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -1218,7 +1225,8 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+      query->prepareQuery(aborter);
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -1330,7 +1338,8 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+      query->prepareQuery(aborter);
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -1418,7 +1427,8 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+      query->prepareQuery(aborter);
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -1507,8 +1517,8 @@ class QueryScorer : public QueryTest {
           arangodb::transaction::StandaloneContext::create(
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
-
-      query->prepareQuery();
+      auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+      query->prepareQuery(aborter);
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -1629,7 +1639,8 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+      query->prepareQuery(aborter);
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -1719,7 +1730,8 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+      query->prepareQuery(aborter);
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -1804,7 +1816,8 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+      query->prepareQuery(aborter);
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 

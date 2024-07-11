@@ -44,6 +44,8 @@
 #include "Aql/AqlFunctionFeature.h"
 #include "Aql/ExpressionContext.h"
 #include "Aql/Query.h"
+#include "Aql/QueryAborter.h"
+#include "Aql/QueryMethods.h"
 #include "Aql/QueryString.h"
 #include "Basics/StaticStrings.h"
 #include "Basics/StringUtils.h"
@@ -544,11 +546,10 @@ Result visitAnalyzers(TRI_vocbase_t& vocbase,
       if (shards->begin()->second.front() == ServerState::instance()->getId()) {
         auto oneShardQueryString = aql::QueryString(absl::StrCat(
             "FOR d IN ", std::string{shards->begin()->first}, " RETURN d"));
-        auto query = aql::Query::create(
-            transaction::StandaloneContext::create(vocbase, operationOrigin),
-            std::move(oneShardQueryString), nullptr);
-
-        auto result = query->executeSync();
+        auto queryFuture = arangodb::aql::runStandaloneAqlQuery(
+            vocbase, operationOrigin, aql::QueryString(oneShardQueryString),
+            nullptr);
+        auto result = std::move(queryFuture.waitAndGet());
 
         if (TRI_ERROR_ARANGO_DATA_SOURCE_NOT_FOUND ==
             result.result.errorNumber()) {
@@ -624,11 +625,9 @@ Result visitAnalyzers(TRI_vocbase_t& vocbase,
     return res;
   }
 
-  auto query = aql::Query::create(
-      transaction::StandaloneContext::create(vocbase, operationOrigin),
-      queryString, nullptr);
-
-  auto result = query->executeSync();
+  auto queryFuture = arangodb::aql::runStandaloneAqlQuery(
+      vocbase, operationOrigin, aql::QueryString(queryString), nullptr);
+  auto result = std::move(queryFuture.waitAndGet());
 
   if (TRI_ERROR_ARANGO_DATA_SOURCE_NOT_FOUND == result.result.errorNumber()) {
     return {};  // treat missing collection as if there are no analyzers
@@ -1536,7 +1535,8 @@ Result IResearchAnalyzerFeature::removeAllAnalyzers(
         return res;
       }
       auto query = aql::Query::create(ctx, aql::QueryString(aql), nullptr);
-      aql::QueryResult queryResult = query->executeSync();
+      auto aborter = std::make_shared<aql::QueryAborter>(query);
+      aql::QueryResult queryResult = query->executeSync(aborter);
       if (queryResult.fail()) {
         return queryResult.result;
       }
@@ -2009,33 +2009,39 @@ Result IResearchAnalyzerFeature::cleanupAnalyzersCollection(
       return res;
     }
 
-    auto queryDelete = aql::Query::create(ctx, queryDeleteString, bindBuilder);
-
-    auto deleteResult = queryDelete->executeSync();
-    if (deleteResult.fail()) {
-      return {TRI_ERROR_INTERNAL,
-              absl::StrCat("failure to remove dangling analyzers from '",
-                           database, "' Aql error: (",
-                           static_cast<int>(deleteResult.errorNumber()), ") ",
-                           deleteResult.errorMessage())};
+    {
+      auto queryDelete =
+          aql::Query::create(ctx, queryDeleteString, bindBuilder);
+      auto aborter = std::make_shared<aql::QueryAborter>(queryDelete);
+      auto deleteResult = queryDelete->executeSync(aborter);
+      if (deleteResult.fail()) {
+        return {TRI_ERROR_INTERNAL,
+                absl::StrCat("failure to remove dangling analyzers from '",
+                             database, "' Aql error: (",
+                             static_cast<int>(deleteResult.errorNumber()), ") ",
+                             deleteResult.errorMessage())};
+      }
     }
 
-    static const auto queryUpdateString = aql::QueryString(absl::StrCat(
-        "FOR d IN ", arangodb::StaticStrings::AnalyzersCollection, " FILTER ",
-        " ( HAS(d, '", arangodb::StaticStrings::AnalyzersDeletedRevision,
-        "') AND d.", arangodb::StaticStrings::AnalyzersDeletedRevision,
-        " >= @rev) ", "UPDATE d WITH UNSET(d, '",
-        arangodb::StaticStrings::AnalyzersDeletedRevision, "') IN ",
-        arangodb::StaticStrings::AnalyzersCollection));
-    auto queryUpdate = aql::Query::create(ctx, queryUpdateString, bindBuilder);
-
-    auto updateResult = queryUpdate->executeSync();
-    if (updateResult.fail()) {
-      return {TRI_ERROR_INTERNAL,
-              absl::StrCat("failure to restore dangling analyzers from '",
-                           database, "' Aql error: (",
-                           static_cast<int>(updateResult.errorNumber()), ") ",
-                           updateResult.errorMessage())};
+    {
+      static const auto queryUpdateString = aql::QueryString(absl::StrCat(
+          "FOR d IN ", arangodb::StaticStrings::AnalyzersCollection, " FILTER ",
+          " ( HAS(d, '", arangodb::StaticStrings::AnalyzersDeletedRevision,
+          "') AND d.", arangodb::StaticStrings::AnalyzersDeletedRevision,
+          " >= @rev) ", "UPDATE d WITH UNSET(d, '",
+          arangodb::StaticStrings::AnalyzersDeletedRevision, "') IN ",
+          arangodb::StaticStrings::AnalyzersCollection));
+      auto queryUpdate =
+          aql::Query::create(ctx, queryUpdateString, bindBuilder);
+      auto aborter = std::make_shared<aql::QueryAborter>(queryUpdate);
+      auto updateResult = queryUpdate->executeSync(aborter);
+      if (updateResult.fail()) {
+        return {TRI_ERROR_INTERNAL,
+                absl::StrCat("failure to restore dangling analyzers from '",
+                             database, "' Aql error: (",
+                             static_cast<int>(updateResult.errorNumber()), ") ",
+                             updateResult.errorMessage())};
+      }
     }
 
     auto commitRes = trx.finish(Result{});

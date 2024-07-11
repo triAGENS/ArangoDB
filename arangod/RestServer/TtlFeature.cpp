@@ -24,8 +24,10 @@
 #include "TtlFeature.h"
 
 #include "ApplicationFeatures/ApplicationServer.h"
-#include "Aql/Query.h"
+#include "Aql/QueryMethods.h"
 #include "Aql/QueryRegistry.h"
+#include "Aql/QueryResult.h"
+#include "Aql/QueryString.h"
 #include "Basics/ConditionVariable.h"
 #include "Basics/Exceptions.h"
 #include "Basics/StaticStrings.h"
@@ -402,12 +404,10 @@ class TtlThread final : public ServerThread<ArangodServer> {
             // every time we do a potential TTL index purge
             options.skipAudit = true;
 
-            auto query = aql::Query::create(
-                transaction::StandaloneContext::create(*vocbase, origin),
-                aql::QueryString(::lookupQuery), std::move(bindVars), options);
-            query->collections().add(collection->name(), AccessMode::Type::READ,
-                                     aql::Collection::Hint::Shard);
-            aql::QueryResult queryResult = query->executeSync();
+            auto queryFuture = arangodb::aql::runStandaloneAqlQuery(
+                *vocbase, origin, aql::QueryString(::lookupQuery),
+                std::move(bindVars), std::move(options));
+            auto queryResult = std::move(queryFuture.waitAndGet());
 
             if (queryResult.result.fail()) {
               // we can probably live with an error here...
@@ -426,10 +426,6 @@ class TtlThread final : public ServerThread<ArangodServer> {
               }
               break;
             }
-
-            // finish query so that it does not overlap with following remove
-            // operation
-            query.reset();
 
             if (queryResult.data == nullptr ||
                 !queryResult.data->slice().isArray()) {

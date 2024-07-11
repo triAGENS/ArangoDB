@@ -61,7 +61,8 @@ class ClusterQuery : public Query {
       velocypack::Slice variables, velocypack::Slice snippets,
       velocypack::Slice traverserSlice, std::string const& user,
       velocypack::Builder& answerBuilder,
-      QueryAnalyzerRevisions const& analyzersRevision, bool fastPathLocking);
+      QueryAnalyzerRevisions const& analyzersRevision, bool fastPathLocking,
+      std::shared_ptr<QueryAborter> queryAborter);
 
   auto const& traversers() const { return _traversers; }
 

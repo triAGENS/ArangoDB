@@ -67,6 +67,7 @@ class Ast;
 struct AstNode;
 class ExecutionEngine;
 struct ExecutionStats;
+struct QueryAborter;
 struct QueryCacheResultEntry;
 struct QueryProfile;
 class SharedQueryState;
@@ -140,19 +141,21 @@ class Query : public QueryContext, public std::enable_shared_from_this<Query> {
   /// every following call will be ignored.
   void ensureExecutionTime() noexcept;
 
-  void prepareQuery();
+  void prepareQuery(std::shared_ptr<QueryAborter> queryAborter);
 
   /// @brief execute an AQL query
-  ExecutionState execute(QueryResult& res);
+  ExecutionState execute(std::shared_ptr<QueryAborter> aborter,
+                         QueryResult& res);
 
   /// @brief execute an AQL query and block this thread in case we
   ///        need to wait.
-  QueryResult executeSync();
+  QueryResult executeSync(std::shared_ptr<QueryAborter> aborter);
 
 #ifdef USE_V8
   /// @brief execute an AQL query
   /// may only be called with an active V8 handle scope
-  QueryResultV8 executeV8(v8::Isolate* isolate);
+  QueryResultV8 executeV8(v8::Isolate* isolate,
+                          std::shared_ptr<QueryAborter> aborter);
 #endif
 
   /// @brief Enter finalization phase and do cleanup.
@@ -173,7 +176,8 @@ class Query : public QueryContext, public std::enable_shared_from_this<Query> {
                              velocypack::Slice collections,
                              velocypack::Slice variables,
                              velocypack::Slice snippets,
-                             QueryAnalyzerRevisions const& analyzersRevision);
+                             QueryAnalyzerRevisions const& analyzersRevision,
+                             std::shared_ptr<QueryAborter> queryAborter);
 
   /// @brief whether or not a query is a modification query
   bool isModificationQuery() const noexcept final;
@@ -266,6 +270,8 @@ class Query : public QueryContext, public std::enable_shared_from_this<Query> {
   /// returns "<hidden>" regardless of maxLength
   std::string extractQueryString(size_t maxLength, bool show) const;
 
+  auto completeLeases() -> void;
+
  protected:
   /// @brief initializes the query
   void init(bool createProfile);
@@ -293,7 +299,7 @@ class Query : public QueryContext, public std::enable_shared_from_this<Query> {
   void enterState(QueryExecutionState::ValueType);
 
   /// @brief cleanup plan and engine for current query can issue WAITING
-  ExecutionState cleanupPlanAndEngine(ErrorCode errorCode, bool sync);
+  ExecutionState cleanupPlanAndEngine(ErrorCode errorCode);
 
   void unregisterSnippets();
 

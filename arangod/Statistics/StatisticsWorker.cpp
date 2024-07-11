@@ -24,7 +24,9 @@
 #include "StatisticsWorker.h"
 
 #include "ApplicationFeatures/ApplicationServer.h"
-#include "Aql/Query.h"
+#include "Aql/QueryMethods.h"
+#include "Aql/QueryOptions.h"
+#include "Aql/QueryResult.h"
 #include "Aql/QueryString.h"
 #include "Basics/PhysicalMemory.h"
 #include "Basics/StaticStrings.h"
@@ -170,14 +172,13 @@ void StatisticsWorker::collectGarbage(std::string const& name,
   auto origin =
       transaction::OperationOriginInternal{"statistics garbage collection"};
 
-  auto query = arangodb::aql::Query::create(
-      transaction::StandaloneContext::create(_vocbase, origin),
-      arangodb::aql::QueryString(::garbageCollectionQuery), _bindVars);
-
-  query->queryOptions().cache = false;
-  query->queryOptions().skipAudit = true;
-
-  aql::QueryResult queryResult = query->executeSync();
+  aql::QueryOptions options;
+  options.cache = false;
+  options.skipAudit = true;
+  auto queryFuture = arangodb::aql::runStandaloneAqlQuery(
+      _vocbase, origin, aql::QueryString(::garbageCollectionQuery), _bindVars,
+      std::move(options));
+  auto queryResult = std::move(queryFuture.waitAndGet());
 
   if (queryResult.result.fail()) {
     THROW_ARANGO_EXCEPTION(queryResult.result);
@@ -303,16 +304,15 @@ std::shared_ptr<arangodb::velocypack::Builder> StatisticsWorker::lastEntry(
   auto origin =
       transaction::OperationOriginInternal{"fetching last statistics entry"};
 
-  auto query = arangodb::aql::Query::create(
-      transaction::StandaloneContext::create(_vocbase, origin),
-      arangodb::aql::QueryString(_clusterId.empty() ? ::lastEntryQuery
-                                                    : ::filteredLastEntryQuery),
-      _bindVars);
-
-  query->queryOptions().cache = false;
-  query->queryOptions().skipAudit = true;
-
-  aql::QueryResult queryResult = query->executeSync();
+  aql::QueryOptions options;
+  options.cache = false;
+  options.skipAudit = true;
+  auto queryFuture = arangodb::aql::runStandaloneAqlQuery(
+      _vocbase, origin,
+      aql::QueryString(_clusterId.empty() ? ::lastEntryQuery
+                                          : ::filteredLastEntryQuery),
+      _bindVars, std::move(options));
+  auto queryResult = std::move(queryFuture.waitAndGet());
 
   if (queryResult.result.fail()) {
     THROW_ARANGO_EXCEPTION(queryResult.result);
@@ -337,17 +337,15 @@ void StatisticsWorker::compute15Minute(VPackBuilder& builder, double start) {
   auto origin =
       transaction::OperationOriginInternal{"computing statistics 15m average"};
 
-  auto query = arangodb::aql::Query::create(
-      transaction::StandaloneContext::create(_vocbase, origin),
-      arangodb::aql::QueryString(_clusterId.empty()
-                                     ? ::fifteenMinuteQuery
-                                     : ::filteredFifteenMinuteQuery),
-      _bindVars);
-
-  query->queryOptions().cache = false;
-  query->queryOptions().skipAudit = true;
-
-  aql::QueryResult queryResult = query->executeSync();
+  aql::QueryOptions options;
+  options.cache = false;
+  options.skipAudit = true;
+  auto queryFuture = arangodb::aql::runStandaloneAqlQuery(
+      _vocbase, origin,
+      aql::QueryString(_clusterId.empty() ? ::fifteenMinuteQuery
+                                          : ::filteredFifteenMinuteQuery),
+      _bindVars, std::move(options));
+  auto queryResult = std::move(queryFuture.waitAndGet());
 
   if (queryResult.result.fail()) {
     THROW_ARANGO_EXCEPTION(queryResult.result);

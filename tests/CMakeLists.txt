@@ -198,6 +198,8 @@ set(ARANGODB_TESTS_SOURCES
   Cluster/ClusterHelpersTest.cpp
   Cluster/ClusterInfoTest.cpp
   Cluster/EvenDistributionTest.cpp
+  Cluster/LeaseManagerTest.cpp
+  Cluster/LeaseManagerRestHandlerTest.cpp
   Cluster/PlanCollectionEntryTest.cpp
   Cluster/PlanCollectionToAgencyWriterTest.cpp
   Cluster/QueryAnalyzerRevisionsTest.cpp

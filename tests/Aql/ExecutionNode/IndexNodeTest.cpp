@@ -27,6 +27,7 @@
 #include "Aql/ExecutionBlock.h"
 #include "Aql/ExecutionNode/IndexNode.h"
 #include "Aql/Query.h"
+#include "Aql/QueryAborter.h"
 #include "Aql/SharedQueryState.h"
 #include "Basics/GlobalResourceMonitor.h"
 #include "Basics/ResourceUsage.h"
@@ -81,8 +82,9 @@ arangodb::aql::QueryResult executeQuery(
           arangodb::velocypack::Parser::fromJson(optionsString)->slice()));
 
   arangodb::aql::QueryResult result;
+  auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
   while (true) {
-    auto state = query->execute(result);
+    auto state = query->execute(aborter, result);
     if (state == arangodb::aql::ExecutionState::WAITING) {
       query->sharedState()->waitForAsyncWakeup();
     } else {
@@ -528,7 +530,8 @@ TEST_F(IndexNodeTest, constructIndexNode) {
           std::string_view("FOR d IN testCollection FILTER d.obj.a == 'a_val' "
                            "SORT d.obj.c LIMIT 10 RETURN d")),
       nullptr);
-  query->prepareQuery();
+  auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+  query->prepareQuery(aborter);
 
   {
     // short path for a test
@@ -619,7 +622,8 @@ TEST_F(IndexNodeTest, invalidLateMaterializedJSON) {
           std::string_view("FOR d IN testCollection FILTER d.obj.a == 'a_val' "
                            "SORT d.obj.c LIMIT 10 RETURN d")),
       nullptr);
-  query->prepareQuery();
+  auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+  query->prepareQuery(aborter);
 
   auto vars = query->plan()->getAst()->variables();
   auto const& v =

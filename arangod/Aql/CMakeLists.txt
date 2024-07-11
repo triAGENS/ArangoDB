@@ -79,11 +79,13 @@ add_library(arango_aql STATIC
   PruneExpressionEvaluator.cpp
   Quantifier.cpp
   Query.cpp
+  QueryAborter.cpp
   QueryCache.cpp
   QueryContext.cpp
   QueryExecutionState.cpp
   QueryExpressionContext.cpp
   QueryList.cpp
+  QueryMethods.cpp
   QueryOptions.cpp
   QueryProfile.cpp
   QueryRegistry.cpp

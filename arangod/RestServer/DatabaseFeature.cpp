@@ -221,13 +221,6 @@ void DatabaseManagerThread::run() {
         std::this_thread::sleep_for(std::chrono::microseconds(waitTime()));
 
         // The following is only necessary after a wait:
-        if (!ServerState::instance()->isSingleServer()) {
-          auto* queryRegistry = QueryRegistryFeature::registry();
-          if (queryRegistry != nullptr) {
-            queryRegistry->expireQueries();
-          }
-        }
-
         // perform cursor cleanup here
         if (++cleanupCycles >= 10) {
           cleanupCycles = 0;

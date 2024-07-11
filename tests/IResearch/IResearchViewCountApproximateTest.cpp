@@ -28,6 +28,7 @@
 #include "Aql/ExecutionPlan.h"
 #include "Aql/Executor/IResearchViewExecutor.h"
 #include "Aql/Query.h"
+#include "Aql/QueryAborter.h"
 #include "Aql/SingleRowFetcher.h"
 #include "Basics/GlobalResourceMonitor.h"
 #include "Basics/ResourceUsage.h"
@@ -525,7 +526,8 @@ TEST_F(IResearchViewCountApproximateTest, directSkipAllForMergeExecutorExact) {
       arangodb::transaction::StandaloneContext::create(
           vocbase(), arangodb::transaction::OperationOriginTestCase{}),
       arangodb::aql::QueryString(queryString), nullptr);
-  query->prepareQuery();
+  auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+  query->prepareQuery(aborter);
   ASSERT_TRUE(query->ast());
   auto plan =
       arangodb::aql::ExecutionPlan::instantiateFromAst(query->ast(), false);
@@ -608,7 +610,8 @@ TEST_F(IResearchViewCountApproximateTest,
       arangodb::transaction::StandaloneContext::create(
           vocbase(), arangodb::transaction::OperationOriginTestCase{}),
       arangodb::aql::QueryString(queryString), nullptr);
-  query->prepareQuery();
+  auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+  query->prepareQuery(aborter);
   ASSERT_TRUE(query->ast());
   auto plan =
       arangodb::aql::ExecutionPlan::instantiateFromAst(query->ast(), false);
@@ -692,7 +695,8 @@ TEST_F(IResearchViewCountApproximateTest, directSkipAllForMergeExecutorCost) {
       arangodb::transaction::StandaloneContext::create(
           vocbase(), arangodb::transaction::OperationOriginTestCase{}),
       arangodb::aql::QueryString(queryString), nullptr);
-  query->prepareQuery();
+  auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+  query->prepareQuery(aborter);
   ASSERT_TRUE(query->ast());
   auto plan =
       arangodb::aql::ExecutionPlan::instantiateFromAst(query->ast(), false);

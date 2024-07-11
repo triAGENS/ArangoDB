@@ -529,7 +529,7 @@ static void handleLocalShard(
 
   std::shared_ptr<ActionDescription> description;
 
-  auto it = commonShrds.find(shname);
+  auto const& it = commonShrds.find(shname);
 
   auto localLeader = cprops.get(THE_LEADER).stringView();
   bool const isLeading = localLeader.empty();

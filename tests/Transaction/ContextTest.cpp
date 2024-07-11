@@ -22,6 +22,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "Aql/Query.h"
+#include "Aql/QueryAborter.h"
 #include "Rest/GeneralResponse.h"
 #include "Transaction/Manager.h"
 #include "Transaction/SmartContext.h"
@@ -128,7 +129,8 @@ TEST_F(TransactionContextTest, StandaloneSmartContext) {
   {
     auto query = arangodb::aql::Query::create(ctx, queryString, bindVars);
 
-    auto qres = query->executeSync();
+    auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+    auto qres = query->executeSync(aborter);
     ASSERT_TRUE(qres.ok());
     ASSERT_NE(nullptr, qres.data);
     VPackSlice aqlSlice = qres.data->slice();
@@ -144,7 +146,8 @@ TEST_F(TransactionContextTest, StandaloneSmartContext) {
   {
     auto query = arangodb::aql::Query::create(ctx, queryString, bindVars);
 
-    auto qres = query->executeSync();
+    auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+    auto qres = query->executeSync(aborter);
     ASSERT_TRUE(qres.ok());
     ASSERT_NE(nullptr, qres.data);
     VPackSlice aqlSlice = qres.data->slice();

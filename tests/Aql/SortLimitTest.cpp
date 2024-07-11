@@ -35,6 +35,7 @@
 #include "Aql/AqlFunctionFeature.h"
 #include "Aql/ExecutionPlan.h"
 #include "Aql/Query.h"
+#include "Aql/QueryAborter.h"
 #include "Aql/SharedQueryState.h"
 #include "Basics/VelocyPackHelper.h"
 #include "ClusterEngine/ClusterEngine.h"
@@ -144,8 +145,9 @@ class SortLimitTest
         arangodb::aql::QueryOptions(options->slice()));
     arangodb::aql::QueryResult result;
 
+    auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
     while (true) {
-      auto state = query->execute(result);
+      auto state = query->execute(aborter, result);
       if (state == arangodb::aql::ExecutionState::WAITING) {
         query->sharedState()->waitForAsyncWakeup();
       } else {

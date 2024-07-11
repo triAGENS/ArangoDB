@@ -25,6 +25,7 @@
 
 #include "ApplicationFeatures/ApplicationServer.h"
 #include "Aql/Query.h"
+#include "Aql/QueryAborter.h"
 #include "Aql/QueryRegistry.h"
 #include "Aql/SharedQueryState.h"
 #include "Basics/Exceptions.h"
@@ -234,8 +235,9 @@ futures::Future<RestStatus> RestCursorHandler::registerQueryOrCursor(
 
     CursorRepository* cursors = _vocbase.cursorRepository();
     TRI_ASSERT(cursors != nullptr);
+    auto aborter = std::make_shared<aql::QueryAborter>(query);
     _cursor = cursors->createQueryStream(std::move(query), batchSize, ttl,
-                                         retriable, operationOrigin);
+                                         retriable, operationOrigin, aborter);
     // Throws if soft shutdown is ongoing!
     _cursor->setWakeupHandler(withLogContext(
         [self = shared_from_this()]() { return self->wakeupHandler(); }));
@@ -280,8 +282,9 @@ RestStatus RestCursorHandler::processQuery() {
     // always clean up
     auto guard = scopeGuard([this]() noexcept { unregisterQuery(); });
 
+    auto aborter = std::make_shared<aql::QueryAborter>(_query);
     // continue handler is registered earlier
-    auto state = query->execute(_queryResult);
+    auto state = _query->execute(aborter, _queryResult);
 
     if (state == aql::ExecutionState::WAITING) {
       guard.cancel();

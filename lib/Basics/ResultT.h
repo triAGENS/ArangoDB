@@ -166,7 +166,7 @@ class ResultT {
   ResultT() requires(std::is_nothrow_default_constructible_v<T>) : _val{T{}} {}
   ResultT() requires(!std::is_nothrow_default_constructible_v<T>) = delete;
 
-  ResultT& operator=(T const& val_) {
+  ResultT& operator=(T const& val_) requires(std::is_copy_constructible_v<T>) {
     _val = val_;
     return *this;
   }

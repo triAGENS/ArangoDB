@@ -89,8 +89,8 @@ function RegistrySuite() {
         assertEqual(1, q.length);
 
         assertEqual("number", typeof q[0].id, q);
-        assertEqual(600, q[0].timeToLive);
-        assertTrue(q[0].expires >= start, q);
+        assertFalse(q[0].hasOwnProperty("timeToLive"), "The time to live handling has been removed in 3.12.2");
+        assertFalse(q[0].hasOwnProperty("expires"), "The expires handling has been removed in 3.12.2");
         assertEqual(1, q[0].numEngines);
         assertEqual(0, q[0].numOpen);
         assertEqual(0, q[0].errorCode);

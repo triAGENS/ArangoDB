@@ -130,6 +130,14 @@ static int runServer(int argc, char** argv, ArangoGlobalContext& context) {
           return std::make_unique<NetworkFeature>(
               server, metrics, network::ConnectionPool::Config{});
         },
+        [](auto& server, TypeTag<cluster::LeaseManagerFeature>) {
+          auto& schedulerFeature =
+              server.template getFeature<SchedulerFeature>();
+          auto& clusterFeature = server.template getFeature<ClusterFeature>();
+          auto& networkFeature = server.template getFeature<NetworkFeature>();
+          return std::make_unique<cluster::LeaseManagerFeature>(
+              server, clusterFeature, networkFeature, schedulerFeature);
+        },
         [](auto& server, TypeTag<QueryRegistryFeature>) {
           return std::make_unique<QueryRegistryFeature>(
               server,

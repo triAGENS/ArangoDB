@@ -25,7 +25,9 @@
 
 #include "Agency/Agent.h"
 #include "ApplicationFeatures/ApplicationServer.h"
-#include "Aql/Query.h"
+#include "Aql/QueryMethods.h"
+#include "Aql/QueryResult.h"
+#include "Aql/QueryString.h"
 #include "Basics/application-exit.h"
 #include "Basics/system-functions.h"
 #include "Logger/LogMacros.h"
@@ -610,11 +612,10 @@ void Constituent::run() {
         "FOR l IN election SORT l._key DESC LIMIT 1 RETURN l");
     auto origin = transaction::OperationOriginInternal{
         "querying most recent agency election vote"};
-    auto query = arangodb::aql::Query::create(
-        transaction::StandaloneContext::create(*_vocbase, origin),
-        arangodb::aql::QueryString(aql), nullptr);
 
-    aql::QueryResult queryResult = query->executeSync();
+    auto queryFuture = arangodb::aql::runStandaloneAqlQuery(
+        *_vocbase, origin, aql::QueryString(aql), nullptr);
+    auto queryResult = std::move(queryFuture.waitAndGet());
 
     if (queryResult.result.fail()) {
       THROW_ARANGO_EXCEPTION(queryResult.result);

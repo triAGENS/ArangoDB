@@ -29,6 +29,7 @@
 
 #include "ApplicationFeatures/ApplicationServer.h"
 #include "Aql/Query.h"
+#include "Aql/QueryAborter.h"
 #include "Aql/QueryRegistry.h"
 #include "Aql/QueryString.h"
 #include "Basics/StaticStrings.h"
@@ -175,7 +176,8 @@ Result arangodb::unregisterUserFunctionsGroup(
         transaction::V8Context::createWhenRequired(vocbase, ::operationOrigin,
                                                    true),
         arangodb::aql::QueryString(aql), std::move(binds));
-    aql::QueryResult queryResult = query->executeSync();
+    auto aborter = std::make_shared<aql::QueryAborter>(query);
+    aql::QueryResult queryResult = query->executeSync(aborter);
 
     if (queryResult.result.fail()) {
       if (queryResult.result.is(TRI_ERROR_REQUEST_CANCELED) ||
@@ -388,7 +390,8 @@ Result arangodb::toArrayUserFunctions(TRI_vocbase_t& vocbase,
       transaction::V8Context::createWhenRequired(vocbase, ::operationOrigin,
                                                  true),
       arangodb::aql::QueryString(aql), std::move(binds));
-  aql::QueryResult queryResult = query->executeSync();
+  auto aborter = std::make_shared<aql::QueryAborter>(query);
+  aql::QueryResult queryResult = query->executeSync(aborter);
 
   if (queryResult.result.fail()) {
     if (queryResult.result.is(TRI_ERROR_REQUEST_CANCELED) ||

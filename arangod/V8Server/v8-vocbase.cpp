@@ -43,6 +43,7 @@
 #include "ApplicationFeatures/HttpEndpointProvider.h"
 #include "Aql/ExpressionContext.h"
 #include "Aql/Query.h"
+#include "Aql/QueryAborter.h"
 #include "Aql/QueryCache.h"
 #include "Aql/QueryExecutionState.h"
 #include "Aql/QueryList.h"
@@ -791,12 +792,13 @@ static void JS_ExecuteAqlJson(v8::FunctionCallbackInfo<v8::Value> const& args) {
   snippetBuilder.close();
 
   TRI_ASSERT(!ServerState::instance()->isDBServer());
+  auto aborter = std::make_shared<aql::QueryAborter>(query);
   VPackBuilder ignoreResponse;
   query->prepareFromVelocyPack(
       /*querySlice*/ VPackSlice::emptyObjectSlice(), collections, variables,
-      /*snippets*/ snippetBuilder.slice(), analyzersRevision);
+      /*snippets*/ snippetBuilder.slice(), analyzersRevision, aborter);
 
-  aql::QueryResult queryResult = query->executeSync();
+  aql::QueryResult queryResult = query->executeSync(aborter);
 
   if (queryResult.result.fail()) {
     TRI_V8_THROW_EXCEPTION_FULL(queryResult.result.errorNumber(),
@@ -909,8 +911,8 @@ static void JS_ExecuteAql(v8::FunctionCallbackInfo<v8::Value> const& args) {
   auto query = arangodb::aql::Query::create(
       std::move(v8Context), aql::QueryString(std::move(queryString)),
       std::move(bindVars), aql::QueryOptions(options.slice()));
-
-  arangodb::aql::QueryResultV8 queryResult = query->executeV8(isolate);
+  auto aborter = std::make_shared<aql::QueryAborter>(query);
+  arangodb::aql::QueryResultV8 queryResult = query->executeV8(isolate, aborter);
 
   if (queryResult.result.fail()) {
     if (queryResult.result.is(TRI_ERROR_REQUEST_CANCELED)) {

@@ -25,7 +25,9 @@
 
 #include "Agency/AgencyComm.h"
 #include "ApplicationFeatures/ApplicationServer.h"
-#include "Aql/Query.h"
+#include "Aql/QueryMethods.h"
+#include "Aql/QueryResult.h"
+#include "Aql/QueryString.h"
 #include "Auth/UserManager.h"
 #include "Basics/ReadLocker.h"
 #include "Basics/Result.h"
@@ -1652,10 +1654,9 @@ futures::Future<Result> RestReplicationHandler::processRestoreUsersBatch() {
   bindVars->close();  // bindVars
 
   auto origin = transaction::OperationOriginREST{"restoring users"};
-  auto query = arangodb::aql::Query::create(
-      transaction::StandaloneContext::create(_vocbase, origin),
-      arangodb::aql::QueryString(aql), std::move(bindVars));
-  aql::QueryResult queryResult = query->executeSync();
+  auto queryFuture = arangodb::aql::runStandaloneAqlQuery(
+      _vocbase, origin, aql::QueryString(aql), std::move(bindVars));
+  auto queryResult = std::move(queryFuture.waitAndGet());
 
   // neither agency nor dbserver should get here
   AuthenticationFeature* af = AuthenticationFeature::instance();

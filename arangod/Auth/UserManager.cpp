@@ -25,8 +25,9 @@
 
 #include "Agency/AgencyComm.h"
 #include "ApplicationFeatures/ApplicationServer.h"
-#include "Aql/Query.h"
+#include "Aql/QueryMethods.h"
 #include "Aql/QueryOptions.h"
+#include "Aql/QueryResult.h"
 #include "Aql/QueryString.h"
 #include "Auth/Handler.h"
 #include "Basics/ReadLocker.h"
@@ -34,7 +35,6 @@
 #include "Basics/StringUtils.h"
 #include "Basics/VelocyPackHelper.h"
 #include "Basics/WriteLocker.h"
-#include "Basics/tri-strings.h"
 #include "Cluster/ServerState.h"
 #include "GeneralServer/AuthenticationFeature.h"
 #include "GeneralServer/GeneralServerFeature.h"
@@ -53,7 +53,6 @@
 #include "Utils/SingleCollectionTransaction.h"
 
 #include <velocypack/Builder.h>
-#include <velocypack/Collection.h>
 #include <velocypack/Iterator.h>
 
 namespace {
@@ -126,19 +125,19 @@ static std::shared_ptr<VPackBuilder> QueryAllUsers(ArangodServer& server) {
   std::string const queryStr("FOR user IN _users RETURN user");
   auto origin =
       transaction::OperationOriginInternal{"querying all users from database"};
-  auto query = arangodb::aql::Query::create(
-      transaction::StandaloneContext::create(*vocbase, origin),
-      arangodb::aql::QueryString(queryStr), nullptr);
-
-  query->queryOptions().cache = false;
-  query->queryOptions().ttl = 30;
-  query->queryOptions().maxRuntime = 30;
-  query->queryOptions().skipAudit = true;
 
   LOG_TOPIC("f3eec", DEBUG, arangodb::Logger::AUTHENTICATION)
       << "starting to load authentication and authorization information";
 
-  aql::QueryResult queryResult = query->executeSync();
+  aql::QueryOptions options;
+  options.cache = false;
+  options.ttl = 30;
+  options.maxRuntime = 30;
+  options.skipAudit = true;
+  auto queryFuture = arangodb::aql::runStandaloneAqlQuery(
+      *vocbase, origin, aql::QueryString(queryStr), nullptr,
+      std::move(options));
+  auto queryResult = std::move(queryFuture.waitAndGet());
 
   if (queryResult.result.fail()) {
     if (queryResult.result.is(TRI_ERROR_REQUEST_CANCELED) ||

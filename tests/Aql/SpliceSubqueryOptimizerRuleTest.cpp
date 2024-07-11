@@ -28,6 +28,7 @@
 #include "Aql/Ast.h"
 #include "Aql/ExecutionPlan.h"
 #include "Aql/Query.h"
+#include "Aql/QueryAborter.h"
 #include "Aql/ExecutionEngine.h"
 #include "Aql/ExecutionBlock.h"
 #include "Aql/ExecutionNode/SubqueryEndExecutionNode.h"
@@ -142,7 +143,8 @@ class SpliceSubqueryNodeOptimizerRuleTest : public ::testing::Test {
     auto splicedQuery = arangodb::aql::Query::create(
         std::move(ctx), arangodb::aql::QueryString(querystring), bindParamVpack,
         arangodb::aql::QueryOptions(ruleOptions(additionalOptions)->slice()));
-    splicedQuery->prepareQuery();
+    auto aborter = std::make_shared<arangodb::aql::QueryAborter>(splicedQuery);
+    splicedQuery->prepareQuery(aborter);
     ASSERT_EQ(queryRegistry->numberRegisteredQueries(), 0)
         << "query string: " << querystring;
 

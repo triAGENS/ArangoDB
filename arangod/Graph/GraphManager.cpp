@@ -34,6 +34,8 @@
 #include "ApplicationFeatures/ApplicationServer.h"
 #include "Aql/AstNode.h"
 #include "Aql/Query.h"
+#include "Aql/QueryAborter.h"
+#include "Aql/QueryMethods.h"
 #include "Aql/QueryOptions.h"
 #include "Basics/ReadLocker.h"
 #include "Basics/StaticStrings.h"
@@ -425,11 +427,13 @@ OperationResult GraphManager::storeGraph(Graph const& graph, bool waitForSync,
 Result GraphManager::applyOnAllGraphs(
     std::function<Result(std::unique_ptr<Graph>)> const& callback) const {
   std::string const queryStr{"FOR g IN _graphs RETURN g"};
-  auto query = arangodb::aql::Query::create(
-      transaction::StandaloneContext::create(_vocbase, _operationOrigin),
-      arangodb::aql::QueryString{queryStr}, nullptr);
-  query->queryOptions().skipAudit = true;
-  aql::QueryResult queryResult = query->executeSync();
+  aql::QueryOptions options;
+  options.skipAudit = true;
+
+  auto queryFuture = arangodb::aql::runStandaloneAqlQuery(
+      _vocbase, _operationOrigin, aql::QueryString(queryStr), nullptr,
+      std::move(options));
+  auto queryResult = std::move(queryFuture.waitAndGet());
 
   if (queryResult.result.fail()) {
     if (queryResult.result.is(TRI_ERROR_REQUEST_CANCELED) ||
@@ -743,7 +747,8 @@ Result GraphManager::readGraphByQuery(velocypack::Builder& builder,
 
   LOG_TOPIC("f6782", DEBUG, arangodb::Logger::GRAPHS)
       << "starting to load graphs information";
-  aql::QueryResult queryResult = query->executeSync();
+  auto aborter = std::make_shared<aql::QueryAborter>(query);
+  aql::QueryResult queryResult = query->executeSync(aborter);
 
   if (queryResult.result.fail()) {
     if (queryResult.result.is(TRI_ERROR_REQUEST_CANCELED) ||

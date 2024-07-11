@@ -25,7 +25,8 @@
 
 #include "ApplicationFeatures/ApplicationServer.h"
 #include "Aql/AstNode.h"
-#include "Aql/Query.h"
+#include "Aql/QueryMethods.h"
+#include "Aql/QueryResult.h"
 #include "Aql/QueryString.h"
 #include "Aql/Variable.h"
 #include "Basics/StringUtils.h"
@@ -122,10 +123,10 @@ aql::QueryResult queryEdges(TRI_vocbase_t& vocbase, std::string const& cname,
   if (allowDirtyReads) {
     options.transactionOptions.allowDirtyReads = true;
   }
-  auto query = arangodb::aql::Query::create(
-      std::move(ctx), aql::QueryString(queryString(dir)),
+  auto queryFuture = arangodb::aql::runStandaloneAqlQuery(
+      vocbase, origin, aql::QueryString(queryString(dir)),
       std::move(bindParameters), std::move(options));
-  return query->executeSync();
+  return std::move(queryFuture.waitAndGet());
 }
 }  // namespace
 

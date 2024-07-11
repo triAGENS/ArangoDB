@@ -32,6 +32,7 @@
 #include "Aql/ExpressionContext.h"
 #include "Aql/OptimizerRulesFeature.h"
 #include "Aql/Query.h"
+#include "Aql/QueryAborter.h"
 #include "Aql/QueryRegistry.h"
 #include "Aql/SharedQueryState.h"
 #include "Basics/FileUtils.h"
@@ -593,8 +594,9 @@ arangodb::aql::QueryResult executeQuery(
           arangodb::velocypack::Parser::fromJson(optionsString)->slice()));
 
   arangodb::aql::QueryResult result;
+  auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
   while (true) {
-    auto state = query->execute(result);
+    auto state = query->execute(aborter, result);
     if (state == arangodb::aql::ExecutionState::WAITING) {
       query->sharedState()->waitForAsyncWakeup();
     } else {
@@ -636,7 +638,8 @@ std::shared_ptr<arangodb::aql::Query> prepareQuery(
       arangodb::aql::QueryOptions(
           arangodb::velocypack::Parser::fromJson(optionsString)->slice()));
 
-  query->prepareQuery();
+  auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+  query->prepareQuery(aborter);
   return query;
 }
 
@@ -741,7 +744,8 @@ void assertFilterOptimized(
       std::move(ctx), arangodb::aql::QueryString(queryString), bindVars,
       arangodb::aql::QueryOptions(options->slice()));
 
-  query->prepareQuery();
+  auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+  query->prepareQuery(aborter);
   EXPECT_TRUE(query->plan());
   auto plan = const_cast<arangodb::aql::ExecutionPlan*>(query->plan());
 

@@ -100,6 +100,10 @@ class testRunner {
     });
     return ret;
   }
+  isFailed(te) {
+    const result = this.results[this.translateResult(te)];
+    return !result.status;
+  }
   setResult(te, serverDead, res) {
     let orgRes = JSON.stringify(this.results[this.translateResult(te)]);
     this.results[this.translateResult(te)] = res;

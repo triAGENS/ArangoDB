@@ -162,7 +162,8 @@ class GraphProviderTest : public ::testing::Test {
                                        arangodb::aql::Collection::Hint::Shard);
         } catch (...) {
         }
-        fakeQuery->prepareQuery();
+        auto aborter = std::make_shared<aql::QueryAborter>(query);
+        fakeQuery->prepareQuery(aborter);
         auto ast = fakeQuery->ast();
         auto tmpVar = ast->variables()->createTemporaryVariable();
         auto tmpVarRef = ast->createNodeReference(tmpVar);
@@ -230,7 +231,8 @@ class GraphProviderTest : public ::testing::Test {
         query->collections().add("e", AccessMode::Type::READ,
                                  arangodb::aql::Collection::Hint::Collection);
 
-        query->prepareQuery();
+        auto aborter = std::make_shared<aql::QueryAborter>(query);
+        query->prepareQuery(aborter);
       }
 
       clusterEngines =

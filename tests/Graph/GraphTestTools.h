@@ -38,6 +38,7 @@
 #include "Aql/ExecutionEngine.h"
 #include "Aql/ExecutionPlan.h"
 #include "Aql/Query.h"
+#include "Aql/QueryAborter.h"
 #include "Graph/ShortestPathOptions.h"
 #include "RestServer/DatabaseFeature.h"
 #include "RestServer/SystemDatabaseFeature.h"
@@ -224,7 +225,8 @@ struct MockGraphDatabase {
       query->collections().add(c, AccessMode::Type::READ,
                                arangodb::aql::Collection::Hint::Collection);
     }
-    query->prepareQuery();
+    auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+    query->prepareQuery(aborter);
 
     return query;
   }

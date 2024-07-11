@@ -30,6 +30,7 @@
 #include "Aql/ExecutionPlan.h"
 #include "Aql/OptimizerRule.h"
 #include "Aql/Query.h"
+#include "Aql/QueryAborter.h"
 #include "Aql/QueryRegistry.h"
 #include "IResearch/ApplicationServerHelper.h"
 #include "IResearch/IResearchFilterFactory.h"
@@ -244,7 +245,8 @@ bool findEmptyNodes(
       arangodb::aql::QueryString(queryString), bindVars,
       arangodb::aql::QueryOptions(options->slice()));
 
-  query->prepareQuery();
+  auto aborter = std::make_shared<aql::QueryAborter>(query);
+  query->prepareQuery(aborter);
 
   arangodb::containers::SmallVector<arangodb::aql::ExecutionNode*, 8> nodes;
 

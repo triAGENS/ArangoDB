@@ -26,11 +26,14 @@
 #include "ApplicationFeatures/ApplicationServer.h"
 #include "Aql/Ast.h"
 #include "Aql/ExecutionNode/GraphNode.h"
+#include "Aql/QueryAborter.h"
+#include "Aql/SharedQueryState.h"
 #include "Aql/TraverserEngineShardLists.h"
 #include "Basics/StaticStrings.h"
 #include "Basics/StringUtils.h"
 #include "Cluster/ClusterFeature.h"
 #include "Cluster/ClusterTrxMethods.h"
+#include "Cluster/LeaseManager/LeaseManagerFeature.h"
 #include "Network/Methods.h"
 #include "Network/NetworkFeature.h"
 #include "Network/Utils.h"
@@ -80,7 +83,7 @@ Result extractRemoteAndShard(VPackSlice keySlice, ExecutionNodeId& remoteId,
 }  // namespace
 
 EngineInfoContainerDBServerServerBased::EngineInfoContainerDBServerServerBased(
-    QueryContext& query) noexcept
+    Query& query) noexcept
     : _query(query), _shardLocking(query), _lastSnippetId(1) {
   // NOTE: We need to start with _lastSnippetID > 0. 0 is reserved for
   // GraphNodes
@@ -136,7 +139,8 @@ void EngineInfoContainerDBServerServerBased::closeSnippet(
 std::vector<bool> EngineInfoContainerDBServerServerBased::buildEngineInfo(
     QueryId clusterQueryId, VPackBuilder& infoBuilder, ServerID const& server,
     std::unordered_map<ExecutionNodeId, ExecutionNode*> const& nodesById,
-    std::map<ExecutionNodeId, ExecutionNodeId>& nodeAliases) {
+    std::map<ExecutionNodeId, ExecutionNodeId>& nodeAliases,
+    cluster::LeaseId leaseId) {
   LOG_TOPIC("4bbe6", DEBUG, arangodb::Logger::AQL)
       << "Building Engine Info for " << server;
 
@@ -145,6 +149,8 @@ std::vector<bool> EngineInfoContainerDBServerServerBased::buildEngineInfo(
 
   // query id
   infoBuilder.add("clusterQueryId", VPackValue(clusterQueryId));
+  // LeaseID
+  infoBuilder.add("leaseId", VPackValue(leaseId.id()));
 
   addLockingPart(infoBuilder, server);
   TRI_ASSERT(infoBuilder.isOpenObject());
@@ -298,7 +304,8 @@ bool EngineInfoContainerDBServerServerBased::isNotSatelliteLeader(
 //   the DBServers will clean up their snippets after a TTL.
 Result EngineInfoContainerDBServerServerBased::buildEngines(
     std::unordered_map<ExecutionNodeId, ExecutionNode*> const& nodesById,
-    MapRemoteToSnippet& snippetIds, aql::ServerQueryIdList& serverToQueryId,
+    std::shared_ptr<QueryAborter> queryAborter, MapRemoteToSnippet& snippetIds,
+    aql::ServerQueryIdList& serverToQueryId,
     std::map<ExecutionNodeId, ExecutionNodeId>& nodeAliases) {
   TRI_ASSERT(serverToQueryId.empty());
 
@@ -335,8 +342,7 @@ Result EngineInfoContainerDBServerServerBased::buildEngines(
         }
       });
 
-  NetworkFeature const& nf =
-      _query.vocbase().server().getFeature<NetworkFeature>();
+  NetworkFeature& nf = _query.vocbase().server().getFeature<NetworkFeature>();
   network::ConnectionPool* pool = nf.pool();
   if (pool == nullptr) {
     // nullptr only happens on controlled shutdown
@@ -389,6 +395,12 @@ Result EngineInfoContainerDBServerServerBased::buildEngines(
   auto& clusterInfo =
       _query.vocbase().server().getFeature<ClusterFeature>().clusterInfo();
 
+  // TODO: This can throw. Is this a problem here?
+  cluster::LeaseManagerFeature& lmgrFeature =
+      _query.vocbase().server().getFeature<cluster::LeaseManagerFeature>();
+  auto& leaseManager = lmgrFeature.leaseManager();
+
+  auto rebootIds = clusterInfo.rebootIds();
   /// cluster global query id, under which the query will be registered
   /// on DB servers from 3.8 onwards.
   QueryId clusterQueryId = clusterInfo.uniqid();
@@ -405,10 +417,32 @@ Result EngineInfoContainerDBServerServerBased::buildEngines(
   }
 
   for (ServerID const& server : dbServers) {
+    auto const& alive = rebootIds.find(server);
+    if (alive == rebootIds.end()) {
+      return {
+          TRI_ERROR_CLUSTER_BACKEND_UNAVAILABLE,
+          fmt::format("The required server {} is not known to this coordinator",
+                      server)};
+    }
+
+    PeerState peerState{.serverId = server, .rebootId = alive->second.rebootId};
+    auto lease = leaseManager.requireLease(
+        peerState,
+        [dbname = _query.vocbase().name(), id = _query.id(),
+         trxId = _query.transactionId().id()]() noexcept -> std::string {
+          return fmt::format("Query {} of transaction {} in database {}", id,
+                             trxId, dbname);
+        },
+        [queryAborter]() noexcept {
+          LOG_DEVEL << "Trigger query abort due to lease loss.";
+          queryAborter->abort();
+        });
+    auto leaseId = lease.id();
+    _query.addLeaseFromRemoteGuard(std::move(lease));
     // Build Lookup Infos
     VPackBuilder infoBuilder;
     auto didCreateEngine = buildEngineInfo(clusterQueryId, infoBuilder, server,
-                                           nodesById, nodeAliases);
+                                           nodesById, nodeAliases, leaseId);
     VPackSlice infoSlice = infoBuilder.slice();
 
     if (isNotSatelliteLeader(infoSlice)) {

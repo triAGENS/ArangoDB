@@ -53,6 +53,10 @@ class ClusterMetricsFeature;
 
 }  // namespace metrics
 
+namespace cluster {
+class LeaseManagerFeature;
+}
+
 class AqlFeature;
 class AgencyFeature;
 class ActionFeature;
@@ -273,6 +277,8 @@ using ArangodFeaturesList = TypeList<
 #endif
     transaction::ManagerFeature,
     ViewTypesFeature,
+    // Required to be registered after: SchedulerFeature, NetworkFeature and ClusterFeature
+    cluster::LeaseManagerFeature,
     aql::AqlFunctionFeature,
     aql::OptimizerRulesFeature,
     RocksDBIndexCacheRefillFeature,

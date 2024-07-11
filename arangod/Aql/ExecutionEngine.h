@@ -48,6 +48,7 @@ class ExecutionPlan;
 struct ExecutionStats;
 class GraphNode;
 class Query;
+struct QueryAborter;
 class QueryContext;
 class QueryRegistry;
 class SkipResult;
@@ -72,7 +73,8 @@ class ExecutionEngine {
 
   // @brief create an execution engine from a plan
   static void instantiateFromPlan(Query& query, ExecutionPlan& plan,
-                                  bool planRegisters);
+                                  bool planRegisters,
+                                  std::shared_ptr<QueryAborter> queryAborter);
 
   /// @brief Prepares execution blocks for executing provided plan
   /// @param plan plan to execute, should be without cluster nodes. Only local

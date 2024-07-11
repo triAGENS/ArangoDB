@@ -555,7 +555,7 @@ struct DistributedQueryInstanciator final
   ///        * In case the Network is broken, all non-reachable DBServers will
   ///        clean out their snippets after a TTL.
   ///        Returns the First Coordinator Engine, the one not in the registry.
-  Result buildEngines() {
+  Result buildEngines(std::shared_ptr<QueryAborter> queryAborter) {
     TRI_ASSERT(ServerState::instance()->isCoordinator());
 
     // QueryIds are filled by responses of DBServer parts.
@@ -565,8 +565,8 @@ struct DistributedQueryInstanciator final
     SnippetList& snippets = _query.snippets();
 
     std::map<ExecutionNodeId, ExecutionNodeId> nodeAliases;
-    Result res = _dbserverParts.buildEngines(_nodesById, snippetIds, srvrQryId,
-                                             nodeAliases);
+    Result res = _dbserverParts.buildEngines(
+        _nodesById, queryAborter, snippetIds, srvrQryId, nodeAliases);
     if (res.fail()) {
       return res;
     }
@@ -709,8 +709,9 @@ auto ExecutionEngine::executeForClient(AqlCallStack const& stack,
 }
 
 // @brief create an execution engine from a plan
-void ExecutionEngine::instantiateFromPlan(Query& query, ExecutionPlan& plan,
-                                          bool planRegisters) {
+void ExecutionEngine::instantiateFromPlan(
+    Query& query, ExecutionPlan& plan, bool planRegisters,
+    std::shared_ptr<QueryAborter> queryAborter) {
   auto const role = arangodb::ServerState::instance()->getRole();
 
 #ifdef ARANGODB_ENABLE_MAINTAINER_MODE
@@ -754,7 +755,7 @@ void ExecutionEngine::instantiateFromPlan(Query& query, ExecutionPlan& plan,
                                       pushToSingleServer);
     plan.root()->flatWalk(inst, true);
 
-    Result res = inst.buildEngines();
+    Result res = inst.buildEngines(queryAborter);
     if (res.fail()) {
       THROW_ARANGO_EXCEPTION(res);
     }

@@ -25,6 +25,7 @@
 #include "Aql/Ast.h"
 #include "Aql/ExecutionPlan.h"
 #include "Aql/Query.h"
+#include "Aql/QueryAborter.h"
 #include "Aql/QueryString.h"
 #include "Aql/SharedQueryState.h"
 #include "Transaction/StandaloneContext.h"
@@ -64,8 +65,9 @@ class AqlQueryLimitsTest
             arangodb::velocypack::Parser::fromJson(optionsString)->slice()));
 
     arangodb::aql::QueryResult result;
+    auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
     while (true) {
-      auto state = query->execute(result);
+      auto state = query->execute(aborter, result);
       if (state == arangodb::aql::ExecutionState::WAITING) {
         query->sharedState()->waitForAsyncWakeup();
       } else {

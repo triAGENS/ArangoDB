@@ -33,6 +33,7 @@
 #include "Aql/ExpressionContext.h"
 #include "Aql/Projections.h"
 #include "Aql/Query.h"
+#include "Aql/QueryAborter.h"
 #include "Basics/GlobalResourceMonitor.h"
 #include "Basics/StaticStrings.h"
 #include "IResearch/AqlHelper.h"
@@ -223,7 +224,8 @@ class IResearchInvertedIndexConditionTest
     auto query = Query::create(ctx, QueryString(queryString), bindVars);
 
     ASSERT_NE(query.get(), nullptr);
-    query->prepareQuery();
+    auto aborter = std::make_shared<arangodb::aql::QueryAborter>(query);
+    query->prepareQuery(aborter);
     auto* ast = query->ast();
     ASSERT_TRUE(ast);
     auto* root = ast->root();

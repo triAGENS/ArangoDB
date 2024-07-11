@@ -26,6 +26,7 @@
 #endif
 
 #include "Aql/Query.h"
+#include "Aql/QueryAborter.h"
 #include "Aql/QueryResultV8.h"
 #include "Aql/QueryString.h"
 #include "Basics/GlobalResourceMonitor.h"
@@ -60,6 +61,7 @@ using namespace arangodb::basics;
 /// @brief run an AQL query and return the result as a V8 array
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
 aql::QueryResultV8 AqlQuery(v8::Isolate* isolate,
                             arangodb::LogicalCollection const* col,
                             std::string const& aql,
@@ -70,8 +72,8 @@ aql::QueryResultV8 AqlQuery(v8::Isolate* isolate,
   auto query = arangodb::aql::Query::create(
       transaction::V8Context::create(col->vocbase(), operationOrigin, true),
       arangodb::aql::QueryString(aql), bindVars);
-
-  arangodb::aql::QueryResultV8 queryResult = query->executeV8(isolate);
+  auto aborter = std::make_shared<aql::QueryAborter>(query);
+  arangodb::aql::QueryResultV8 queryResult = query->executeV8(isolate, aborter);
   if (queryResult.result.fail()) {
     if (queryResult.result.is(TRI_ERROR_REQUEST_CANCELED) ||
         queryResult.result.is(TRI_ERROR_QUERY_KILLED)) {
@@ -83,6 +85,8 @@ aql::QueryResultV8 AqlQuery(v8::Isolate* isolate,
 
   return queryResult;
 }
+
+}  // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 /// @brief looks up edges for given direction
@@ -444,7 +448,6 @@ static void JS_LookupByKeys(v8::FunctionCallbackInfo<v8::Value> const& args) {
 
   std::string const queryString(
       "FOR doc IN @@collection FILTER doc._key IN @keys RETURN doc");
-
   auto queryResult =
       AqlQuery(isolate, collection, queryString, bindVars,
                transaction::OperationOriginREST{"looking up documents"});
@@ -487,7 +490,6 @@ static void JS_RemoveByKeys(v8::FunctionCallbackInfo<v8::Value> const& args) {
   std::string const queryString(
       "FOR key IN @keys REMOVE key IN @@collection OPTIONS { ignoreErrors: "
       "true }");
-
   auto queryResult =
       AqlQuery(isolate, collection, queryString, bindVars,
                transaction::OperationOriginREST{"removing documents"});

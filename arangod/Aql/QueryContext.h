@@ -30,6 +30,7 @@
 #include "Aql/types.h"
 #include "Basics/ResourceUsage.h"
 #include "Basics/ResultT.h"
+#include "Cluster/LeaseManager/LeaseManager.h"
 #include "Transaction/OperationOrigin.h"
 #include "VocBase/voc-types.h"
 
@@ -126,6 +127,10 @@ class QueryContext {
     _numRequests.fetch_add(i, std::memory_order_relaxed);
   }
 
+  void addLeaseFromRemoteGuard(
+      cluster::LeaseManager::LeaseFromRemoteGuard&& guard);
+  void addLeaseToRemoteGuard(cluster::LeaseManager::LeaseToRemoteGuard&& guard);
+
   virtual QueryOptions const& queryOptions() const = 0;
 
   virtual QueryOptions& queryOptions() noexcept = 0;
@@ -208,6 +213,9 @@ class QueryContext {
   /// In the future we might want to consider using an rwlock instead so that
   /// read-only snippets can actually run concurrently.
   std::mutex _mutex;
+
+  std::vector<cluster::LeaseManager::LeaseFromRemoteGuard> _leasesFromRemote;
+  std::vector<cluster::LeaseManager::LeaseToRemoteGuard> _leasesToRemote;
 };
 
 }  // namespace aql

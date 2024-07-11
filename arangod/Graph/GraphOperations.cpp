@@ -32,6 +32,7 @@
 
 #include "ApplicationFeatures/ApplicationServer.h"
 #include "Aql/Query.h"
+#include "Aql/QueryAborter.h"
 #include "Basics/StaticStrings.h"
 #include "Basics/VelocyPackHelper.h"
 #include "Cluster/ClusterFeature.h"
@@ -1129,7 +1130,8 @@ futures::Future<OperationResult> GraphOperations::removeEdgeOrVertex(
 
       auto query =
           arangodb::aql::Query::create(ctx(), queryString, std::move(bindVars));
-      auto queryResult = query->executeSync();
+      auto aborter = std::make_shared<aql::QueryAborter>(query);
+      auto queryResult = query->executeSync(aborter);
 
       if (queryResult.result.fail()) {
         co_return OperationResult(std::move(queryResult.result), options);

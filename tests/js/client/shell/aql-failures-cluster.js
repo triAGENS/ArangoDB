@@ -56,8 +56,8 @@ const callFinish = (server, route) => {
     url: getEndpointById(server) + "/" + route,
     body: { code: 0 }
   });
-  // Did not leave an engine behind
-  assertEqual(res.status, 200);
+  // Engine has to be removed automatically.
+  assertEqual(res.status, 404);
 };
 
 
