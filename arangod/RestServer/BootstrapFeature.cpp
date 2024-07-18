@@ -109,7 +109,7 @@ namespace {
 void raceForClusterBootstrap(BootstrapFeature& feature) {
   AgencyComm agency(feature.server());
   auto& ci = feature.server().getFeature<ClusterFeature>().clusterInfo();
-  while (true) {
+  while (!feature.server().isStopping()) {
     AgencyCommResult result = agency.getValues(::bootstrapKey);
     if (!result.successful()) {
       // Error in communication, note that value not found is not an error
@@ -222,9 +222,9 @@ void raceForClusterBootstrap(BootstrapFeature& feature) {
 #ifdef USE_V8
 /// Run the coordinator initialization script, will run on each
 /// coordinator, not just one.
-void runCoordinatorJS(TRI_vocbase_t* vocbase) {
+void runCoordinatorJS(TRI_vocbase_t* vocbase, BootstrapFeature& feature) {
   bool success = false;
-  while (!success) {
+  while (!success && !feature.server().isStopping()) {
     LOG_TOPIC("0f953", DEBUG, Logger::STARTUP)
         << "Running server/bootstrap/coordinator.js";
 
@@ -298,7 +298,7 @@ void BootstrapFeature::start() {
 
 #ifdef USE_V8
       if (v8Enabled && !databaseFeature.upgrade()) {
-        ::runCoordinatorJS(vocbase.get());
+        ::runCoordinatorJS(vocbase.get(), *this);
       }
 #endif
     } else if (ServerState::isDBServer(role)) {

@@ -46,9 +46,10 @@
 
 using namespace arangodb;
 
+#ifndef USE_ENTERPRISE
+
 namespace {
 
-/// @brief gets the physical memory size
 #if defined(TRI_HAVE_MACOS_MEM_STATS)
 uint64_t physicalMemoryImpl() {
   int mib[2];
@@ -79,30 +80,29 @@ uint64_t physicalMemoryImpl() {
 #endif
 #endif
 
-struct PhysicalMemoryCache {
-  PhysicalMemoryCache() : cachedValue(physicalMemoryImpl()), overridden(false) {
-    std::string value;
-    if (TRI_GETENV("ARANGODB_OVERRIDE_DETECTED_TOTAL_MEMORY", value)) {
-      if (!value.empty()) {
-        uint64_t v = arangodb::options::fromString<uint64_t>(value);
-        if (v != 0) {
-          // value in environment variable must always be > 0
-          cachedValue = v;
-          overridden = true;
-        }
+PhysicalMemoryCache const cache;
+
+}  //  namespace
+
+PhysicalMemoryCache::PhysicalMemoryCache()
+    : cachedValue(physicalMemoryImpl()), overridden(false) {
+  std::string value;
+  if (TRI_GETENV("ARANGODB_OVERRIDE_DETECTED_TOTAL_MEMORY", value)) {
+    if (!value.empty()) {
+      uint64_t v = arangodb::options::fromString<uint64_t>(value);
+      if (v != 0) {
+        // value in environment variable must always be > 0
+        cachedValue = v;
+        overridden = true;
       }
     }
   }
-  uint64_t cachedValue;
-  bool overridden;
-};
-
-PhysicalMemoryCache const cache;
-
-}  // namespace
+}
 
 /// @brief return physical memory size from cache
 uint64_t arangodb::PhysicalMemory::getValue() { return ::cache.cachedValue; }
 
 /// @brief return if physical memory size was overridden
 bool arangodb::PhysicalMemory::overridden() { return ::cache.overridden; }
+
+#endif

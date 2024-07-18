@@ -25,6 +25,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <string>
 
 namespace arangodb {
 

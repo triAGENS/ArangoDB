@@ -36,6 +36,8 @@
 
 using namespace arangodb;
 
+#ifndef USE_ENTERPRISE
+
 namespace {
 
 std::size_t numberOfCoresImpl() {
@@ -81,3 +83,5 @@ std::size_t arangodb::NumberOfCores::getValue() { return ::cache.cachedValue; }
 
 /// @brief return if number of cores was overridden
 bool arangodb::NumberOfCores::overridden() { return ::cache.overridden; }
+
+#endif

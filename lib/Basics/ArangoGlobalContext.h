@@ -38,6 +38,7 @@ class ArangoGlobalContext {
  public:
   std::string const& binaryName() const { return _binaryName; }
   std::string const& runRoot() const { return _runRoot; }
+  std::string const& databasePath() const { return _databasePath; }
   void normalizePath(std::vector<std::string>& path, char const* whichPath,
                      bool fatal);
   void normalizePath(std::string& path, char const* whichPath, bool fatal);
@@ -49,6 +50,7 @@ class ArangoGlobalContext {
   std::string const _binaryName;
   std::string const _binaryPath;
   std::string const _runRoot;
+  std::string _databasePath;
   int _ret;
 };
 }  // namespace arangodb

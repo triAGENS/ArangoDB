@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 
 namespace arangodb {
@@ -31,6 +32,14 @@ namespace PhysicalMemory {
 /// @brief return system's physical memory
 uint64_t getValue();
 bool overridden();
-
+#ifdef USE_ENTERPRISE
+bool setValue(uint64_t);
+#endif
 }  // namespace PhysicalMemory
 }  // namespace arangodb
+
+struct PhysicalMemoryCache {
+  PhysicalMemoryCache();
+  std::atomic<uint64_t> cachedValue;
+  std::atomic<bool> overridden;
+};

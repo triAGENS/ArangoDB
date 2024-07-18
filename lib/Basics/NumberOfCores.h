@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstddef>
 
 namespace arangodb {
@@ -31,6 +32,14 @@ namespace NumberOfCores {
 /// @brief return number of available CPU cores
 std::size_t getValue();
 bool overridden();
-
+#ifdef USE_ENTERPRISE
+bool setValue(std::size_t);
+#endif
 }  // namespace NumberOfCores
 }  // namespace arangodb
+
+struct NumberOfCoresCache {
+  NumberOfCoresCache();
+  std::atomic<std::size_t> cachedValue;
+  std::atomic<bool> overridden;
+};
