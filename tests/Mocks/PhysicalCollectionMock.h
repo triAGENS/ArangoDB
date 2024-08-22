@@ -54,7 +54,8 @@ class PhysicalCollectionMock : public arangodb::PhysicalCollection {
   arangodb::futures::Future<std::shared_ptr<arangodb::Index>> createIndex(
       arangodb::velocypack::Slice info, bool restore, bool& created,
       std::shared_ptr<std::function<arangodb::Result(double)>> = nullptr,
-      Replication2Callback replicationCb = nullptr) override;
+      arangodb::replication2::replicated_state::document::Replication2Callback
+          replicationCb = nullptr) override;
   void deferDropCollection(
       std::function<bool(arangodb::LogicalCollection&)> const& callback)
       override;

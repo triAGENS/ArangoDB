@@ -72,16 +72,16 @@ TEST_F(DocumentStateMachineTest,
       });
 
   auto factory = DocumentFactory(handlersFactoryMock, transactionManagerMock);
+  auto stream = std::make_shared<MockProducerStream>();
   auto follower = std::make_shared<DocumentFollowerStateWrapper>(
-      factory.constructCore(vocbaseMock, globalId, coreParams),
+      factory.constructCore(vocbaseMock, globalId, coreParams), stream,
       handlersFactoryMock, schedulerMock);
 
   // Two steps are necessary before the snapshot is acquired:
   //  - all ongoing transactions are aborted
   //  - all shards are dropped
-  EXPECT_CALL(
-      *transactionHandlerMock,
-      applyEntry(ReplicatedOperation::buildAbortAllOngoingTrxOperation()))
+  EXPECT_CALL(*transactionHandlerMock,
+              applyEntry(ReplicatedOperation::AbortAllOngoingTrx{}))
       .Times(1);
   EXPECT_CALL(*shardHandlerMock, dropAllShards()).Times(1);
   auto res = follower->acquireSnapshot("participantId");
@@ -93,9 +93,8 @@ TEST_F(DocumentStateMachineTest,
   // (because the shards might still be used on the next leader/follower
   // instance). Note that resigning != deleting the replicated log.
   EXPECT_CALL(*shardHandlerMock, dropAllShards()).Times(0);
-  EXPECT_CALL(
-      *transactionHandlerMock,
-      applyEntry(ReplicatedOperation::buildAbortAllOngoingTrxOperation()))
+  EXPECT_CALL(*transactionHandlerMock,
+              applyEntry(ReplicatedOperation::AbortAllOngoingTrx{}))
       .Times(1);
   auto core = std::move(*follower).resign();
   Mock::VerifyAndClearExpectations(transactionHandlerMock.get());
@@ -105,9 +104,8 @@ TEST_F(DocumentStateMachineTest,
   // abort any transactions (because it is not needed, since the follower
   // resigned already).
   auto cleanupHandler = factory.constructCleanupHandler();
-  EXPECT_CALL(
-      *transactionHandlerMock,
-      applyEntry(ReplicatedOperation::buildAbortAllOngoingTrxOperation()))
+  EXPECT_CALL(*transactionHandlerMock,
+              applyEntry(ReplicatedOperation::AbortAllOngoingTrx{}))
       .Times(0);
   EXPECT_CALL(*shardHandlerMock, dropAllShards()).Times(1);
   cleanupHandler->drop(std::move(core));

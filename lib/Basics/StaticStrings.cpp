@@ -379,6 +379,7 @@ std::string const StaticStrings::Follower("follower");
 std::string const StaticStrings::Id("id");
 std::string const StaticStrings::Index("index");
 std::string const StaticStrings::Leader("leader");
+std::string const StaticStrings::Unconfigured("unconfigured");
 std::string const StaticStrings::LocalStatus("localStatus");
 std::string const StaticStrings::Participants("participants");
 std::string const StaticStrings::ServerId("serverId");

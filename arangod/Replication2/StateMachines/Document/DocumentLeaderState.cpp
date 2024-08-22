@@ -24,6 +24,7 @@
 #include "Replication2/StateMachines/Document/DocumentLeaderState.h"
 
 #include "Basics/application-exit.h"
+#include "Replication2/ReplicatedState/StateInterfaces.tpp"
 #include "Replication2/StateMachines/Document/DocumentFollowerState.h"
 #include "Replication2/StateMachines/Document/DocumentLogEntry.h"
 #include "Replication2/StateMachines/Document/DocumentStateErrorHandler.h"
@@ -31,6 +32,7 @@
 #include "Replication2/StateMachines/Document/DocumentStateShardHandler.h"
 #include "Replication2/StateMachines/Document/DocumentStateSnapshotHandler.h"
 #include "Replication2/StateMachines/Document/DocumentStateTransactionHandler.h"
+#include "Replication2/StateMachines/Document/LowestSafeIndexesForReplayUtils.h"
 #include "Transaction/Manager.h"
 #include "Utils/SingleCollectionTransaction.h"
 #include "VocBase/LogicalCollection.h"
@@ -51,10 +53,11 @@ DocumentLeaderState::GuardedData::GuardedData(
 }
 
 DocumentLeaderState::DocumentLeaderState(
-    std::unique_ptr<DocumentCore> core,
+    std::unique_ptr<DocumentCore> core, std::shared_ptr<Stream> stream,
     std::shared_ptr<IDocumentStateHandlersFactory> handlersFactory,
     transaction::IManager& transactionManager)
-    : gid(core->gid),
+    : IReplicatedLeaderState(std::move(stream)),
+      gid(core->gid),
       loggerContext(
           handlersFactory->createLogger(gid).with<logContextKeyStateComponent>(
               "LeaderState")),
@@ -65,7 +68,8 @@ DocumentLeaderState::DocumentLeaderState(
           _handlersFactory->createSnapshotHandler(core->getVocbase(), gid)),
       _errorHandler(_handlersFactory->createErrorHandler(gid)),
       _guardedData(std::move(core), _handlersFactory),
-      _transactionManager(transactionManager) {
+      _transactionManager(transactionManager),
+      _lowestSafeIndexesForReplay(getStream()->getCommittedMetadata()) {
   // Get ready to replay the log
   _shardHandler->prepareShardsForLogReplay();
 }
@@ -80,7 +84,7 @@ auto DocumentLeaderState::resign() && noexcept
         << " is not possible because it is already resigned";
 
     auto abortAllRes = data.transactionHandler->applyEntry(
-        ReplicatedOperation::buildAbortAllOngoingTrxOperation());
+        ReplicatedOperation::AbortAllOngoingTrx{});
     ADB_PROD_ASSERT(abortAllRes.ok()) << abortAllRes;
 
     return std::move(data.core);
@@ -128,6 +132,10 @@ auto DocumentLeaderState::recoverEntries(std::unique_ptr<EntryIterator> ptr)
       return {TRI_ERROR_REPLICATION_REPLICATED_LOG_LEADER_RESIGNED};
     }
 
+    // TODO should we just copy this and release the mutex?
+    auto lowestSafeIndexesForReplayGuard =
+        self->_lowestSafeIndexesForReplay.getLockedGuard();
+
     std::unordered_set<TransactionId> activeTransactions;
     while (auto entry = ptr->next()) {
       if (self->_resigning) {
@@ -135,68 +143,121 @@ auto DocumentLeaderState::recoverEntries(std::unique_ptr<EntryIterator> ptr)
         // just stop here.
         break;
       }
-      auto doc = entry->second;
+      auto [idx, doc] = *entry;
 
-      auto res = std::visit(
+      bool const isSafeForReplay = std::visit(
           overload{
-              [&](ModifiesUserTransaction auto& op) -> Result {
-                auto trxResult = data.transactionHandler->applyEntry(op);
-                // Only add it as an active transaction if the operation was
-                // successful.
-                if (trxResult.ok()) {
-                  activeTransactions.insert(op.tid);
-                }
-                return trxResult;
+              // TODO do we have to handle other kinds of log entries?
+              [&](ModifiesUserTransaction auto const& op) -> bool {
+                return lowestSafeIndexesForReplayGuard->isSafeForReplay(
+                    op.shard, idx);
               },
-              [&](FinishesUserTransactionOrIntermediate auto& op) -> Result {
-                // There are three cases where we can end up here:
-                // 1. After recovery, we did not get the beginning of the
-                // transaction.
-                // 2. We ignored all other operations for this transaction
-                // because the shard was dropped.
-                // 3. The transaction applies to multiple shards, which all had
-                // the same leader, thus multiple commits were replicated for
-                // the same transaction.
-                if (activeTransactions.erase(op.tid) == 0) {
-                  return Result{};
-                }
-                return data.transactionHandler->applyEntry(op);
-              },
-              [&](ReplicatedOperation::DropShard& op) -> Result {
-                // Abort all transactions for this shard.
-                for (auto const& tid :
-                     data.transactionHandler->getTransactionsForShard(
-                         op.shard)) {
-                  activeTransactions.erase(tid);
-                  auto abortRes = data.transactionHandler->applyEntry(
-                      ReplicatedOperation::buildAbortOperation(tid));
-                  if (abortRes.fail()) {
-                    LOG_CTX("3eb75", INFO, self->loggerContext)
-                        << "failed to abort transaction " << tid
-                        << " for shard " << op.shard
-                        << " during recovery: " << abortRes;
-                    return abortRes;
-                  }
-                }
-                return data.transactionHandler->applyEntry(op);
-              },
-              [&](auto&& op) {
-                return data.transactionHandler->applyEntry(op);
-              }},
+              [](auto const&) { return true; },
+          },
           doc.getInnerOperation());
 
-      if (res.fail()) {
-        if (self->_errorHandler->handleOpResult(doc.getInnerOperation(), res)
-                .fail()) {
-          LOG_CTX("cbc5b", FATAL, self->loggerContext)
-              << "failed to apply entry " << doc << " during recovery: " << res;
-          TRI_ASSERT(false) << doc << " " << res;
-          FATAL_ERROR_EXIT();
+      if (isSafeForReplay) {
+        auto res = std::visit(
+            overload{
+                [&](ModifiesUserTransaction auto const& op) -> Result {
+                  auto trxResult = data.transactionHandler->applyEntry(op);
+                  // Only add it as an active transaction if the operation
+                  // was successful.
+                  if (trxResult.ok()) {
+                    activeTransactions.insert(op.tid);
+                  }
+                  return trxResult;
+                },
+                [&](FinishesUserTransactionOrIntermediate auto const& op)
+                    -> Result {
+                  // There are three cases where we can end up here:
+                  // 1. After recovery, we did not get the beginning of the
+                  // transaction.
+                  // 2. We ignored all other operations for this
+                  // transaction because the shard was dropped.
+                  // 3. The transaction applies to multiple shards, which
+                  // all had the same leader, thus multiple commits were
+                  // replicated for the same transaction.
+                  if (activeTransactions.erase(op.tid) == 0) {
+                    return Result{};
+                  }
+                  return data.transactionHandler->applyEntry(op);
+                },
+                [&](ReplicatedOperation::DropShard const& op) -> Result {
+                  // Abort all transactions for this shard.
+                  for (auto const& tid :
+                       data.transactionHandler->getTransactionsForShard(
+                           op.shard)) {
+                    activeTransactions.erase(tid);
+                    auto abortRes = data.transactionHandler->applyEntry(
+                        ReplicatedOperation::Abort{tid});
+                    if (abortRes.fail()) {
+                      LOG_CTX("3eb75", INFO, self->loggerContext)
+                          << "failed to abort transaction " << tid
+                          << " for shard " << op.shard
+                          << " during recovery: " << abortRes;
+                      return abortRes;
+                    }
+                  }
+                  return data.transactionHandler->applyEntry(op);
+                },
+                [&](ReplicatedOperation::CreateIndex const& op) {
+                  if (auto trxs =
+                          data.transactionHandler->getTransactionsForShard(
+                              op.shard);
+                      not trxs.empty()) {
+                    auto const name = [&] {
+                      try {
+                        return op.properties.get(StaticStrings::IndexName)
+                            .stringView();
+                      } catch (...) {
+                      }
+                      try {
+                        return op.properties.get(StaticStrings::IndexId)
+                            .stringView();
+                      } catch (...) {
+                      }
+                      TRI_ASSERT(false);
+                      return std::string_view("n/a");
+                    }();
+                    auto msg = std::stringstream{};
+                    msg << "During recovery, when creating index " << name
+                        << " on shard " << op.shard
+                        << ", there are open transactions: " << trxs
+                        << ". This must not happen, aborting recovery. Please "
+                           "contact ArangoDB support.";
+                    LOG_CTX("21517", ERR, self->loggerContext) << msg.str();
+                    THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_INTERNAL,
+                                                   msg.str());
+                  }
+                  return data.transactionHandler->applyEntry(
+                      op, idx, lowestSafeIndexesForReplayGuard.get(),
+                      *self->getStream());
+                },
+                [&](auto const& op) {
+                  return data.transactionHandler->applyEntry(op);
+                }},
+            doc.getInnerOperation());
+
+        if (res.fail()) {
+          if (self->_errorHandler->handleOpResult(doc.getInnerOperation(), res)
+                  .fail()) {
+            LOG_CTX("cbc5b", FATAL, self->loggerContext)
+                << "failed to apply entry " << doc
+                << " during recovery: " << res;
+            TRI_ASSERT(false) << doc << " " << res;
+            FATAL_ERROR_EXIT();
+          }
         }
+      } else {
+        // TODO don't log the entire operation, including the payload!
+        //      Also check other log statements for this problem.
+        LOG_CTX("acdaa", TRACE, self->loggerContext)
+            << "ignoring log entry [" << idx << "] " << doc
+            << " during recovery: not safe for replay";
       }
     }
-
-    auto abortAll = ReplicatedOperation::buildAbortAllOngoingTrxOperation();
+    auto abortAll = ReplicatedOperation::AbortAllOngoingTrx{};
     auto abortAllReplicationFut =
         self->replicateOperation(abortAll, ReplicationOptions{});
     // Should finish immediately, because we are not waiting the operation to be
@@ -466,8 +527,8 @@ auto DocumentLeaderState::createShard(ShardID shard,
                                       TRI_col_type_e collectionType,
                                       velocypack::SharedSlice properties)
     -> futures::Future<Result> {
-  auto op = ReplicatedOperation::buildCreateShardOperation(
-      shard, collectionType, std::move(properties));
+  auto op = ReplicatedOperation::CreateShard{shard, collectionType,
+                                             std::move(properties)};
 
   auto fut = _guardedData.doUnderLock([&](auto& data) {
     if (data.didResign()) {
@@ -498,8 +559,7 @@ auto DocumentLeaderState::createShard(ShardID shard,
 
           // Some errors can be safely ignored, even though the operation has
           // been already replicated.
-          if (auto res = self->_errorHandler->handleOpResult(op.operation,
-                                                             applyEntryRes);
+          if (auto res = self->_errorHandler->handleOpResult(op, applyEntryRes);
               res.fail()) {
             if (res.is(TRI_ERROR_SHUTTING_DOWN)) {
               LOG_CTX("e07a8", DEBUG, self->loggerContext)
@@ -552,8 +612,8 @@ auto DocumentLeaderState::modifyShard(ShardID shard, CollectionID collectionId,
       << trxLock.get()->tid();
 
   // Replicate and wait for commit
-  ReplicatedOperation op = ReplicatedOperation::buildModifyShardOperation(
-      shard, std::move(collectionId), std::move(properties));
+  auto op = ReplicatedOperation::ModifyShard{shard, std::move(collectionId),
+                                             std::move(properties)};
   auto fut = _guardedData.doUnderLock([&](auto& data) {
     if (data.didResign()) {
       THROW_ARANGO_EXCEPTION_MESSAGE(
@@ -620,7 +680,7 @@ auto DocumentLeaderState::modifyShard(ShardID shard, CollectionID collectionId,
 }
 
 auto DocumentLeaderState::dropShard(ShardID shard) -> futures::Future<Result> {
-  ReplicatedOperation op = ReplicatedOperation::buildDropShardOperation(shard);
+  auto op = ReplicatedOperation::DropShard{shard};
 
   auto fut = _guardedData.doUnderLock([&](auto& data) {
     if (data.didResign()) {
@@ -688,38 +748,25 @@ auto DocumentLeaderState::dropShard(ShardID shard) -> futures::Future<Result> {
   });
 }
 
-// TODO There are some pieces missing:
-//      - The CreateIndexOperation should be forwarded to
-//        RocksDBCollection::createIndex, instead of being recreated there.
-//      - The LogIndex replicated during RocksDBCollection::createIndex should
-//        be returned here, so it can be released.
+// TODO
 //      - The future returned by RocksDBCollection::createIndex should also be
 //        propagated to here, so we don't block the thread.
 auto DocumentLeaderState::createIndex(
     ShardID shard, VPackSlice indexInfo,
     std::shared_ptr<methods::Indexes::ProgressTracker> progress)
     -> futures::Future<Result> {
-  auto sharedIndexInfo = VPackBuilder{indexInfo}.sharedSlice();
-
-  // Why are we first creating the index locally, then replicating it?
-  // 1. Unique Indexes
-  //   The leader has to check for uniqueness before every insert operation. If
-  //   a follower creates the index first, it may reject inserts that were
-  //   still valid on the leader at the time of their replication.
-  // 2. Other Indexes
-  //   Various error may occur during index creation, which need to be validated
-  //   before replication. For example, there can only be one TTL index per
-  //   collection. If there's already a TTL index, the leader will reject the
-  //   index creation. But, since the entry has already been replicated, it is
-  //   already in the log. Then there's the risk that it may replayed
-  //   successfully after a snapshot transfer.
-  // What happens if index is created locally, but replication fails?
-  //   We'll try to fix it - drop the index and report and error.
-  //   If the undo operation is successful, there's no reason to crash
-  //   the server.
+  // Index creation happens roughly as follows, most of it currently in
+  // RocksDBCollection::createIndex:
+  // 1) some work in the background, that we can ignore
+  // 2) acquire an exclusive collection lock
+  // 3) finish index creation
+  // 4) replicate the CreateIndex operation, wait for raft-commit
+  //    (the callback below)
+  // 5) persist and publish the index
+  auto releaseIndex = std::optional<LogIndex>();
 
   auto localIndexCreation = _guardedData.doUnderLock(
-      [self = shared_from_this(), shard, sharedIndexInfo,
+      [self = shared_from_this(), shard, indexInfo, &releaseIndex,
        progress = std::move(progress)](auto& data) mutable {
         if (data.didResign()) {
           return Result{TRI_ERROR_REPLICATION_REPLICATED_LOG_LEADER_RESIGNED,
@@ -728,26 +775,50 @@ auto DocumentLeaderState::createIndex(
 
         // Callback used to replicate the operation during
         // RocksDBCollection::createIndex
-        auto op = ReplicatedOperation::buildCreateIndexOperation(
-            shard, sharedIndexInfo, progress);
-        auto callback = [op = std::move(op), self]() mutable {
-          return self->replicateOperation(
+        auto callback = [self, shard, &releaseIndex](
+                            velocypack::Slice indexDefinition) mutable
+            -> futures::Future<Result> {
+          auto op = ReplicatedOperation::CreateIndex{
+              shard, velocypack::Builder(indexDefinition).sharedSlice()};
+          auto replicationResult = co_await self->replicateOperation(
               std::move(op),
               replication2::replicated_state::document::ReplicationOptions{
                   .waitForCommit = true, .waitForSync = true});
+          if (replicationResult.ok()) {
+            auto const logIndex = replicationResult.get();
+            releaseIndex = logIndex;
+            // Increase the lowest safe index for replay: This must happen
+            // *after* the create index operation has been raft-committed, but
+            // *before* the index is persisted (i.e. before _inprogress=true is
+            // removed).
+            auto lowestSafeIndexesForReplayGuard =
+                self->_lowestSafeIndexesForReplay.getLockedGuard();
+            increaseAndPersistLowestSafeIndexForReplayTo(
+                self->loggerContext, lowestSafeIndexesForReplayGuard.get(),
+                *self->getStream(), shard, logIndex);
+          }
+          co_return std::move(replicationResult).result();
         };
 
         return self->_shardHandler->ensureIndex(
-            shard, sharedIndexInfo, std::move(progress), std::move(callback));
+            shard, indexInfo, std::move(progress), std::move(callback));
       });
-  auto indexId = helpers::extractId(sharedIndexInfo.slice());
+  auto indexId = helpers::extractId(indexInfo);
   TRI_ASSERT(indexId != IndexId::none() or localIndexCreation.fail());
   if (localIndexCreation.fail()) {
     return localIndexCreation;
   }
 
-  // We should release the log index now, but we don't have it. Shouldn't be a
-  // problem though, releasing the next log entry will release this with it.
+  // If the index creation succeeded, we must have saved a release index
+  TRI_ASSERT(releaseIndex.has_value());
+  if (releaseIndex.has_value()) {
+    if (auto releaseRes = release(*releaseIndex); releaseRes.fail()) {
+      LOG_CTX("3deea", ERR, loggerContext)
+          << "Failed to call release on index " << *releaseIndex << ": "
+          << releaseRes;
+    }
+  }
+
   return Result{};
 }
 
@@ -759,8 +830,7 @@ auto DocumentLeaderState::dropIndex(ShardID shard, IndexId indexId)
   }
   auto&& col = res.get();
 
-  ReplicatedOperation op =
-      ReplicatedOperation::buildDropIndexOperation(shard, indexId);
+  auto op = ReplicatedOperation::DropIndex{shard, indexId};
 
   auto trx = methods::Indexes::createTrxForDrop(*col);
 
@@ -831,3 +901,7 @@ auto DocumentLeaderState::dropIndex(ShardID shard, IndexId indexId)
 }  // namespace arangodb::replication2::replicated_state::document
 
 #include "Replication2/ReplicatedState/ReplicatedStateImpl.tpp"
+
+namespace arangodb::replication2::replicated_state {
+template struct IReplicatedLeaderState<document::DocumentState>;
+}

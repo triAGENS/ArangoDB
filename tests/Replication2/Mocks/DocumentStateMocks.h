@@ -36,6 +36,7 @@
 #include "Replication2/StateMachines/Document/DocumentStateTransaction.h"
 #include "Replication2/StateMachines/Document/DocumentStateTransactionHandler.h"
 #include "Replication2/StateMachines/Document/MaintenanceActionExecutor.h"
+#include "Replication2/Streams/IMetadataTransaction.h"
 
 #include "Cluster/ClusterTypes.h"
 #include "Transaction/Manager.h"
@@ -241,13 +242,53 @@ struct MockDocumentStateTransactionHandler
           replicated_state::document::IDocumentStateTransactionHandler>
           real);
 
-  MOCK_METHOD(Result, applyEntry,
-              (replicated_state::document::ReplicatedOperation),
-              (noexcept, override));
-  MOCK_METHOD(
-      Result, applyEntry,
-      (replicated_state::document::ReplicatedOperation::OperationType const&),
+  using ReplicatedOperation = replicated_state::document::ReplicatedOperation;
+  MOCK_METHOD(  //
+      Result, applyEntry, (ReplicatedOperation::Commit const&),
       (noexcept, override));
+  MOCK_METHOD(  //
+      Result, applyEntry, (ReplicatedOperation::Abort const&),
+      (noexcept, override));
+  MOCK_METHOD(  //
+      Result, applyEntry, (ReplicatedOperation::IntermediateCommit const&),
+      (noexcept, override));
+  MOCK_METHOD(  //
+      Result, applyEntry, (ReplicatedOperation::Truncate const&),
+      (noexcept, override));
+  MOCK_METHOD(  //
+      Result, applyEntry, (ReplicatedOperation::Insert const&),
+      (noexcept, override));
+  MOCK_METHOD(  //
+      Result, applyEntry, (ReplicatedOperation::Update const&),
+      (noexcept, override));
+  MOCK_METHOD(  //
+      Result, applyEntry, (ReplicatedOperation::Replace const&),
+      (noexcept, override));
+  MOCK_METHOD(  //
+      Result, applyEntry, (ReplicatedOperation::Remove const&),
+      (noexcept, override));
+  MOCK_METHOD(  //
+      Result, applyEntry, (ReplicatedOperation::AbortAllOngoingTrx const&),
+      (noexcept, override));
+  MOCK_METHOD(  //
+      Result, applyEntry, (ReplicatedOperation::CreateShard const&),
+      (noexcept, override));
+  MOCK_METHOD(  //
+      Result, applyEntry, (ReplicatedOperation::ModifyShard const&),
+      (noexcept, override));
+  MOCK_METHOD(  //
+      Result, applyEntry, (ReplicatedOperation::DropShard const&),
+      (noexcept, override));
+  MOCK_METHOD(  //
+      Result, applyEntry,
+      (ReplicatedOperation::CreateIndex const&, LogIndex,
+       replicated_state::document::LowestSafeIndexesForReplay&,
+       streams::Stream<replicated_state::document::DocumentState>&),
+      (noexcept, override));
+  MOCK_METHOD(  //
+      Result, applyEntry, (ReplicatedOperation::DropIndex const&),
+      (noexcept, override));
+
   MOCK_METHOD(void, removeTransaction, (TransactionId tid), (override));
   MOCK_METHOD(std::vector<TransactionId>, getTransactionsForShard,
               (ShardID const&), (override));
@@ -270,9 +311,10 @@ struct MockMaintenanceActionExecutor
                velocypack::SharedSlice),
               (noexcept, override));
   MOCK_METHOD(Result, executeCreateIndex,
-              (std::shared_ptr<LogicalCollection>, velocypack::SharedSlice,
+              (std::shared_ptr<LogicalCollection>, velocypack::Slice,
                std::shared_ptr<methods::Indexes::ProgressTracker>,
-               LogicalCollection::Replication2Callback),
+               arangodb::replication2::replicated_state::document::
+                   Replication2Callback),
               (noexcept, override));
   MOCK_METHOD(Result, executeDropIndex,
               (std::shared_ptr<LogicalCollection>, IndexId),
@@ -290,9 +332,10 @@ struct MockDocumentStateShardHandler
               (noexcept, override));
   MOCK_METHOD(Result, dropShard, (ShardID const&), (noexcept, override));
   MOCK_METHOD(Result, ensureIndex,
-              (ShardID, velocypack::SharedSlice properties,
+              (ShardID, velocypack::Slice properties,
                std::shared_ptr<methods::Indexes::ProgressTracker>,
-               LogicalCollection::Replication2Callback),
+               arangodb::replication2::replicated_state::document::
+                   Replication2Callback),
               (noexcept, override));
   MOCK_METHOD(Result, dropIndex, (ShardID, IndexId), (noexcept, override));
   MOCK_METHOD(Result, dropAllShards, (), (noexcept, override));
@@ -359,18 +402,28 @@ struct MockDocumentStateNetworkHandler
               getLeaderInterface, (ParticipantId), (override, noexcept));
 };
 
+struct MockProducerStream;
+
 /*
  * A wrapper to make some protected methods public.
  */
 struct DocumentFollowerStateWrapper
     : replicated_state::document::DocumentFollowerState {
+  std::shared_ptr<MockProducerStream> stream;
   DocumentFollowerStateWrapper(
       std::unique_ptr<replicated_state::document::DocumentCore> core,
+      std::shared_ptr<MockProducerStream> stream,
       std::shared_ptr<
           replicated_state::document::IDocumentStateHandlersFactory> const&
           handlersFactory,
       std::shared_ptr<IScheduler> scheduler)
-      : DocumentFollowerState(std::move(core), handlersFactory, scheduler) {}
+      : DocumentFollowerState(
+            std::move(core),
+            std::dynamic_pointer_cast<
+                replicated_state::document::DocumentFollowerState::Stream>(
+                stream),
+            handlersFactory, scheduler),
+        stream(stream) {}
 
   auto resign() && noexcept
       -> std::unique_ptr<replicated_state::document::DocumentCore> override {
@@ -393,13 +446,20 @@ struct DocumentFollowerStateWrapper
  */
 struct DocumentLeaderStateWrapper
     : replicated_state::document::DocumentLeaderState {
+  std::shared_ptr<MockProducerStream> stream;
   DocumentLeaderStateWrapper(
       std::unique_ptr<replicated_state::document::DocumentCore> core,
+      std::shared_ptr<MockProducerStream> stream,
       std::shared_ptr<replicated_state::document::IDocumentStateHandlersFactory>
           handlersFactory,
       transaction::IManager& transactionManager)
-      : DocumentLeaderState(std::move(core), std::move(handlersFactory),
-                            transactionManager) {}
+      : DocumentLeaderState(
+            std::move(core),
+            std::dynamic_pointer_cast<
+                replicated_state::document::DocumentLeaderState::Stream>(
+                stream),
+            std::move(handlersFactory), transactionManager),
+        stream(stream) {}
 
   [[nodiscard]] auto resign() && noexcept
       -> std::unique_ptr<replicated_state::document::DocumentCore> override {
@@ -413,7 +473,7 @@ struct DocumentLeaderStateWrapper
 };
 
 struct MockProducerStream
-    : streams::ProducerStream<replicated_state::document::DocumentLogEntry> {
+    : streams::ProducerStream<replicated_state::document::DocumentState> {
   // Stream<T>
   MOCK_METHOD(futures::Future<WaitForResult>, waitFor, (LogIndex), (override));
   MOCK_METHOD(futures::Future<std::unique_ptr<Iterator>>, waitForIterator,
@@ -423,6 +483,13 @@ struct MockProducerStream
   MOCK_METHOD(LogIndex, insert,
               (replicated_state::document::DocumentLogEntry const&, bool),
               (override));
+
+  MOCK_METHOD(std::unique_ptr<streams::IMetadataTransaction<MetadataType>>,
+              beginMetadataTrx, (), (override));
+  MOCK_METHOD(Result, commitMetadataTrx,
+              (std::unique_ptr<streams::IMetadataTransaction<MetadataType>>),
+              (override));
+  MOCK_METHOD(MetadataType, getCommittedMetadata, (), (const override));
 
   MockProducerStream() {
     ON_CALL(*this, insert)

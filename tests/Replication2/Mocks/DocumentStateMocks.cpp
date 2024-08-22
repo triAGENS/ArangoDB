@@ -26,27 +26,35 @@
 #include "Logger/LogContextKeys.h"
 
 namespace arangodb::replication2::tests {
+
 MockDocumentStateTransactionHandler::MockDocumentStateTransactionHandler(
     std::shared_ptr<
         replicated_state::document::IDocumentStateTransactionHandler>
         real)
     : _real(std::move(real)) {
+  auto delegateApplyEntry = [this](auto const& op, auto&&... args) {
+    return _real->applyEntry(op, std::forward<decltype(args)>(args)...);
+  };
+  // register default applyEntry for all overloaded methods (but CreateIndex):
+  std::invoke(
+      [&](auto const&... args) {
+        (ON_CALL(*this, applyEntry(testing::An<decltype(args)>()))
+             .WillByDefault(delegateApplyEntry),
+         ...);
+      },
+      ReplicatedOperation::Commit{}, ReplicatedOperation::Abort{},
+      ReplicatedOperation::IntermediateCommit{},
+      ReplicatedOperation::Truncate{}, ReplicatedOperation::Insert{},
+      ReplicatedOperation::Update{}, ReplicatedOperation::Replace{},
+      ReplicatedOperation::Remove{}, ReplicatedOperation::AbortAllOngoingTrx{},
+      ReplicatedOperation::CreateShard{}, ReplicatedOperation::ModifyShard{},
+      ReplicatedOperation::DropShard{}, ReplicatedOperation::DropIndex{});
+  // applyEntry(CreateIndex) has a different signature, so do this separately:
   ON_CALL(*this,
-          applyEntry(
-              testing::Matcher<replicated_state::document::ReplicatedOperation>(
-                  testing::_)))
-      .WillByDefault(
-          [this](replicated_state::document::ReplicatedOperation op) {
-            return _real->applyEntry(std::move(op));
-          });
-  ON_CALL(*this,
-          applyEntry(
-              testing::Matcher<replicated_state::document::ReplicatedOperation::
-                                   OperationType const&>(testing::_)))
-      .WillByDefault([this](replicated_state::document::ReplicatedOperation::
-                                OperationType const& op) {
-        return _real->applyEntry(op);
-      });
+          applyEntry(testing::An<ReplicatedOperation::CreateIndex const&>(),
+                     testing::_, testing::_, testing::_))
+      .WillByDefault(delegateApplyEntry);
+
   ON_CALL(*this, removeTransaction(testing::_))
       .WillByDefault(
           [this](TransactionId tid) { return _real->removeTransaction(tid); });

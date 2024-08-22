@@ -29,6 +29,7 @@
 #include "Replication2/StateMachines/Document/DocumentStateHandlersFactory.h"
 #include "Replication2/StateMachines/Document/DocumentStateShardHandler.h"
 #include "Replication2/StateMachines/Document/DocumentStateTransaction.h"
+#include "Replication2/StateMachines/Document/LowestSafeIndexesForReplayUtils.h"
 #include "VocBase/AccessMode.h"
 
 namespace arangodb::replication2::replicated_state::document {
@@ -170,9 +171,16 @@ auto DocumentStateTransactionHandler::applyOp(
 }
 
 auto DocumentStateTransactionHandler::applyOp(
-    ReplicatedOperation::CreateIndex const& op) -> Result {
-  return _shardHandler->ensureIndex(op.shard, op.properties,
-                                    op.params.progress);
+    ReplicatedOperation::CreateIndex const& op, LogIndex index,
+    LowestSafeIndexesForReplay& lowestSafeIndexesForReplay,
+    streams::Stream<DocumentState>& stream) -> Result {
+  // all entries until here have already been applied; there are
+  // no open transactions; it is safe to increase the lowest
+  // safe index now. Then we can safely create the index.
+  increaseAndPersistLowestSafeIndexForReplayTo(
+      _loggerContext, lowestSafeIndexesForReplay, stream, op.shard, index);
+  return _shardHandler->ensureIndex(op.shard, op.properties.slice(), nullptr,
+                                    nullptr);
 }
 
 auto DocumentStateTransactionHandler::applyOp(
@@ -180,23 +188,79 @@ auto DocumentStateTransactionHandler::applyOp(
   return _shardHandler->dropIndex(op.shard, op.indexId);
 }
 
-auto DocumentStateTransactionHandler::applyEntry(
-    ReplicatedOperation operation) noexcept -> Result {
-  return applyEntry(operation.operation);
-}
-
-auto DocumentStateTransactionHandler::applyEntry(
-    ReplicatedOperation::OperationType const& operation) noexcept -> Result {
-  auto res = basics::catchToResult([&]() {
-    return std::visit([&](auto const& op) -> Result { return applyOp(op); },
-                      operation);
+template<typename Op, typename... Args>
+auto DocumentStateTransactionHandler::applyAndCatchAndLog(Op&& op,
+                                                          Args&&... args)
+    -> Result {
+  auto result = basics::catchToResult([&]() {
+    return applyOp(std::forward<Op>(op), std::forward<Args>(args)...);
   });
-  if (res.fail()) {
+  if (result.fail()) {
     LOG_CTX("01202", DEBUG, _loggerContext)
-        << "Error occurred while applying operation " << operation << " " << res
+        << "Error occurred while applying operation " << op << " " << result
         << ". This is not necessarily a problem. Some errors are expected to "
            "occur during leader or follower recovery.";
   }
-  return res;
+  return result;
 }
+
+Result DocumentStateTransactionHandler::applyEntry(
+    ReplicatedOperation::Commit const& op) noexcept {
+  return applyAndCatchAndLog(op);
+}
+Result DocumentStateTransactionHandler::applyEntry(
+    ReplicatedOperation::Abort const& op) noexcept {
+  return applyAndCatchAndLog(op);
+}
+Result DocumentStateTransactionHandler::applyEntry(
+    ReplicatedOperation::IntermediateCommit const& op) noexcept {
+  return applyAndCatchAndLog(op);
+}
+Result DocumentStateTransactionHandler::applyEntry(
+    ReplicatedOperation::Truncate const& op) noexcept {
+  return applyAndCatchAndLog(op);
+}
+Result DocumentStateTransactionHandler::applyEntry(
+    ReplicatedOperation::Insert const& op) noexcept {
+  return applyAndCatchAndLog(op);
+}
+Result DocumentStateTransactionHandler::applyEntry(
+    ReplicatedOperation::Update const& op) noexcept {
+  return applyAndCatchAndLog(op);
+}
+Result DocumentStateTransactionHandler::applyEntry(
+    ReplicatedOperation::Replace const& op) noexcept {
+  return applyAndCatchAndLog(op);
+}
+Result DocumentStateTransactionHandler::applyEntry(
+    ReplicatedOperation::Remove const& op) noexcept {
+  return applyAndCatchAndLog(op);
+}
+Result DocumentStateTransactionHandler::applyEntry(
+    ReplicatedOperation::AbortAllOngoingTrx const& op) noexcept {
+  return applyAndCatchAndLog(op);
+}
+Result DocumentStateTransactionHandler::applyEntry(
+    ReplicatedOperation::CreateShard const& op) noexcept {
+  return applyAndCatchAndLog(op);
+}
+Result DocumentStateTransactionHandler::applyEntry(
+    ReplicatedOperation::ModifyShard const& op) noexcept {
+  return applyAndCatchAndLog(op);
+}
+Result DocumentStateTransactionHandler::applyEntry(
+    ReplicatedOperation::DropShard const& op) noexcept {
+  return applyAndCatchAndLog(op);
+}
+Result DocumentStateTransactionHandler::applyEntry(
+    ReplicatedOperation::CreateIndex const& op, LogIndex index,
+    LowestSafeIndexesForReplay& lowestSafeIndexesForReplay,
+    streams::Stream<DocumentState>& stream) noexcept {
+  return applyAndCatchAndLog(op, index, lowestSafeIndexesForReplay, stream);
+}
+Result DocumentStateTransactionHandler::applyEntry(
+    ReplicatedOperation::DropIndex const& op) noexcept {
+  return applyAndCatchAndLog(op);
+}
+
 }  // namespace arangodb::replication2::replicated_state::document

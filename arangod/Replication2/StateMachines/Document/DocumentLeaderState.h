@@ -27,6 +27,7 @@
 #include "Replication2/StateMachines/Document/DocumentCore.h"
 #include "Replication2/StateMachines/Document/DocumentStateErrorHandler.h"
 #include "Replication2/StateMachines/Document/DocumentStateSnapshot.h"
+#include "Replication2/StateMachines/Document/LowestSafeIndexesForReplay.h"
 #include "Replication2/StateMachines/Document/ReplicatedOperation.h"
 
 #include "VocBase/Methods/Indexes.h"
@@ -52,7 +53,7 @@ struct DocumentLeaderState
     : replicated_state::IReplicatedLeaderState<DocumentState>,
       std::enable_shared_from_this<DocumentLeaderState> {
   explicit DocumentLeaderState(
-      std::unique_ptr<DocumentCore> core,
+      std::unique_ptr<DocumentCore> core, std::shared_ptr<Stream> stream,
       std::shared_ptr<IDocumentStateHandlersFactory> handlersFactory,
       transaction::IManager& transactionManager);
 
@@ -66,6 +67,12 @@ struct DocumentLeaderState
 
   auto replicateOperation(ReplicatedOperation op, ReplicationOptions opts)
       -> futures::Future<ResultT<LogIndex>>;
+
+  auto replicateOperation(auto op, ReplicationOptions opts)
+      -> futures::Future<ResultT<LogIndex>> {
+    return replicateOperation(ReplicatedOperation{std::move(op)},
+                              std::move(opts));
+  }
 
   auto release(LogIndex index) -> Result;
 
@@ -133,6 +140,7 @@ struct DocumentLeaderState
   Guarded<GuardedData, basics::UnshackledMutex> _guardedData;
   Guarded<ActiveTransactionsQueue, std::mutex> _activeTransactions;
   transaction::IManager& _transactionManager;
+  Guarded<LowestSafeIndexesForReplay> _lowestSafeIndexesForReplay;
 
   std::atomic<bool> _resigning{false};  // Allows for a quicker shutdown of the
                                         // state machine upon resigning

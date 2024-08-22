@@ -43,7 +43,7 @@ struct DocumentStateErrorHandlerTest : testing::Test {
 };
 
 TEST_F(DocumentStateErrorHandlerTest, create_shard_test) {
-  auto op = ReplicatedOperation::buildCreateShardOperation(
+  auto op = ReplicatedOperation::CreateShard(
       ShardID{"s1"}, TRI_COL_TYPE_DOCUMENT, velocypack::SharedSlice{});
   EXPECT_EQ(errorHandler->handleOpResult(op, TRI_ERROR_ARANGO_DUPLICATE_NAME),
             TRI_ERROR_NO_ERROR);
@@ -52,7 +52,7 @@ TEST_F(DocumentStateErrorHandlerTest, create_shard_test) {
 }
 
 TEST_F(DocumentStateErrorHandlerTest, drop_shard_test) {
-  auto op = ReplicatedOperation::buildDropShardOperation(ShardID{"s1"});
+  auto op = ReplicatedOperation::DropShard(ShardID{"s1"});
   EXPECT_EQ(
       errorHandler->handleOpResult(op, TRI_ERROR_ARANGO_DATA_SOURCE_NOT_FOUND),
       TRI_ERROR_NO_ERROR);
@@ -61,8 +61,8 @@ TEST_F(DocumentStateErrorHandlerTest, drop_shard_test) {
 }
 
 TEST_F(DocumentStateErrorHandlerTest, modify_shard_test) {
-  auto op = ReplicatedOperation::buildModifyShardOperation(
-      ShardID{"s1"}, "collection", velocypack::SharedSlice{});
+  auto op = ReplicatedOperation::ModifyShard(ShardID{"s1"}, "collection",
+                                             velocypack::SharedSlice{});
   EXPECT_EQ(
       errorHandler->handleOpResult(op, TRI_ERROR_ARANGO_DATA_SOURCE_NOT_FOUND),
       TRI_ERROR_NO_ERROR);
@@ -71,8 +71,8 @@ TEST_F(DocumentStateErrorHandlerTest, modify_shard_test) {
 }
 
 TEST_F(DocumentStateErrorHandlerTest, create_index_test) {
-  auto op = ReplicatedOperation::buildCreateIndexOperation(
-      ShardID{"s1"}, velocypack::SharedSlice());
+  auto op = ReplicatedOperation::CreateIndex(ShardID{"s1"},
+                                             velocypack::SharedSlice());
   EXPECT_EQ(
       errorHandler->handleOpResult(op, TRI_ERROR_ARANGO_DATA_SOURCE_NOT_FOUND),
       TRI_ERROR_NO_ERROR);
@@ -84,8 +84,7 @@ TEST_F(DocumentStateErrorHandlerTest, create_index_test) {
 }
 
 TEST_F(DocumentStateErrorHandlerTest, drop_index_test) {
-  auto op = ReplicatedOperation::buildDropIndexOperation(ShardID{"s1"},
-                                                         IndexId::none());
+  auto op = ReplicatedOperation::DropIndex(ShardID{"s1"}, IndexId::none());
   EXPECT_EQ(
       errorHandler->handleOpResult(op, TRI_ERROR_ARANGO_DATA_SOURCE_NOT_FOUND),
       TRI_ERROR_NO_ERROR);
@@ -127,9 +126,8 @@ TEST_F(DocumentStateErrorHandlerTest, document_transaction_test) {
 }
 
 TEST_F(DocumentStateErrorHandlerTest, modify_transaction_test) {
-  auto op = ReplicatedOperation::buildDocumentOperation(
-      TRI_VOC_DOCUMENT_OPERATION_INSERT, TransactionId{1}, ShardID{"s1"},
-      velocypack::SharedSlice{}, "root");
+  auto op = ReplicatedOperation::Insert(TransactionId{1}, ShardID{"s1"},
+                                        velocypack::SharedSlice{}, "root");
   EXPECT_EQ(
       errorHandler->handleOpResult(op, TRI_ERROR_ARANGO_DATA_SOURCE_NOT_FOUND),
       TRI_ERROR_NO_ERROR);
@@ -138,7 +136,7 @@ TEST_F(DocumentStateErrorHandlerTest, modify_transaction_test) {
 }
 
 TEST_F(DocumentStateErrorHandlerTest, finish_transaction_test) {
-  auto op = ReplicatedOperation::buildCommitOperation(TransactionId{1});
+  auto op = ReplicatedOperation::Commit(TransactionId{1});
   EXPECT_EQ(errorHandler->handleOpResult(op, TRI_ERROR_TRANSACTION_NOT_FOUND),
             TRI_ERROR_TRANSACTION_NOT_FOUND);
   EXPECT_EQ(errorHandler->handleOpResult(op, TRI_ERROR_WAS_ERLAUBE),

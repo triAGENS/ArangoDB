@@ -73,7 +73,9 @@ LeaderStateManager<S>::LeaderStateManager(
     : _loggerContext(std::move(loggerContext)),
       _metrics(std::move(metrics)),
       _guardedData{_loggerContext, *_metrics, std::move(leaderState),
-                   std::move(stream)} {}
+                   std::move(stream)} {
+  ADB_PROD_ASSERT(_guardedData.getLockedGuard()->_stream != nullptr);
+}
 
 template<typename S>
 auto LeaderStateManager<S>::resign() && noexcept

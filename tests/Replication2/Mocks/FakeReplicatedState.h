@@ -46,8 +46,11 @@ struct EmptyFollowerType : replicated_state::IReplicatedFollowerState<S> {
 
   using CoreType =
       typename replicated_state::IReplicatedFollowerState<S>::CoreType;
-  explicit EmptyFollowerType(std::unique_ptr<CoreType> core)
-      : _core(std::move(core)) {}
+  using Stream = typename replicated_state::IReplicatedFollowerState<S>::Stream;
+  explicit EmptyFollowerType(std::unique_ptr<CoreType> core,
+                             std::shared_ptr<Stream> stream)
+      : replicated_state::IReplicatedFollowerState<S>(std::move(stream)),
+        _core(std::move(core)) {}
 
   [[nodiscard]] auto resign() && noexcept -> std::unique_ptr<CoreType> override;
 
@@ -77,9 +80,12 @@ template<typename S>
 struct EmptyLeaderType : replicated_state::IReplicatedLeaderState<S> {
   using EntryIterator =
       typename replicated_state::IReplicatedLeaderState<S>::EntryIterator;
+  using Stream = typename replicated_state::IReplicatedLeaderState<S>::Stream;
 
-  explicit EmptyLeaderType(std::unique_ptr<test::TestCoreType> core)
-      : _core(std::move(core)) {}
+  explicit EmptyLeaderType(std::unique_ptr<test::TestCoreType> core,
+                           std::shared_ptr<Stream> stream)
+      : replicated_state::IReplicatedLeaderState<S>(std::move(stream)),
+        _core(std::move(core)) {}
 
   [[nodiscard]] auto resign() && noexcept
       -> std::unique_ptr<test::TestCoreType> override;
@@ -153,9 +159,12 @@ struct FakeLeaderType : replicated_state::IReplicatedLeaderState<S> {
       typename replicated_state::IReplicatedLeaderState<S>::EntryIterator;
   using CoreType =
       typename replicated_state::IReplicatedLeaderState<S>::CoreType;
+  using Stream = typename replicated_state::IReplicatedLeaderState<S>::Stream;
 
-  explicit FakeLeaderType(std::unique_ptr<CoreType> core)
-      : _core(std::move(core)) {}
+  explicit FakeLeaderType(std::unique_ptr<CoreType> core,
+                          std::shared_ptr<Stream> stream)
+      : replicated_state::IReplicatedLeaderState<S>(std::move(stream)),
+        _core(std::move(core)) {}
 
   [[nodiscard]] auto hasReceivedRecovery() const noexcept -> bool {
     return recovery.wasTriggered();
@@ -187,9 +196,12 @@ template<typename S>
 struct FakeFollowerType : replicated_state::IReplicatedFollowerState<S> {
   using EntryIterator =
       typename replicated_state::IReplicatedFollowerState<S>::EntryIterator;
+  using Stream = typename replicated_state::IReplicatedFollowerState<S>::Stream;
 
-  explicit FakeFollowerType(std::unique_ptr<test::TestCoreType> core)
-      : _core(std::move(core)) {}
+  explicit FakeFollowerType(std::unique_ptr<test::TestCoreType> core,
+                            std::shared_ptr<Stream> stream)
+      : replicated_state::IReplicatedFollowerState<S>(std::move(stream)),
+        _core(std::move(core)) {}
 
   [[nodiscard]] auto resign() && noexcept
       -> std::unique_ptr<test::TestCoreType> override;
@@ -226,14 +238,16 @@ auto FakeFollowerType<S>::resign() && noexcept
 template<typename LeaderType, typename FollowerType>
 struct DefaultFactory {
   using CoreType = typename LeaderType::CoreType;
-  auto constructLeader(std::unique_ptr<CoreType> core)
+  auto constructLeader(std::unique_ptr<CoreType> core,
+                       std::shared_ptr<typename LeaderType::Stream> stream)
       -> std::shared_ptr<LeaderType> {
-    return std::make_shared<LeaderType>(std::move(core));
+    return std::make_shared<LeaderType>(std::move(core), std::move(stream));
   }
   auto constructFollower(std::unique_ptr<CoreType> core,
+                         std::shared_ptr<typename FollowerType::Stream> stream,
                          std::shared_ptr<IScheduler> scheduler)
       -> std::shared_ptr<FollowerType> {
-    return std::make_shared<FollowerType>(std::move(core));
+    return std::make_shared<FollowerType>(std::move(core), std::move(stream));
   }
   auto constructCore(TRI_vocbase_t&, GlobalLogIdentifier const&)
       -> std::unique_ptr<CoreType> {
@@ -257,16 +271,19 @@ struct RecordingFactory {
   static_assert(std::is_same_v<typename LeaderType::CoreType,
                                typename FollowerType::CoreType>);
   using CoreType = typename LeaderType::CoreType;
-  auto constructLeader(std::unique_ptr<CoreType> core)
+  auto constructLeader(std::unique_ptr<CoreType> core,
+                       std::shared_ptr<typename LeaderType::Stream> stream)
       -> std::shared_ptr<LeaderType> {
-    auto ptr = std::make_shared<LeaderType>(std::move(core));
+    auto ptr = std::make_shared<LeaderType>(std::move(core), std::move(stream));
     leaders.push_back(ptr);
     return ptr;
   }
   auto constructFollower(std::unique_ptr<CoreType> core,
+                         std::shared_ptr<typename FollowerType::Stream> stream,
                          std::shared_ptr<IScheduler> scheduler)
       -> std::shared_ptr<FollowerType> {
-    auto ptr = std::make_shared<FollowerType>(std::move(core));
+    auto ptr =
+        std::make_shared<FollowerType>(std::move(core), std::move(stream));
     followers.push_back(ptr);
     return ptr;
   }

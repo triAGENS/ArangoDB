@@ -28,6 +28,7 @@
 #include "Replication2/ReplicatedLog/Components/ISnapshotManager.h"
 #include "Replication2/ReplicatedLog/Components/ICompactionManager.h"
 #include "Replication2/ReplicatedLog/Components/IMessageIdManager.h"
+#include "Replication2/ReplicatedLog/Components/StateMetadataTransaction.h"
 #include "Replication2/ReplicatedLog/ReplicatedLog.h"
 
 namespace arangodb {
@@ -81,6 +82,21 @@ struct FollowerMethodsImpl : IReplicatedLogFollowerMethods {
   auto checkSnapshotState() const noexcept
       -> replicated_log::SnapshotState override {
     return snapshot->checkSnapshotState();
+  }
+
+  auto beginMetadataTrx()
+      -> std::unique_ptr<IStateMetadataTransaction> override {
+    return std::make_unique<StateMetadataTransaction>(
+        storage->beginMetaInfoTrx());
+  }
+  auto commitMetadataTrx(std::unique_ptr<IStateMetadataTransaction> ptr)
+      -> Result override {
+    auto& trx = dynamic_cast<StateMetadataTransaction&>(*ptr);
+    return storage->commitMetaInfoTrx(std::move(trx.trx));
+  }
+  auto getCommittedMetadata() const
+      -> IStateMetadataTransaction::DataType override {
+    return storage->getCommittedMetaInfo().stateOwnedMetadata;
   }
 
  private:

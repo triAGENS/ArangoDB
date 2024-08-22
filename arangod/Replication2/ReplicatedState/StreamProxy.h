@@ -52,11 +52,12 @@ concept ValidStreamLogMethods =
 template<typename S, template<typename> typename Interface = streams::Stream,
          ValidStreamLogMethods ILogMethodsT =
              replicated_log::IReplicatedLogFollowerMethods>
-struct StreamProxy : Interface<typename ReplicatedStateTraits<S>::EntryType> {
+struct StreamProxy : Interface<S> {
   using EntryType = typename ReplicatedStateTraits<S>::EntryType;
+  using MetadataType = typename ReplicatedStateTraits<S>::MetadataType;
   using Deserializer = typename ReplicatedStateTraits<S>::Deserializer;
-  using WaitForResult = typename streams::Stream<EntryType>::WaitForResult;
-  using Iterator = typename streams::Stream<EntryType>::Iterator;
+  using WaitForResult = typename streams::Stream<S>::WaitForResult;
+  using Iterator = typename streams::Stream<S>::Iterator;
 
  protected:
   Guarded<std::unique_ptr<ILogMethodsT>> _logMethods;
@@ -87,6 +88,13 @@ struct StreamProxy : Interface<typename ReplicatedStateTraits<S>::EntryType> {
       -> futures::Future<std::unique_ptr<Iterator>> override;
 
   auto release(LogIndex index) -> void override;
+
+  auto beginMetadataTrx()
+      -> std::unique_ptr<streams::IMetadataTransaction<MetadataType>> override;
+  auto commitMetadataTrx(
+      std::unique_ptr<streams::IMetadataTransaction<MetadataType>> ptr)
+      -> Result override;
+  auto getCommittedMetadata() const -> MetadataType override;
 
  protected:
   [[noreturn]] static void throwResignedException();

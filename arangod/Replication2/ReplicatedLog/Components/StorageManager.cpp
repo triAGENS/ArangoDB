@@ -152,7 +152,7 @@ struct comp::StorageManagerTransaction : IStorageTransaction {
   StorageManager& manager;
 };
 
-StorageManager::StorageManager(std::unique_ptr<IStorageEngineMethods> methods,
+StorageManager::StorageManager(std::unique_ptr<IStorageEngineMethods>&& methods,
                                LoggerContext const& loggerContext,
                                std::shared_ptr<IScheduler> scheduler)
     : guardedData(std::move(methods)),
@@ -170,11 +170,18 @@ auto StorageManager::resign() noexcept
 }
 
 StorageManager::GuardedData::GuardedData(
-    std::unique_ptr<IStorageEngineMethods> methods_ptr)
-    : methods(std::move(methods_ptr)) {
+    std::unique_ptr<IStorageEngineMethods>&& methods_ptr)
+    :  // initialize info before moving the methods_ptr, in case the info
+       // constructor throws
+      info(methods_ptr->readMetadata().get()),
+      methods(std::move(methods_ptr)) {
   ADB_PROD_ASSERT(methods != nullptr);
-  info = methods->readMetadata().get();
-  spearheadMapping = onDiskMapping = computeTermIndexMap();
+  try {
+    spearheadMapping = onDiskMapping = computeTermIndexMap();
+  } catch (...) {
+    // We must not lose the core on exceptions
+    methods_ptr = std::move(methods);
+  }
 }
 
 auto StorageManager::GuardedData::computeTermIndexMap() const
@@ -353,7 +360,7 @@ arangodb::Result StorageManager::commitMetaInfoTrx(
     THROW_ARANGO_EXCEPTION(res);
   }
   LOG_CTX("6a7fb", DEBUG, loggerContext)
-      << "commit meta info transaction, new value = "
+      << "committed meta info transaction, new value = "
       << velocypack::serialize(trx.info).toJson();
   guard->info = std::move(trx.info);
   return {};

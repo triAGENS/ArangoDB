@@ -55,7 +55,7 @@ auto deriveLoggerContext(FollowerTermInformation const& info,
 }  // namespace
 
 FollowerManager::FollowerManager(
-    std::unique_ptr<storage::IStorageEngineMethods> storageMethods,
+    std::unique_ptr<storage::IStorageEngineMethods>&& storageMethods,
     std::unique_ptr<IReplicatedStateHandle> stateHandlePtr,
     std::shared_ptr<FollowerTermInformation const> termInfo,
     std::shared_ptr<ReplicatedLogGlobalSettings const> options,
@@ -92,9 +92,15 @@ FollowerManager::FollowerManager(
   //        -(!)-> MethodsProviderManager
   //      which can (and probably does) lead to lock
   //      inversions. We should break it up.
-  stateHandle->becomeFollower(methodsProvider->getMethods());
-  // Follower state manager is there, now get a snapshot if we need one.
-  snapshot->acquireSnapshotIfNecessary();
+  try {
+    stateHandle->becomeFollower(methodsProvider->getMethods());
+    // Follower state manager is there, now get a snapshot if we need one.
+    snapshot->acquireSnapshotIfNecessary();
+  } catch (...) {
+    // We must not lose the core on exceptions
+    storageMethods = storage->resign();
+    throw;
+  }
 }
 
 FollowerManager::~FollowerManager() {
@@ -315,7 +321,7 @@ auto LogFollowerImpl::appendEntries(AppendEntriesRequest request)
 
 LogFollowerImpl::LogFollowerImpl(
     ParticipantId myself,
-    std::unique_ptr<storage::IStorageEngineMethods> methods,
+    std::unique_ptr<storage::IStorageEngineMethods>&& methods,
     std::unique_ptr<IReplicatedStateHandle> stateHandlePtr,
     std::shared_ptr<const FollowerTermInformation> termInfo,
     std::shared_ptr<const ReplicatedLogGlobalSettings> options,

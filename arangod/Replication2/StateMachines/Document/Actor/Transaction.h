@@ -42,12 +42,15 @@ namespace arangodb::replication2::replicated_state::document::actor {
 using namespace arangodb::actor;
 
 struct TransactionState {
-  explicit TransactionState(LoggerContext const& loggerContext,
-                            Handlers const& handlers,
-                            TransactionId trxId)
+  explicit TransactionState(
+      LoggerContext const& loggerContext,
+      std::shared_ptr<IDocumentStateTransactionHandler> transactionHandler,
+      std::shared_ptr<IDocumentStateErrorHandler> errorHandler,
+      TransactionId trxId)
       : loggerContext(loggerContext.with<logContextKeyTrxId>(
             trxId)),  // TODO - include pid in context
-        handlers(handlers),
+        transactionHandler(std::move(transactionHandler)),
+        errorHandler(std::move(errorHandler)),
         trxId(trxId) {}
 
   friend inline auto inspect(auto& f, TransactionState& x) {
@@ -56,8 +59,9 @@ struct TransactionState {
   }
 
   LoggerContext const loggerContext;
-  Handlers const handlers;
-  TransactionId trxId;
+  std::shared_ptr<IDocumentStateTransactionHandler> const transactionHandler;
+  std::shared_ptr<IDocumentStateErrorHandler> const errorHandler;
+  TransactionId const trxId;
 
   // will be set to true if one of the modification operations fail (e.g.,
   // because the shard does not exist, or we have a unique constraint violation,
@@ -70,7 +74,7 @@ struct TransactionState {
 namespace message {
 
 struct ProcessEntry {
-  UserTransactionOperation op;
+  ReplicatedOperation::UserTransactionOperation op;
   LogIndex index;
 
   friend inline auto inspect(auto& f, ProcessEntry& x) {
@@ -122,7 +126,8 @@ struct TransactionHandler : HandlerBase<Runtime, TransactionState> {
     }
   }
 
-  void applyEntry(UserTransactionOperation const& op, LogIndex index) {
+  void applyEntry(ReplicatedOperation::UserTransactionOperation const& op,
+                  LogIndex index) {
     std::visit(
         [&](auto&& op) -> void {
           using OpType = std::remove_cvref_t<decltype(op)>;
@@ -139,14 +144,12 @@ struct TransactionHandler : HandlerBase<Runtime, TransactionState> {
             LOG_CTX("165a1", TRACE, this->state->loggerContext)
                 << "applying entry " << op << " with index " << index
                 << " on follower";
-            auto originalRes =
-                this->state->handlers.transactionHandler->applyEntry(op);
-            auto res = this->state->handlers.errorHandler->handleOpResult(
-                op, originalRes);
+            auto originalRes = this->state->transactionHandler->applyEntry(op);
+            auto res =
+                this->state->errorHandler->handleOpResult(op, originalRes);
             if (res.fail()) {
               TRI_ASSERT(
-                  this->state->handlers.errorHandler->handleOpResult(op, res)
-                      .fail())
+                  this->state->errorHandler->handleOpResult(op, res).fail())
                   << res << " should have been already handled for operation "
                   << op << " during applyEntry of follower "
                   << this->state->loggerContext;

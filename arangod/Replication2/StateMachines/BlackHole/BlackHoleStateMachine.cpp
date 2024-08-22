@@ -27,6 +27,8 @@
 
 #include "BlackHoleStateMachine.h"
 
+#include "Replication2/ReplicatedState/StateInterfaces.tpp"
+
 using namespace arangodb;
 using namespace arangodb::replication2;
 using namespace arangodb::replication2::replicated_state;
@@ -42,8 +44,9 @@ auto BlackHoleLeaderState::write(std::string_view data) -> LogIndex {
   return getStream()->insert(entry);
 }
 
-BlackHoleLeaderState::BlackHoleLeaderState(std::unique_ptr<BlackHoleCore> core)
-    : _core(std::move(core)) {}
+BlackHoleLeaderState::BlackHoleLeaderState(std::unique_ptr<BlackHoleCore> core,
+                                           std::shared_ptr<Stream> stream)
+    : IReplicatedLeaderState(std::move(stream)), _core(std::move(core)) {}
 
 auto BlackHoleLeaderState::resign() && noexcept
     -> std::unique_ptr<BlackHoleCore> {
@@ -76,22 +79,28 @@ auto BlackHoleFollowerState::applyEntries(
 }
 
 BlackHoleFollowerState::BlackHoleFollowerState(
-    std::unique_ptr<BlackHoleCore> core)
-    : _core(std::move(core)) {}
+    std::unique_ptr<BlackHoleCore> core, std::shared_ptr<Stream> stream)
+    : IReplicatedFollowerState(std::move(stream)), _core(std::move(core)) {}
 auto BlackHoleFollowerState::resign() && noexcept
     -> std::unique_ptr<BlackHoleCore> {
   return std::move(_core);
 }
 
-auto BlackHoleFactory::constructFollower(std::unique_ptr<BlackHoleCore> core,
-                                         std::shared_ptr<IScheduler> scheduler)
+auto BlackHoleFactory::constructFollower(
+    std::unique_ptr<BlackHoleCore> core,
+    std::shared_ptr<streams::Stream<BlackHoleState>> stream,
+    std::shared_ptr<IScheduler> scheduler)
     -> std::shared_ptr<BlackHoleFollowerState> {
-  return std::make_shared<BlackHoleFollowerState>(std::move(core));
+  return std::make_shared<BlackHoleFollowerState>(std::move(core),
+                                                  std::move(stream));
 }
 
-auto BlackHoleFactory::constructLeader(std::unique_ptr<BlackHoleCore> core)
+auto BlackHoleFactory::constructLeader(
+    std::unique_ptr<BlackHoleCore> core,
+    std::shared_ptr<streams::ProducerStream<BlackHoleState>> stream)
     -> std::shared_ptr<BlackHoleLeaderState> {
-  return std::make_shared<BlackHoleLeaderState>(std::move(core));
+  return std::make_shared<BlackHoleLeaderState>(std::move(core),
+                                                std::move(stream));
 }
 
 auto BlackHoleFactory::constructCore(TRI_vocbase_t&, GlobalLogIdentifier const&)

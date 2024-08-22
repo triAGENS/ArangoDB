@@ -24,6 +24,7 @@
 #include "Replication2/StateMachines/Document/DocumentStateMachine.h"
 
 #include "Inspection/VPack.h"
+#include "Replication2/ReplicatedState/StateInterfaces.tpp"
 #include "Replication2/StateMachines/Document/DocumentCore.h"
 #include "Replication2/StateMachines/Document/DocumentFollowerState.h"
 #include "Replication2/StateMachines/Document/DocumentLeaderState.h"
@@ -50,17 +51,22 @@ DocumentFactory::DocumentFactory(
     : _handlersFactory(std::move(handlersFactory)),
       _transactionManager(transactionManager){};
 
-auto DocumentFactory::constructFollower(std::unique_ptr<DocumentCore> core,
-                                        std::shared_ptr<IScheduler> scheduler)
+auto DocumentFactory::constructFollower(
+    std::unique_ptr<DocumentCore> core,
+    std::shared_ptr<streams::Stream<DocumentState>> stream,
+    std::shared_ptr<IScheduler> scheduler)
     -> std::shared_ptr<DocumentFollowerState> {
-  return std::make_shared<DocumentFollowerState>(std::move(core),
-                                                 _handlersFactory, scheduler);
+  return std::make_shared<DocumentFollowerState>(
+      std::move(core), std::move(stream), _handlersFactory, scheduler);
 }
 
-auto DocumentFactory::constructLeader(std::unique_ptr<DocumentCore> core)
+auto DocumentFactory::constructLeader(
+    std::unique_ptr<DocumentCore> core,
+    std::shared_ptr<streams::ProducerStream<DocumentState>> stream)
     -> std::shared_ptr<DocumentLeaderState> {
   return std::make_shared<DocumentLeaderState>(
-      std::move(core), _handlersFactory, _transactionManager);
+      std::move(core), std::move(stream), _handlersFactory,
+      _transactionManager);
 }
 
 auto DocumentFactory::constructCore(TRI_vocbase_t& vocbase,

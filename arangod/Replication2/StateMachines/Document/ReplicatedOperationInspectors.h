@@ -167,7 +167,7 @@ auto inspect(Inspector& f, ReplicatedOperation& x) {
 }
 
 template<typename Inspector>
-auto inspect(Inspector& f, UserTransactionOperation& x) {
+auto inspect(Inspector& f, ReplicatedOperation::UserTransactionOperation& x) {
   return f.variant(x).embedded("type").alternatives(
       inspection::type<ReplicatedOperation::Commit>("Commit"),
       inspection::type<ReplicatedOperation::IntermediateCommit>(

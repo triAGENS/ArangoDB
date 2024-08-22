@@ -292,10 +292,9 @@ auto Snapshot::generateBatch(state::Ongoing const&) -> ResultT<SnapshotBatch> {
                 << exception.message();
             throw;
           }
-          operations.emplace_back(
-              ReplicatedOperation::buildCreateShardOperation(
-                  maybeShardID.get(), shard->type(),
-                  std::move(properties).sharedSlice()));
+          operations.emplace_back(ReplicatedOperation::CreateShard{
+              maybeShardID.get(), shard->type(),
+              std::move(properties).sharedSlice()});
 
           LOG_CTX("c0864", DEBUG, loggerContext)
               << "Sending shard " << shard->name()
@@ -341,9 +340,8 @@ auto Snapshot::generateBatch(state::Ongoing const&) -> ResultT<SnapshotBatch> {
     auto tid = TransactionId::createFollower();
     // During SnapshotTransfer, we do not want to account the operation to a
     // specific user, so we set an empty userName.
-    operations.emplace_back(ReplicatedOperation::buildDocumentOperation(
-        TRI_VOC_DOCUMENT_OPERATION_INSERT, tid, maybeShardID.get(),
-        std::move(payload), StaticStrings::Empty));
+    operations.emplace_back(ReplicatedOperation::Insert{
+        tid, maybeShardID.get(), std::move(payload), StaticStrings::Empty});
     operations.emplace_back(ReplicatedOperation::buildCommitOperation(tid));
 
     auto readerHasMore = reader->hasMore();
@@ -406,10 +404,10 @@ auto Snapshot::generateDocumentBatch(ShardID shardId,
   auto tid = TransactionId::createFollower();
   // During SnapshotTransfer, we do not want to account the operation to a
   // specific user, so we set an empty userName.
-  batch.emplace_back(ReplicatedOperation::buildDocumentOperation(
-      TRI_VOC_DOCUMENT_OPERATION_INSERT, tid, std::move(shardId),
-      std::move(slice), StaticStrings::Empty));
-  batch.emplace_back(ReplicatedOperation::buildCommitOperation(tid));
+  batch.emplace_back(
+      ReplicatedOperation::Insert{tid, std::move(shardId), std::move(slice),
+                                  StaticStrings::Empty, std::nullopt});
+  batch.emplace_back(ReplicatedOperation::Commit{tid});
   return batch;
 }
 }  // namespace arangodb::replication2::replicated_state::document

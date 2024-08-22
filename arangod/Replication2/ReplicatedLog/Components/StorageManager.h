@@ -40,7 +40,7 @@ struct StorageManager : IStorageManager,
                         std::enable_shared_from_this<StorageManager> {
   using IStorageEngineMethods = storage::IStorageEngineMethods;
 
-  StorageManager(std::unique_ptr<IStorageEngineMethods> core,
+  StorageManager(std::unique_ptr<IStorageEngineMethods>&& core,
                  LoggerContext const& loggerContext,
                  std::shared_ptr<IScheduler> scheduler);
   auto resign() noexcept -> std::unique_ptr<IStorageEngineMethods>;
@@ -78,12 +78,12 @@ struct StorageManager : IStorageManager,
   };
 
   struct GuardedData {
-    explicit GuardedData(std::unique_ptr<IStorageEngineMethods> methods);
+    explicit GuardedData(std::unique_ptr<IStorageEngineMethods>&& methods);
 
     TermIndexMapping onDiskMapping, spearheadMapping;
+    storage::PersistedStateInfo info;
     std::unique_ptr<IStorageEngineMethods> methods;
     std::deque<StorageRequest> queue;
-    storage::PersistedStateInfo info;
     bool workerActive{false};
 
     auto computeTermIndexMap() const -> TermIndexMapping;

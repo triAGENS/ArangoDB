@@ -22,9 +22,14 @@
 ////////////////////////////////////////////////////////////////////////////////
 #pragma once
 
+#include "Basics/Result.h"
 #include "Replication2/ReplicatedLog/LogCommon.h"
 #include "Replication2/ReplicatedLog/TypedLogIterator.h"
+#include "Replication2/ReplicatedState/ReplicatedStateTraits.h"
+#include "Replication2/Streams/IMetadataTransaction.h"
 #include "Replication2/Streams/StreamSpecification.h"
+
+#include <memory>
 
 namespace arangodb {
 struct DeferredAction;
@@ -48,23 +53,36 @@ using StreamEntryView = std::pair<LogIndex, T const&>;
 template<typename T>
 using StreamEntry = std::pair<LogIndex, T>;
 
+template<typename T>
+struct IMetadataTransaction;
+
 /**
  * Consumer interface for a multiplexed object stream. Provides methods for
  * interaction with the replicated logs stream.
  * @tparam T Object Type
  */
-template<typename T>
+template<typename S>
 struct Stream {
+  using EntryType =
+      typename replicated_state::ReplicatedStateTraits<S>::EntryType;
+  using MetadataType =
+      typename replicated_state::ReplicatedStateTraits<S>::MetadataType;
   virtual ~Stream() = default;
 
   struct WaitForResult {};
   virtual auto waitFor(LogIndex) -> futures::Future<WaitForResult> = 0;
 
-  using Iterator = TypedLogRangeIterator<StreamEntryView<T>>;
+  using Iterator = TypedLogRangeIterator<StreamEntryView<EntryType>>;
   virtual auto waitForIterator(LogIndex)
       -> futures::Future<std::unique_ptr<Iterator>> = 0;
 
   virtual auto release(LogIndex) -> void = 0;
+
+  virtual auto beginMetadataTrx()
+      -> std::unique_ptr<IMetadataTransaction<MetadataType>> = 0;
+  virtual auto commitMetadataTrx(
+      std::unique_ptr<IMetadataTransaction<MetadataType>> ptr) -> Result = 0;
+  virtual auto getCommittedMetadata() const -> MetadataType = 0;
 };
 
 /**
@@ -72,9 +90,12 @@ struct Stream {
  * methods it additionally provides a insert method.
  * @tparam T Object Type
  */
-template<typename T>
-struct ProducerStream : Stream<T> {
-  virtual auto insert(T const&, bool waitForSync = false) -> LogIndex = 0;
+template<typename S>
+struct ProducerStream : Stream<S> {
+  using EntryType =
+      typename replicated_state::ReplicatedStateTraits<S>::EntryType;
+  virtual auto insert(EntryType const&, bool waitForSync = false)
+      -> LogIndex = 0;
 };
 
 /**

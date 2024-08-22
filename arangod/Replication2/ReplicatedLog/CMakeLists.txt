@@ -45,6 +45,7 @@ target_sources(arango_replication2_pure PRIVATE
   Components/IMethodsProvider.h
   Components/ISnapshotManager.h
   Components/IStateHandleManager.h
+  Components/IStateMetadataTransaction.h
   Components/IStorageManager.h
   Components/InMemoryLogManager.cpp Components/InMemoryLogManager.h
   Components/LogFollower.cpp Components/LogFollower.h
@@ -52,5 +53,6 @@ target_sources(arango_replication2_pure PRIVATE
   Components/MethodsProvider.cpp Components/MethodsProvider.h
   Components/SnapshotManager.cpp Components/SnapshotManager.h
   Components/StateHandleManager.cpp Components/StateHandleManager.h
+  Components/StateMetadataTransaction.cpp Components/StateMetadataTransaction.h
   Components/StorageManager.cpp Components/StorageManager.h
   )

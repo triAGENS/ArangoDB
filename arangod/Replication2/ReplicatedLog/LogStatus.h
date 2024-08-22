@@ -241,7 +241,7 @@ struct UnconfiguredStatus {};
 
 template<class Inspector>
 auto inspect(Inspector& f, UnconfiguredStatus& x) {
-  auto role = std::string{"Unconfigured"};
+  auto role = StaticStrings::Unconfigured;
   return f.object(x).fields(f.field("role", role));
 }
 

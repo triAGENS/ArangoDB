@@ -27,6 +27,7 @@
 #include "Replication2/StateMachines/Document/DocumentStateErrorHandler.h"
 #include "Replication2/StateMachines/Document/DocumentStateTransactionHandler.h"
 #include "Replication2/StateMachines/Document/DocumentStateSnapshot.h"
+#include "Replication2/StateMachines/Document/LowestSafeIndexesForReplay.h"
 #include "Replication2/StateMachines/Document/ReplicatedOperation.h"
 
 #include "Actor/LocalActorPID.h"
@@ -39,29 +40,26 @@ struct LocalRuntime;
 }
 
 namespace arangodb::replication2::replicated_state::document {
+namespace actor {
+template<typename Runtime>
+struct ApplyEntriesHandler;
+}
 
 struct IDocumentStateLeaderInterface;
 struct IDocumentStateNetworkHandler;
 struct SnapshotBatch;
 
-struct Handlers {
-  Handlers(
-      std::shared_ptr<IDocumentStateHandlersFactory> const& handlersFactory,
-      TRI_vocbase_t& vocbase, GlobalLogIdentifier gid);
-  std::shared_ptr<IDocumentStateShardHandler> const shardHandler;
-  std::shared_ptr<IDocumentStateTransactionHandler> const transactionHandler;
-  std::shared_ptr<IDocumentStateErrorHandler> const errorHandler;
-};
-
 struct DocumentFollowerState
     : replicated_state::IReplicatedFollowerState<DocumentState>,
       std::enable_shared_from_this<DocumentFollowerState> {
   explicit DocumentFollowerState(
-      std::unique_ptr<DocumentCore> core,
+      std::unique_ptr<DocumentCore> core, std::shared_ptr<Stream> stream,
       std::shared_ptr<IDocumentStateHandlersFactory> const& handlersFactory,
       std::shared_ptr<IScheduler> scheduler);
 
   ~DocumentFollowerState() override;
+
+  friend struct actor::ApplyEntriesHandler<arangodb::actor::LocalRuntime>;
 
   GlobalLogIdentifier const gid;
   LoggerContext const loggerContext;
@@ -109,14 +107,19 @@ struct DocumentFollowerState
   };
 
   std::shared_ptr<IDocumentStateNetworkHandler> const _networkHandler;
-  Handlers const _handlers;
+  std::shared_ptr<IDocumentStateShardHandler> const _shardHandler;
+  std::shared_ptr<IDocumentStateTransactionHandler> const _transactionHandler;
+  std::shared_ptr<IDocumentStateErrorHandler> const _errorHandler;
+
   Guarded<GuardedData, basics::UnshackledMutex> _guardedData;
 
   std::atomic<bool> _resigning{false};  // Allows for a quicker shutdown of
                                         // the state machine upon resigning
 
-  std::shared_ptr<actor::LocalRuntime> _runtime;
-  actor::LocalActorPID _applyEntriesActor;
+  std::shared_ptr<arangodb::actor::LocalRuntime> _runtime;
+  arangodb::actor::LocalActorPID _applyEntriesActor;
+
+  Guarded<LowestSafeIndexesForReplay> _lowestSafeIndexesForReplay;
 };
 
 }  // namespace arangodb::replication2::replicated_state::document

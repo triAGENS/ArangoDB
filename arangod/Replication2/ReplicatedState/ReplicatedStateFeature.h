@@ -27,8 +27,10 @@
 #include <unordered_map>
 #include <utility>
 
+#include "Inspection/VPack.h"
 #include "Replication2/ReplicatedState/ReplicatedState.h"
 #include "Replication2/ReplicatedState/ReplicatedStateTraits.h"
+#include "Replication2/Storage/PersistedStateInfo.h"
 #include "RestServer/arangod.h"
 
 namespace arangodb::replication2::replicated_log {
@@ -59,6 +61,9 @@ struct ReplicatedStateFeature {
         StateImplementation{std::move(factory), std::move(metrics)});
     assertWasInserted(name, wasInserted);
   }
+
+  auto getDefaultStateOwnedMetadata(std::string_view name)
+      -> storage::StateOwnedMetadata;
 
   /**
    * Create a new replicated state using the implementation specified by the
@@ -109,6 +114,8 @@ struct ReplicatedStateFeature {
         LoggerContext, std::shared_ptr<ReplicatedStateMetrics>,
         std::shared_ptr<IScheduler>)
         -> std::shared_ptr<ReplicatedStateBase> = 0;
+    virtual auto getDefaultStateOwnedMetadata()
+        -> storage::StateOwnedMetadata = 0;
   };
 
   template<typename S, typename Factory>
@@ -143,6 +150,13 @@ struct ReplicatedStateFeature::InternalFactory : InternalFactoryBase,
 
   auto getStateFactory() -> std::shared_ptr<Factory> {
     return {shared_from_this(), static_cast<Factory*>(this)};
+  }
+
+  auto getDefaultStateOwnedMetadata() -> storage::StateOwnedMetadata override {
+    using MetadataType = typename ReplicatedStateTraits<S>::MetadataType;
+    auto defaultMetadata = MetadataType();
+    auto sharedSlice = velocypack::serialize(defaultMetadata);
+    return storage::StateOwnedMetadata{.slice = std::move(sharedSlice)};
   }
 };
 

@@ -96,8 +96,10 @@ struct DocumentStateMachineTest : testing::Test {
       TRI_voc_document_operation_e op = TRI_VOC_DOCUMENT_OPERATION_INSERT) {
     using namespace replicated_state::document;
 
-    return DocumentLogEntry{ReplicatedOperation::buildDocumentOperation(
-        op, TransactionId{tid}, shardId, velocypack::SharedSlice(), "root")};
+    return DocumentLogEntry{
+        ReplicatedOperation{ReplicatedOperation::buildDocumentOperation(
+            op, TransactionId{tid}, shardId, velocypack::SharedSlice(),
+            "root")}};
   }
 
   auto createRealTransactionHandler()
@@ -123,17 +125,26 @@ struct DocumentStateMachineTest : testing::Test {
   auto createLeader() -> std::shared_ptr<DocumentLeaderStateWrapper> {
     auto factory = replicated_state::document::DocumentFactory(
         handlersFactoryMock, transactionManagerMock);
-    return std::make_shared<DocumentLeaderStateWrapper>(
-        factory.constructCore(vocbaseMock, globalId, coreParams),
+
+    auto stream = std::make_shared<MockProducerStream>();
+    EXPECT_CALL(*stream, getCommittedMetadata).Times(1);
+    auto leader = std::make_shared<DocumentLeaderStateWrapper>(
+        factory.constructCore(vocbaseMock, globalId, coreParams), stream,
         handlersFactoryMock, transactionManagerMock);
+    testing::Mock::VerifyAndClearExpectations(stream.get());
+    return leader;
   }
 
   auto createFollower() -> std::shared_ptr<DocumentFollowerStateWrapper> {
     auto factory = replicated_state::document::DocumentFactory(
         handlersFactoryMock, transactionManagerMock);
-    return std::make_shared<DocumentFollowerStateWrapper>(
-        factory.constructCore(vocbaseMock, globalId, coreParams),
+    auto stream = std::make_shared<MockProducerStream>();
+    EXPECT_CALL(*stream, getCommittedMetadata).Times(1);
+    auto follower = std::make_shared<DocumentFollowerStateWrapper>(
+        factory.constructCore(vocbaseMock, globalId, coreParams), stream,
         handlersFactoryMock, schedulerMock);
+    testing::Mock::VerifyAndClearExpectations(stream.get());
+    return follower;
   }
 
   void SetUp() override {

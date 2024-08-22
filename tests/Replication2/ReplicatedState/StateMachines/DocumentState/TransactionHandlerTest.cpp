@@ -59,14 +59,16 @@ TEST_F(
       *handlersFactoryMock,
       createTransaction(_, tid, shardId, AccessMode::Type::WRITE, "root"))
       .Times(1);
-  auto res = transactionHandler.applyEntry(op);
+  auto res =
+      std::visit([&](auto& o) { return transactionHandler.applyEntry(o); }, op);
   EXPECT_TRUE(res.ok()) << res;
   Mock::VerifyAndClearExpectations(handlersFactoryMock.get());
   EXPECT_EQ(transactionHandler.getUnfinishedTransactions().size(), 1);
 
   // Use an existing transaction ID and expect the transaction to be reused.
   EXPECT_CALL(*handlersFactoryMock, createTransaction(_, _, _, _, _)).Times(0);
-  res = transactionHandler.applyEntry(op);
+  res =
+      std::visit([&](auto& o) { return transactionHandler.applyEntry(o); }, op);
   EXPECT_TRUE(res.ok()) << res;
   Mock::VerifyAndClearExpectations(handlersFactoryMock.get());
   EXPECT_EQ(transactionHandler.getUnfinishedTransactions().size(), 1);
@@ -80,7 +82,9 @@ TEST_F(DocumentStateTransactionHandlerTest,
   auto tid = TransactionId{6};
   auto op = createDocumentOperation(TRI_VOC_DOCUMENT_OPERATION_UPDATE, tid);
 
-  auto res = transactionHandler.applyEntry(op);
+  auto res = std::visit(
+      [&](auto&& o) { return transactionHandler.applyEntry(std::move(o)); },
+      op);
   EXPECT_TRUE(res.ok());
   EXPECT_EQ(transactionHandler.getUnfinishedTransactions().size(), 1);
   transactionHandler.removeTransaction(tid);
@@ -93,14 +97,32 @@ TEST_F(DocumentStateTransactionHandlerTest,
 
   auto transactionHandler = createTransactionHandler();
   auto tid = TransactionId{6};
-  auto op = createDocumentOperation(TRI_VOC_DOCUMENT_OPERATION_REMOVE, tid);
+  auto op = ReplicatedOperation{
+      createDocumentOperation(TRI_VOC_DOCUMENT_OPERATION_REMOVE, tid)};
 
-  auto res = transactionHandler.applyEntry(op);
+  auto res = std::visit<Result>(
+      overload{
+          [&](auto&& o) -> Result {
+            return transactionHandler.applyEntry(std::move(o));
+          },
+          [&](ReplicatedOperation::CreateIndex&) -> Result {
+            std::abort(); /* unused */
+          },
+      },
+      op.operation);
   EXPECT_TRUE(res.ok()) << res;
   ASSERT_EQ(transactionHandler.getUnfinishedTransactions().size(), 1);
 
   op = ReplicatedOperation::buildAbortAllOngoingTrxOperation();
-  res = transactionHandler.applyEntry(op);
+  res = std::visit(overload{
+                       [&](auto&& o) -> Result {
+                         return transactionHandler.applyEntry(std::move(o));
+                       },
+                       [&](ReplicatedOperation::CreateIndex&) -> Result {
+                         std::abort(); /* unused */
+                       },
+                   },
+                   op.operation);
   EXPECT_TRUE(res.ok()) << res;
   ASSERT_TRUE(transactionHandler.getUnfinishedTransactions().empty());
 }
@@ -111,20 +133,31 @@ TEST_F(DocumentStateTransactionHandlerTest,
 
   auto transactionHandler = createTransactionHandler();
   auto tid = TransactionId{6};
-  auto op = createDocumentOperation(TRI_VOC_DOCUMENT_OPERATION_INSERT, tid);
+  auto op = ReplicatedOperation{
+      createDocumentOperation(TRI_VOC_DOCUMENT_OPERATION_INSERT, tid)};
 
   // Expect the transaction to be created and applied successfully
   EXPECT_CALL(*handlersFactoryMock, createTransaction(_, tid, shardId, _, _))
       .Times(1);
   EXPECT_CALL(*transactionMock, apply).Times(1);
-  auto result = transactionHandler.applyEntry(op);
+  auto result = std::visit(
+      overload{
+          [&](auto&& o) { return transactionHandler.applyEntry(std::move(o)); },
+          [&](ReplicatedOperation::CreateIndex& o) -> Result { std::abort(); },
+      },
+      op.operation);
   EXPECT_TRUE(result.ok()) << result;
   Mock::VerifyAndClearExpectations(handlersFactoryMock.get());
   Mock::VerifyAndClearExpectations(transactionMock.get());
 
   // An intermediate commit should not affect the transaction
   op = ReplicatedOperation::buildIntermediateCommitOperation(tid);
-  result = transactionHandler.applyEntry(op);
+  result = std::visit(
+      overload{
+          [&](auto&& o) { return transactionHandler.applyEntry(std::move(o)); },
+          [&](ReplicatedOperation::CreateIndex& o) -> Result { std::abort(); },
+      },
+      op.operation);
   EXPECT_TRUE(result.ok()) << result;
   Mock::VerifyAndClearExpectations(transactionMock.get());
   ASSERT_TRUE(transactionHandler.getUnfinishedTransactions().contains(
@@ -132,7 +165,12 @@ TEST_F(DocumentStateTransactionHandlerTest,
 
   // After commit, expect the transaction to be removed
   op = ReplicatedOperation::buildCommitOperation(tid);
-  result = transactionHandler.applyEntry(op);
+  result = std::visit(
+      overload{
+          [&](auto&& o) { return transactionHandler.applyEntry(std::move(o)); },
+          [&](ReplicatedOperation::CreateIndex& o) -> Result { std::abort(); },
+      },
+      op.operation);
   EXPECT_TRUE(result.ok()) << result;
   Mock::VerifyAndClearExpectations(transactionMock.get());
   ASSERT_TRUE(transactionHandler.getUnfinishedTransactions().empty());
@@ -144,12 +182,18 @@ TEST_F(DocumentStateTransactionHandlerTest,
 
   auto transactionHandler = createTransactionHandler();
   auto tid = TransactionId{6};
-  auto op = createDocumentOperation(TRI_VOC_DOCUMENT_OPERATION_INSERT, tid);
+  auto op = ReplicatedOperation{
+      createDocumentOperation(TRI_VOC_DOCUMENT_OPERATION_INSERT, tid)};
 
   // Start a new transaction and then abort it.
   EXPECT_CALL(*handlersFactoryMock, createTransaction).Times(1);
   EXPECT_CALL(*transactionMock, apply).Times(1);
-  auto res = transactionHandler.applyEntry(op);
+  auto res = std::visit(
+      overload{
+          [&](auto&& o) { return transactionHandler.applyEntry(std::move(o)); },
+          [&](ReplicatedOperation::CreateIndex& o) -> Result { std::abort(); },
+      },
+      op.operation);
   EXPECT_TRUE(res.ok()) << res;
   ASSERT_TRUE(transactionHandler.getUnfinishedTransactions().contains(tid));
   Mock::VerifyAndClearExpectations(transactionMock.get());
@@ -157,7 +201,12 @@ TEST_F(DocumentStateTransactionHandlerTest,
 
   // Expect the transaction to be removed after abort
   op = ReplicatedOperation::buildAbortOperation(tid);
-  res = transactionHandler.applyEntry(op);
+  res = std::visit(
+      overload{
+          [&](auto&& o) { return transactionHandler.applyEntry(std::move(o)); },
+          [&](ReplicatedOperation::CreateIndex& o) -> Result { std::abort(); },
+      },
+      op.operation);
   EXPECT_TRUE(res.ok()) << res;
   Mock::VerifyAndClearExpectations(transactionMock.get());
   ASSERT_TRUE(transactionHandler.getUnfinishedTransactions().empty());
@@ -175,7 +224,9 @@ TEST_F(DocumentStateTransactionHandlerTest, test_applyEntry_handle_errors) {
       .WillOnce(Return(
           OperationResult{Result{TRI_ERROR_TRANSACTION_DISALLOWED_OPERATION},
                           OperationOptions{}}));
-  auto result = transactionHandler.applyEntry(op);
+  auto result = std::visit(
+      [&](auto&& o) { return transactionHandler.applyEntry(std::move(o)); },
+      op);
   EXPECT_TRUE(result.fail());
   Mock::VerifyAndClearExpectations(transactionMock.get());
 
@@ -186,7 +237,9 @@ TEST_F(DocumentStateTransactionHandlerTest, test_applyEntry_handle_errors) {
         opRes.countErrorCodes[TRI_ERROR_ARANGO_UNIQUE_CONSTRAINT_VIOLATED] = 1;
         return opRes;
       });
-  result = transactionHandler.applyEntry(op);
+  result = std::visit(
+      [&](auto&& o) { return transactionHandler.applyEntry(std::move(o)); },
+      op);
   EXPECT_TRUE(result.ok()) << result;
   Mock::VerifyAndClearExpectations(transactionMock.get());
 
@@ -197,7 +250,9 @@ TEST_F(DocumentStateTransactionHandlerTest, test_applyEntry_handle_errors) {
         opRes.countErrorCodes[TRI_ERROR_ARANGO_DOCUMENT_NOT_FOUND] = 1;
         return opRes;
       });
-  result = transactionHandler.applyEntry(op);
+  result = std::visit(
+      [&](auto&& o) { return transactionHandler.applyEntry(std::move(o)); },
+      op);
   EXPECT_TRUE(result.ok()) << result;
   Mock::VerifyAndClearExpectations(transactionMock.get());
 
@@ -208,7 +263,9 @@ TEST_F(DocumentStateTransactionHandlerTest, test_applyEntry_handle_errors) {
         opRes.countErrorCodes[TRI_ERROR_TRANSACTION_DISALLOWED_OPERATION] = 1;
         return opRes;
       });
-  result = transactionHandler.applyEntry(op);
+  result = std::visit(
+      [&](auto&& o) { return transactionHandler.applyEntry(std::move(o)); },
+      op);
   ASSERT_TRUE(result.fail());
   Mock::VerifyAndClearExpectations(transactionMock.get());
 }
@@ -255,7 +312,7 @@ TEST(ActiveTransactionsQueueTest,
   ASSERT_EQ(activeTrx.getReleaseIndex(), std::nullopt);
 }
 
-TEST(ActiveTransactionsQueueTest, test_activeTransactions_death) {
+TEST(ActiveTransactionsQueueDeathTest, test_activeTransactions_death) {
   auto activeTrx = ActiveTransactionsQueue{};
   activeTrx.markAsActive(TransactionId{100}, LogIndex{100});
   ASSERT_DEATH_CORE_FREE(activeTrx.markAsActive(LogIndex{99}), "");

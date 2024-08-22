@@ -28,8 +28,66 @@
 #include "Replication2/Exceptions/ParticipantResignedException.h"
 #include "Replication2/ReplicatedState/LazyDeserializingIterator.h"
 #include "Replication2/Streams/StreamSpecification.h"
+#include "Replication2/Streams/IMetadataTransaction.h"
 
 namespace arangodb::replication2::replicated_state {
+
+#ifdef ARANGODB_ENABLE_MAINTAINER_MODE
+namespace document {
+struct DocumentStateMetadata;
+}
+#endif
+
+template<typename T>
+struct MetadataTransactionImpl : streams::IMetadataTransaction<T> {
+  using MetadataType = T;
+  explicit MetadataTransactionImpl(
+      std::unique_ptr<replicated_log::IStateMetadataTransaction> trx);
+
+#ifdef ARANGODB_ENABLE_MAINTAINER_MODE
+  ~MetadataTransactionImpl() override {
+    if constexpr (std::is_same_v<T, document::DocumentStateMetadata>) {
+      if (_trx != nullptr) {
+        LOG_DEVEL << "Losing metadata transaction before commit; metadata was "
+                  << _metadata.lowestSafeIndexesForReplay;
+      }
+    }
+  }
+#endif
+
+  auto
+  destruct() && -> std::unique_ptr<replicated_log::IStateMetadataTransaction>;
+
+  auto get() noexcept -> MetadataType& override;
+
+ private:
+  std::unique_ptr<replicated_log::IStateMetadataTransaction> _trx;
+  MetadataType _metadata;
+};
+template<typename T>
+auto MetadataTransactionImpl<T>::get() noexcept -> MetadataType& {
+  return _metadata;
+}
+
+template<typename T>
+MetadataTransactionImpl<T>::MetadataTransactionImpl(
+    std::unique_ptr<replicated_log::IStateMetadataTransaction> trx)
+    : _trx(std::move(trx)),
+      _metadata(
+          velocypack::deserialize<MetadataType>(_trx->get().slice.slice())) {
+  // _metadata now owns the data, until destruction, where it gets serialized
+  // again; so we release the slice now.
+  _trx->get().slice = velocypack::SharedSlice{};
+}
+
+template<typename T>
+auto MetadataTransactionImpl<T>::destruct() && -> std::unique_ptr<
+    replicated_log::IStateMetadataTransaction> {
+  auto builder = velocypack::Builder();
+  velocypack::serialize(builder, _metadata);
+  _trx->get().slice = builder.sharedSlice();
+  return std::move(_trx);
+}
 
 template<typename S, template<typename> typename Interface,
          ValidStreamLogMethods ILogMethodsT>
@@ -92,6 +150,47 @@ auto StreamProxy<S, Interface, ILogMethodsT>::release(LogIndex index) -> void {
   auto guard = _logMethods.getLockedGuard();
   if (auto& methods = guard.get(); methods != nullptr) [[likely]] {
     methods->releaseIndex(index);
+  } else {
+    throwResignedException();
+  }
+}
+
+template<typename S, template<typename> typename Interface,
+         ValidStreamLogMethods ILogMethodsT>
+auto StreamProxy<S, Interface, ILogMethodsT>::beginMetadataTrx()
+    -> std::unique_ptr<streams::IMetadataTransaction<MetadataType>> {
+  auto guard = _logMethods.getLockedGuard();
+  if (auto& methods = guard.get(); methods != nullptr) [[likely]] {
+    auto trx = methods->beginMetadataTrx();
+    return std::make_unique<MetadataTransactionImpl<MetadataType>>(
+        std::move(trx));
+  } else {
+    throwResignedException();
+  }
+}
+template<typename S, template<typename> typename Interface,
+         ValidStreamLogMethods ILogMethodsT>
+auto StreamProxy<S, Interface, ILogMethodsT>::commitMetadataTrx(
+    std::unique_ptr<streams::IMetadataTransaction<MetadataType>> ptr)
+    -> Result {
+  auto guard = _logMethods.getLockedGuard();
+  if (auto& methods = guard.get(); methods != nullptr) [[likely]] {
+    auto trx =
+        std::move(dynamic_cast<MetadataTransactionImpl<MetadataType>&>(*ptr))
+            .destruct();
+    return methods->commitMetadataTrx(std::move(trx));
+  } else {
+    throwResignedException();
+  }
+}
+template<typename S, template<typename> typename Interface,
+         ValidStreamLogMethods ILogMethodsT>
+auto StreamProxy<S, Interface, ILogMethodsT>::getCommittedMetadata() const
+    -> MetadataType {
+  auto guard = _logMethods.getLockedGuard();
+  if (auto& methods = guard.get(); methods != nullptr) [[likely]] {
+    auto data = methods->getCommittedMetadata();
+    return velocypack::deserialize<MetadataType>(data.slice.slice());
   } else {
     throwResignedException();
   }

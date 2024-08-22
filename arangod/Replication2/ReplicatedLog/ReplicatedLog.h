@@ -24,12 +24,14 @@
 #pragma once
 
 #include "Basics/Guarded.h"
+#include "Cluster/Utils/ShardID.h"
 #include "Replication2/LoggerContext.h"
 #include "Replication2/ReplicatedLog/ILogInterfaces.h"
 #include "Replication2/ReplicatedLog/LogCommon.h"
 #include "Replication2/ReplicatedLog/ReplicatedLogMetrics.h"
 #include "Replication2/ReplicatedLog/AgencyLogSpecification.h"
 #include "Replication2/ReplicatedLog/Components/ISnapshotManager.h"
+#include "Replication2/ReplicatedLog/Components/IStateMetadataTransaction.h"
 #include "Replication2/ReplicatedState/StateInterfaces.h"
 #include "Replication2/ReplicatedState/StateStatus.h"
 #include "Replication2/IScheduler.h"
@@ -69,6 +71,13 @@ struct IReplicatedLogMethodsBase {
   virtual auto waitFor(LogIndex) -> ILogParticipant::WaitForFuture = 0;
   virtual auto waitForIterator(LogIndex)
       -> ILogParticipant::WaitForIteratorFuture = 0;
+
+  virtual auto beginMetadataTrx()
+      -> std::unique_ptr<IStateMetadataTransaction> = 0;
+  virtual auto commitMetadataTrx(std::unique_ptr<IStateMetadataTransaction> ptr)
+      -> Result = 0;
+  virtual auto getCommittedMetadata() const
+      -> IStateMetadataTransaction::DataType = 0;
 };
 
 struct IReplicatedLogLeaderMethods : IReplicatedLogMethodsBase {

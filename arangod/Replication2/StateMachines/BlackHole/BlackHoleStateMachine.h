@@ -24,6 +24,7 @@
 
 #include "Replication2/ReplicatedState/ReplicatedState.h"
 #include "Replication2/ReplicatedState/StateInterfaces.h"
+#include "Replication2/StateMachines/BlackHole/Monostate.h"
 
 struct TRI_vocbase_t;
 
@@ -51,6 +52,7 @@ struct BlackHoleState {
   using CoreType = BlackHoleCore;
   using CoreParameterType = void;
   using CleanupHandlerType = void;
+  using MetadataType = Monostate;
 };
 
 struct BlackHoleLogEntry {
@@ -68,7 +70,8 @@ struct BlackHoleLogEntry {
 
 struct BlackHoleLeaderState
     : replicated_state::IReplicatedLeaderState<BlackHoleState> {
-  explicit BlackHoleLeaderState(std::unique_ptr<BlackHoleCore> core);
+  explicit BlackHoleLeaderState(std::unique_ptr<BlackHoleCore> core,
+                                std::shared_ptr<Stream> stream);
   auto write(std::string_view) -> LogIndex;
 
   [[nodiscard]] auto resign() && noexcept
@@ -86,7 +89,8 @@ struct BlackHoleLeaderState
 
 struct BlackHoleFollowerState
     : replicated_state::IReplicatedFollowerState<BlackHoleState> {
-  explicit BlackHoleFollowerState(std::unique_ptr<BlackHoleCore> core);
+  explicit BlackHoleFollowerState(std::unique_ptr<BlackHoleCore> core,
+                                  std::shared_ptr<Stream> stream);
 
   [[nodiscard]] auto resign() && noexcept
       -> std::unique_ptr<BlackHoleCore> override;
@@ -103,10 +107,14 @@ struct BlackHoleFollowerState
 struct BlackHoleCore {};
 
 struct BlackHoleFactory {
-  auto constructFollower(std::unique_ptr<BlackHoleCore> core,
-                         std::shared_ptr<IScheduler> scheduler)
+  auto constructFollower(
+      std::unique_ptr<BlackHoleCore> core,
+      std::shared_ptr<streams::Stream<BlackHoleState>> stream,
+      std::shared_ptr<IScheduler> scheduler)
       -> std::shared_ptr<BlackHoleFollowerState>;
-  auto constructLeader(std::unique_ptr<BlackHoleCore> core)
+  auto constructLeader(
+      std::unique_ptr<BlackHoleCore> core,
+      std::shared_ptr<streams::ProducerStream<BlackHoleState>> stream)
       -> std::shared_ptr<BlackHoleLeaderState>;
   auto constructCore(TRI_vocbase_t&, GlobalLogIdentifier const&)
       -> std::unique_ptr<BlackHoleCore>;

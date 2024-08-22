@@ -81,7 +81,8 @@ class ClusterCollection final : public PhysicalCollection {
   futures::Future<std::shared_ptr<Index>> createIndex(
       velocypack::Slice info, bool restore, bool& created,
       std::shared_ptr<std::function<arangodb::Result(double)>> = nullptr,
-      Replication2Callback replicationCb = nullptr) override;
+      replication2::replicated_state::document::Replication2Callback
+          replicationCb = nullptr) override;
 
   std::unique_ptr<IndexIterator> getAllIterator(
       transaction::Methods* trx, ReadOwnWrites readOwnWrites) const override;

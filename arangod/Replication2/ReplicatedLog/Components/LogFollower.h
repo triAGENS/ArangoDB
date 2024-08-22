@@ -59,7 +59,7 @@ namespace arangodb::replication2::replicated_log {
 
 struct FollowerManager {
   explicit FollowerManager(
-      std::unique_ptr<storage::IStorageEngineMethods> methods,
+      std::unique_ptr<storage::IStorageEngineMethods>&& methods,
       std::unique_ptr<IReplicatedStateHandle> stateHandlePtr,
       std::shared_ptr<FollowerTermInformation const> termInfo,
       std::shared_ptr<ReplicatedLogGlobalSettings const> options,
@@ -97,7 +97,7 @@ struct FollowerManager {
 struct LogFollowerImpl : ILogFollower {
   explicit LogFollowerImpl(
       ParticipantId myself,
-      std::unique_ptr<storage::IStorageEngineMethods> methods,
+      std::unique_ptr<storage::IStorageEngineMethods>&& methods,
       std::unique_ptr<IReplicatedStateHandle> stateHandlePtr,
       std::shared_ptr<FollowerTermInformation const> termInfo,
       std::shared_ptr<ReplicatedLogGlobalSettings const> options,

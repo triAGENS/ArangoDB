@@ -25,7 +25,10 @@
 #include "Replication2/LoggerContext.h"
 #include "Replication2/ReplicatedLog/LogCommon.h"
 #include "Replication2/StateMachines/Document/DocumentStateErrorHandler.h"
+#include "Replication2/StateMachines/Document/DocumentStateMachine.h"
 #include "Replication2/StateMachines/Document/ReplicatedOperation.h"
+#include "Replication2/StateMachines/Document/LowestSafeIndexesForReplay.h"
+#include "Replication2/Streams/Streams.h"
 
 #include "Basics/Guarded.h"
 #include "Transaction/Options.h"
@@ -49,12 +52,37 @@ struct IDocumentStateTransactionHandler {
 
   virtual ~IDocumentStateTransactionHandler() = default;
 
-  [[nodiscard]] virtual auto applyEntry(ReplicatedOperation operation) noexcept
-      -> Result = 0;
-
   [[nodiscard]] virtual auto applyEntry(
-      ReplicatedOperation::OperationType const& operation) noexcept
+      ReplicatedOperation::Commit const&) noexcept -> Result = 0;
+  [[nodiscard]] virtual auto applyEntry(
+      ReplicatedOperation::Abort const&) noexcept -> Result = 0;
+  [[nodiscard]] virtual auto applyEntry(
+      ReplicatedOperation::IntermediateCommit const&) noexcept -> Result = 0;
+  [[nodiscard]] virtual auto applyEntry(
+      ReplicatedOperation::Truncate const&) noexcept -> Result = 0;
+  [[nodiscard]] virtual auto applyEntry(
+      ReplicatedOperation::Insert const&) noexcept -> Result = 0;
+  [[nodiscard]] virtual auto applyEntry(
+      ReplicatedOperation::Update const&) noexcept -> Result = 0;
+  [[nodiscard]] virtual auto applyEntry(
+      ReplicatedOperation::Replace const&) noexcept -> Result = 0;
+  [[nodiscard]] virtual auto applyEntry(
+      ReplicatedOperation::Remove const&) noexcept -> Result = 0;
+  [[nodiscard]] virtual auto applyEntry(
+      ReplicatedOperation::AbortAllOngoingTrx const&) noexcept -> Result = 0;
+  [[nodiscard]] virtual auto applyEntry(
+      ReplicatedOperation::CreateShard const&) noexcept -> Result = 0;
+  [[nodiscard]] virtual auto applyEntry(
+      ReplicatedOperation::ModifyShard const&) noexcept -> Result = 0;
+  [[nodiscard]] virtual auto applyEntry(
+      ReplicatedOperation::DropShard const&) noexcept -> Result = 0;
+  // TODO These should return futures, and maybe some others, too
+  [[nodiscard]] virtual auto applyEntry(
+      ReplicatedOperation::CreateIndex const&, LogIndex,
+      LowestSafeIndexesForReplay&, streams::Stream<DocumentState>&) noexcept
       -> Result = 0;
+  [[nodiscard]] virtual auto applyEntry(
+      ReplicatedOperation::DropIndex const&) noexcept -> Result = 0;
 
   virtual void removeTransaction(TransactionId tid) = 0;
 
@@ -71,13 +99,39 @@ class DocumentStateTransactionHandler
       GlobalLogIdentifier gid, TRI_vocbase_t* vocbase,
       std::shared_ptr<IDocumentStateHandlersFactory> factory,
       std::shared_ptr<IDocumentStateShardHandler> shardHandler);
-
-  [[nodiscard]] auto applyEntry(ReplicatedOperation operation) noexcept
+  auto applyEntry(ReplicatedOperation::Commit const& commit) noexcept
+      -> Result override;
+  auto applyEntry(ReplicatedOperation::Abort const& abort1) noexcept
+      -> Result override;
+  auto applyEntry(
+      const ReplicatedOperation::IntermediateCommit& commit) noexcept
+      -> Result override;
+  auto applyEntry(ReplicatedOperation::Truncate const& truncate) noexcept
+      -> Result override;
+  auto applyEntry(ReplicatedOperation::Insert const& insert) noexcept
+      -> Result override;
+  auto applyEntry(ReplicatedOperation::Update const& update) noexcept
+      -> Result override;
+  auto applyEntry(ReplicatedOperation::Replace const& replace) noexcept
+      -> Result override;
+  auto applyEntry(ReplicatedOperation::Remove const& remove1) noexcept
+      -> Result override;
+  auto applyEntry(ReplicatedOperation::AbortAllOngoingTrx const& trx) noexcept
+      -> Result override;
+  auto applyEntry(ReplicatedOperation::CreateShard const& shard) noexcept
+      -> Result override;
+  auto applyEntry(ReplicatedOperation::ModifyShard const& shard) noexcept
+      -> Result override;
+  auto applyEntry(ReplicatedOperation::DropShard const& shard) noexcept
+      -> Result override;
+  auto applyEntry(ReplicatedOperation::CreateIndex const& index, LogIndex,
+                  LowestSafeIndexesForReplay&,
+                  streams::Stream<DocumentState>&) noexcept -> Result override;
+  auto applyEntry(ReplicatedOperation::DropIndex const& index) noexcept
       -> Result override;
 
-  [[nodiscard]] auto applyEntry(
-      ReplicatedOperation::OperationType const& operation) noexcept
-      -> Result override;
+  // inherit convenience methods
+  using IDocumentStateTransactionHandler::applyEntry;
 
   void removeTransaction(TransactionId tid) override;
 
@@ -101,8 +155,13 @@ class DocumentStateTransactionHandler
   auto applyOp(ReplicatedOperation::DropShard const&) -> Result;
 
   // TODO These should return futures
-  auto applyOp(ReplicatedOperation::CreateIndex const&) -> Result;
+  auto applyOp(ReplicatedOperation::CreateIndex const&, LogIndex index,
+               LowestSafeIndexesForReplay& lowestSafeIndexesForReplay,
+               streams::Stream<DocumentState>& stream) -> Result;
   auto applyOp(ReplicatedOperation::DropIndex const&) -> Result;
+
+  template<typename Op, typename... Args>
+  auto applyAndCatchAndLog(Op&& op, Args&&... args) -> Result;
 
  private:
   GlobalLogIdentifier const _gid;

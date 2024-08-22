@@ -156,6 +156,19 @@ const getBulkDocuments = function (endpoint, db, col, keys) {
   return res.json;
 };
 
+const getAllDocumentsFromServer = function (serverId, dbName, shardId) {
+  const endpoint = lh.getServerUrl(serverId);
+  let res = request.put({
+    url: `${endpoint}/_db/${dbName}/_api/simple/all`,
+    headers: {
+      "X-Arango-Allow-Dirty-Read": true
+    },
+    body: JSON.stringify({collection: shardId})
+  });
+  lh.checkRequestResult(res, false);
+  return res.json.result;
+};
+
 const getAssociatedShards = function (endpoint, db, stateId) {
   let res = request.get({
     url: `${endpoint}/_db/${db}/_api/document-state/${stateId}/shards`,
@@ -280,13 +293,20 @@ const finishSnapshot = function (endpoint, db, logId, snapshotId) {
 
 /*
  * Useful for getting the log id of a single shard collection.
+ *
+ * @returns {{
+ *   logId: number,
+ *   shardId: string,
+ *   log: ArangoReplicatedLog
+ * }}
  */
-const getSingleLogId = function (database, collection) {
+const getSingleLogId = function (db, collection) {
   const shards = collection.shards();
-  const shardsToLogs = lh.getShardsToLogsMapping(database, collection._id);
+  const shardsToLogs = lh.getShardsToLogsMapping(db._name(), collection._id);
   const shardId = shards[0];
   const logId = shardsToLogs[shardId];
-  return {logId, shardId};
+  const log = db._replicatedLog(logId);
+  return {logId, shardId, log};
 };
 
 const getCollectionShardsAndLogs = function (db, collection, jwtBearerToken) {
@@ -360,6 +380,7 @@ exports.getAllLocalIndexes = getAllLocalIndexes;
 exports.localKeyStatus = localKeyStatus;
 exports.checkFollowersValue = checkFollowersValue;
 exports.getBulkDocuments = getBulkDocuments;
+exports.getAllDocumentsFromServer = getAllDocumentsFromServer;
 exports.mergeLogs = mergeLogs;
 exports.getOperation = getOperation;
 exports.getOperationType = getOperationType;

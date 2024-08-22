@@ -34,7 +34,8 @@ const functionsDocumentation = {
   'resilience_failover_view': 'resilience "failover view" tests',
   'resilience_transactions': 'resilience "transactions" tests',
   'resilience_sharddist': 'resilience "sharddist" tests',
-  'resilience_analyzers': 'resilience analyzers tests',
+  'resilience_analyzers': 'resilience "analyzers" tests',
+  'resilience_replication2': 'resilience "replication2" tests',
   'client_resilience': 'client resilience tests',
 };
 const optionsDocumentation = [
@@ -52,7 +53,15 @@ const testPaths = {
   'resilience_transactions': [tu.pathForTesting('client/resilience/transactions')],
   'resilience_sharddist': [tu.pathForTesting('client/resilience/sharddist')],
   'resilience_analyzers': [tu.pathForTesting('client/resilience/analyzers')],
+  'resilience_replication2': [tu.pathForTesting('client/resilience/replication2')],
 };
+
+class resilienceRunner extends trs.runInArangoshRunner {
+  postStart() {
+    global.theInstanceManager = this.instanceManager;
+    return { state: true };
+  }
+}
 
 // //////////////////////////////////////////////////////////////////////////////
 // / @brief TEST: resilience*
@@ -77,7 +86,7 @@ var _resilience = function(path, enableAliveMonitor) {
     }
     let testCases = tu.scanTestPaths(testPaths[path], localOptions);
     testCases = tu.splitBuckets(options, testCases);
-    let rc = new trs.runInArangoshRunner(localOptions, suiteName, {
+    let rc = new resilienceRunner(localOptions, suiteName, {
       'javascript.allow-external-process-control': 'true',
       'javascript.allow-port-testing': 'true',
       'javascript.allow-admin-execute': 'true',
@@ -96,6 +105,7 @@ const resilienceFailoverView = (new _resilience('resilience_failover_view', fals
 const resilienceTransactions = (new _resilience('resilience_transactions', false)).func;
 const resilienceSharddist = (new _resilience('resilience_sharddist', true)).func;
 const resilienceAnalyzers = (new _resilience('resilience_analyzers', true)).func;
+const resilienceReplication2 = (new _resilience('resilience_replication2', true)).func;
 
 // //////////////////////////////////////////////////////////////////////////////
 // / @brief TEST: client resilience
@@ -130,6 +140,7 @@ exports.setup = function (testFns, opts, fnDocs, optionsDoc, allTestPaths) {
   testFns['resilience_transactions'] = resilienceTransactions;
   testFns['resilience_sharddist'] = resilienceSharddist;
   testFns['resilience_analyzers'] = resilienceAnalyzers;
+  testFns['resilience_replication2'] = resilienceReplication2;
   testFns['client_resilience'] = clientResilience;
   tu.CopyIntoObject(fnDocs, functionsDocumentation);
   tu.CopyIntoList(optionsDoc, optionsDocumentation);

@@ -33,6 +33,7 @@ using namespace arangodb::replication2::replicated_state;
 using namespace arangodb::replication2::replicated_state::document;
 
 struct DocumentStateLeaderTest : DocumentStateMachineTest {};
+struct DocumentStateLeaderDeathTest : DocumentStateLeaderTest {};
 
 TEST_F(DocumentStateLeaderTest, leader_manipulates_snapshot_successfully) {
   using namespace testing;
@@ -111,9 +112,8 @@ TEST_F(DocumentStateLeaderTest,
       DocumentFactory(handlersFactoryMock, transactionManagerMock);
 
   auto core = factory.constructCore(vocbaseMock, globalId, coreParams);
-  auto leaderState = factory.constructLeader(std::move(core));
   auto stream = std::make_shared<testing::NiceMock<MockProducerStream>>();
-  leaderState->setStream(stream);
+  auto leaderState = factory.constructLeader(std::move(core), stream);
 
   {
     for (std::uint64_t tid : {5, 9, 13}) {
@@ -158,9 +158,8 @@ TEST_F(DocumentStateLeaderTest,
       .Times(1);
 
   // resigning should abort all ongoing transactions
-  EXPECT_CALL(
-      *transactionHandlerMock,
-      applyEntry(ReplicatedOperation::buildAbortAllOngoingTrxOperation()))
+  EXPECT_CALL(*transactionHandlerMock,
+              applyEntry(ReplicatedOperation::AbortAllOngoingTrx{}))
       .Times(1);
 
   std::ignore = std::move(*leaderState).resign();
@@ -189,10 +188,11 @@ TEST_F(DocumentStateLeaderTest,
       DocumentFactory(handlersFactoryMock, transactionManagerMock);
 
   auto core = factory.constructCore(vocbaseMock, globalId, coreParams);
-  auto leaderState = factory.constructLeader(std::move(core));
   auto stream = std::make_shared<MockProducerStream>();
+  EXPECT_CALL(*stream, getCommittedMetadata).Times(1);
+  auto leaderState = factory.constructLeader(std::move(core), stream);
+  testing::Mock::VerifyAndClearExpectations(stream.get());
 
-  leaderState->setStream(stream);
   auto entryIterator = std::make_unique<DocumentLogEntryIterator>(entries);
 
   EXPECT_CALL(*stream, insert)
@@ -235,10 +235,11 @@ TEST_F(DocumentStateLeaderTest,
       DocumentFactory(handlersFactoryMock, transactionManagerMock);
 
   auto core = factory.constructCore(vocbaseMock, globalId, coreParams);
-  auto leaderState = factory.constructLeader(std::move(core));
   auto stream = std::make_shared<MockProducerStream>();
+  EXPECT_CALL(*stream, getCommittedMetadata).Times(1);
+  auto leaderState = factory.constructLeader(std::move(core), stream);
+  Mock::VerifyAndClearExpectations(stream.get());
 
-  leaderState->setStream(stream);
   auto entryIterator = std::make_unique<DocumentLogEntryIterator>(entries);
 
   EXPECT_CALL(*stream, insert).Times(1);
@@ -247,7 +248,7 @@ TEST_F(DocumentStateLeaderTest,
   Mock::VerifyAndClearExpectations(transactionMock.get());
 }
 
-TEST_F(DocumentStateLeaderTest,
+TEST_F(DocumentStateLeaderDeathTest,
        leader_recoverEntries_dies_if_vocbase_does_not_exist) {
   using namespace testing;
 
@@ -258,10 +259,11 @@ TEST_F(DocumentStateLeaderTest,
       DocumentFactory(handlersFactoryMock, transactionManagerMock);
 
   auto core = factory.constructCore(vocbaseMock, globalId, coreParams);
-  auto leaderState = factory.constructLeader(std::move(core));
   auto stream = std::make_shared<MockProducerStream>();
+  EXPECT_CALL(*stream, getCommittedMetadata).Times(1);
+  auto leaderState = factory.constructLeader(std::move(core), stream);
+  testing::Mock::VerifyAndClearExpectations(stream.get());
 
-  leaderState->setStream(stream);
   auto entryIterator = std::make_unique<DocumentLogEntryIterator>(entries);
 
   ASSERT_DEATH_CORE_FREE(
@@ -276,19 +278,21 @@ TEST_F(DocumentStateLeaderTest,
       DocumentFactory(handlersFactoryMock, transactionManagerMock);
 
   auto core = factory.constructCore(vocbaseMock, globalId, coreParams);
-  auto leaderState = factory.constructLeader(std::move(core));
+  auto stream = std::make_shared<MockProducerStream>();
+  EXPECT_CALL(*stream, getCommittedMetadata).Times(1);
+  auto leaderState = factory.constructLeader(std::move(core), stream);
+  testing::Mock::VerifyAndClearExpectations(stream.get());
 
-  auto operation = ReplicatedOperation::buildCommitOperation(
-      TransactionId{5}.asFollowerTransactionId());
+  ReplicatedOperation operation{
+      ReplicatedOperation::Commit{TransactionId{5}.asFollowerTransactionId()}};
   EXPECT_FALSE(leaderState->needsReplication(operation));
 
-  operation = ReplicatedOperation::buildDocumentOperation(
-      TRI_VOC_DOCUMENT_OPERATION_INSERT,
+  operation.operation.emplace<ReplicatedOperation::Insert>(
       TransactionId{5}.asFollowerTransactionId(), shardId,
       velocypack::SharedSlice(), "root");
   EXPECT_TRUE(leaderState->needsReplication(operation));
 
-  operation = ReplicatedOperation::buildCommitOperation(
+  operation.operation.emplace<ReplicatedOperation::Commit>(
       TransactionId{5}.asLeaderTransactionId());
   EXPECT_FALSE(leaderState->needsReplication(operation));
 }
@@ -302,10 +306,10 @@ TEST_F(DocumentStateLeaderTest,
       DocumentFactory(handlersFactoryMock, transactionManagerMock);
 
   auto core = factory.constructCore(vocbaseMock, globalId, coreParams);
-  auto leaderState = factory.constructLeader(std::move(core));
   auto stream = std::make_shared<MockProducerStream>();
-
-  leaderState->setStream(stream);
+  EXPECT_CALL(*stream, getCommittedMetadata).Times(1);
+  auto leaderState = factory.constructLeader(std::move(core), stream);
+  testing::Mock::VerifyAndClearExpectations(stream.get());
 
   // Try to apply a regular entry, not having the shard available
   std::vector<DocumentLogEntry> entries;
@@ -313,7 +317,9 @@ TEST_F(DocumentStateLeaderTest,
   auto entryIterator = std::make_unique<DocumentLogEntryIterator>(entries);
   EXPECT_CALL(*stream, insert).Times(1);  // AbortAllOngoingTrx
   EXPECT_CALL(*stream, release).Times(1);
-  ON_CALL(*transactionHandlerMock, applyEntry(entries[0].operation))
+  ON_CALL(*transactionHandlerMock,
+          applyEntry(std::get<ReplicatedOperation::Insert>(
+              entries[0].getInnerOperation())))
       .WillByDefault(Return(TRI_ERROR_ARANGO_DATA_SOURCE_NOT_FOUND));
   std::ignore = leaderState->recoverEntries(std::move(entryIterator));
   Mock::VerifyAndClearExpectations(shardHandlerMock.get());
@@ -323,7 +329,7 @@ TEST_F(DocumentStateLeaderTest,
   // Try to commit the previous entry, but nothing should get committed
   entries.clear();
   entries.emplace_back(
-      ReplicatedOperation::buildCommitOperation(TransactionId{6}));
+      ReplicatedOperation{ReplicatedOperation::Commit(TransactionId{6})});
   entryIterator = std::make_unique<DocumentLogEntryIterator>(entries);
   EXPECT_CALL(*stream, insert).Times(1);  // AbortAllOngoingTrx
   EXPECT_CALL(*stream, release).Times(1);
@@ -341,9 +347,8 @@ TEST_F(DocumentStateLeaderTest, leader_create_modify_and_drop_shard) {
       DocumentFactory(handlersFactoryMock, transactionManagerMock);
 
   auto core = factory.constructCore(vocbaseMock, globalId, coreParams);
-  auto leaderState = factory.constructLeader(std::move(core));
   auto stream = std::make_shared<testing::NiceMock<MockProducerStream>>();
-  leaderState->setStream(stream);
+  auto leaderState = factory.constructLeader(std::move(core), stream);
 
   auto properties = velocypack::SharedSlice();
 
@@ -352,7 +357,7 @@ TEST_F(DocumentStateLeaderTest, leader_create_modify_and_drop_shard) {
       .Times(1)
       .WillOnce([&](DocumentLogEntry const& entry, bool waitForSync) {
         EXPECT_EQ(entry.operation,
-                  ReplicatedOperation::buildCreateShardOperation(
+                  ReplicatedOperation::CreateShard(
                       shardId, TRI_COL_TYPE_DOCUMENT, properties));
         EXPECT_TRUE(waitForSync);
         return LogIndex{12};
@@ -389,8 +394,8 @@ TEST_F(DocumentStateLeaderTest, leader_create_modify_and_drop_shard) {
       .Times(1)
       .WillOnce([&](DocumentLogEntry const& entry, bool waitForSync) {
         EXPECT_EQ(entry.operation,
-                  ReplicatedOperation::buildModifyShardOperation(
-                      shardId, collectionId, velocypack::SharedSlice()));
+                  ReplicatedOperation::ModifyShard(shardId, collectionId,
+                                                   velocypack::SharedSlice()));
         EXPECT_TRUE(waitForSync);
         return LogIndex{12};
       });
@@ -418,7 +423,7 @@ TEST_F(DocumentStateLeaderTest, leader_create_modify_and_drop_shard) {
       .Times(1)
       .WillOnce([&](DocumentLogEntry const& entry, bool waitForSync) {
         EXPECT_EQ(entry.operation,
-                  ReplicatedOperation::buildDropShardOperation(shardId));
+                  ReplicatedOperation{ReplicatedOperation::DropShard(shardId)});
         EXPECT_TRUE(waitForSync);
         return LogIndex{12};
       });

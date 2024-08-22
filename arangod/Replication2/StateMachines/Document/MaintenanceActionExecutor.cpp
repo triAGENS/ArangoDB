@@ -127,12 +127,12 @@ auto MaintenanceActionExecutor::executeModifyCollection(
 }
 
 auto MaintenanceActionExecutor::executeCreateIndex(
-    std::shared_ptr<LogicalCollection> col, velocypack::SharedSlice properties,
+    std::shared_ptr<LogicalCollection> col, velocypack::Slice properties,
     std::shared_ptr<methods::Indexes::ProgressTracker> progress,
-    methods::Indexes::Replication2Callback callback) noexcept -> Result {
+    Replication2Callback callback) noexcept -> Result {
   VPackBuilder output;
   auto res = basics::catchToResult([&]() {
-    return methods::Indexes::ensureIndex(*col, properties.slice(), true, output,
+    return methods::Indexes::ensureIndex(*col, properties, true, output,
                                          std::move(progress),
                                          std::move(callback))
         .waitAndGet();

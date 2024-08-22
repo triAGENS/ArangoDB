@@ -969,7 +969,8 @@ arangodb::futures::Future<std::shared_ptr<arangodb::Index>>
 PhysicalCollectionMock::createIndex(
     arangodb::velocypack::Slice info, bool restore, bool& created,
     std::shared_ptr<std::function<arangodb::Result(double)>> progress,
-    Replication2Callback replicationCb) {
+    arangodb::replication2::replicated_state::document::Replication2Callback
+        replicationCb) {
   before();
 
   std::vector<std::pair<arangodb::LocalDocumentId, arangodb::velocypack::Slice>>

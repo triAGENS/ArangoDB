@@ -244,6 +244,17 @@ const triggerLeaderElection = function (database, logId) {
   clientHelper.agency.increaseVersion(`Plan/Version`);
 };
 
+// Note that this skips the election and is only OK to use when the leader has
+// persisted all log entries, as it is not re-elected.
+const bumpTermOnly = function (database, logId) {
+  clientHelper.agency.transact([[{
+    [`/arango/Plan/ReplicatedLogs/${database}/${logId}/currentTerm/term`]: {
+      'op': 'increment',
+    },
+  }]]);
+  clientHelper.agency.increaseVersion(`Plan/Version`);
+};
+
 const replicatedLogSetPlanTermConfig = function (database, logId, term) {
   clientHelper.agency.set(`Plan/ReplicatedLogs/${database}/${logId}/currentTerm`, term);
   clientHelper.agency.increaseVersion(`Plan/Version`);
@@ -746,12 +757,9 @@ const bumpTermOfLogsAndWaitForConfirmation = function (dbn, col) {
   const shardsToLogs = getShardsToLogsMapping(dbn, col._id);
   const stateMachineIds = shards.map(s => shardsToLogs[s]);
 
-  const increaseTerm = (stateId) => triggerLeaderElection(dbn, stateId);
-  const clearOldLeader = (stateId) => unsetLeader(dbn, stateId);
-
   // Clear the old leader, so it doesn't get back automatically.
-  stateMachineIds.forEach(clearOldLeader);
-  stateMachineIds.forEach(increaseTerm);
+  stateMachineIds.forEach((stateId) => unsetLeader(dbn, stateId));
+  stateMachineIds.forEach((stateId) => triggerLeaderElection(dbn, stateId));
 
   const leaderReady = (stateId) => lpreds.replicatedLogLeaderEstablished(dbn, stateId, undefined, []);
 
@@ -835,6 +843,7 @@ exports.setLeader = setLeader;
 exports.unsetLeader = unsetLeader;
 exports.createReplicatedLogWithState = createReplicatedLogWithState;
 exports.bumpTermOfLogsAndWaitForConfirmation = bumpTermOfLogsAndWaitForConfirmation;
+exports.bumpTermOnly = bumpTermOnly;
 exports.getShardsToLogsMapping = getShardsToLogsMapping;
 exports.replaceParticipant = replaceParticipant;
 exports.createReconfigureJob = createReconfigureJob;

@@ -46,6 +46,7 @@ struct DocumentLeaderState;
 struct DocumentFollowerState;
 struct DocumentCore;
 struct DocumentCoreParameters;
+struct DocumentStateMetadata;
 
 struct IDocumentStateHandlersFactory;
 struct IDocumentStateShardHandler;
@@ -69,6 +70,7 @@ struct DocumentState {
   using CoreType = DocumentCore;
   using CoreParameterType = DocumentCoreParameters;
   using CleanupHandlerType = DocumentCleanupHandler;
+  using MetadataType = DocumentStateMetadata;
 };
 
 struct DocumentCoreParameters {
@@ -86,16 +88,30 @@ struct DocumentCoreParameters {
   [[nodiscard]] auto toSharedSlice() const -> velocypack::SharedSlice;
 };
 
+struct DocumentStateMetadata {
+  // inspector currently does support only strings as map-keys
+  using ShardID = std::string;
+  std::map<ShardID, LogIndex> lowestSafeIndexesForReplay;
+  template<class Inspector>
+  inline friend auto inspect(Inspector& f, DocumentStateMetadata& p) {
+    return f.object(p).fields(
+        f.field("lowestSafeIndexesForReplay", p.lowestSafeIndexesForReplay));
+  }
+};
+
 struct DocumentFactory {
   explicit DocumentFactory(
       std::shared_ptr<IDocumentStateHandlersFactory> handlersFactory,
       transaction::IManager& transactionManager);
 
   auto constructFollower(std::unique_ptr<DocumentCore> core,
+                         std::shared_ptr<streams::Stream<DocumentState>> stream,
                          std::shared_ptr<IScheduler> scheduler)
       -> std::shared_ptr<DocumentFollowerState>;
 
-  auto constructLeader(std::unique_ptr<DocumentCore> core)
+  auto constructLeader(
+      std::unique_ptr<DocumentCore> core,
+      std::shared_ptr<streams::ProducerStream<DocumentState>> stream)
       -> std::shared_ptr<DocumentLeaderState>;
 
   auto constructCore(TRI_vocbase_t&, GlobalLogIdentifier,

@@ -32,17 +32,12 @@ namespace arangodb::replication2::replicated_state::document {
 
 ReplicatedOperation::DocumentOperation::DocumentOperation(
     TransactionId tid, ShardID shard, velocypack::SharedSlice payload,
-    std::optional<Options> options, std::string_view userName)
+    std::string_view userName, std::optional<Options> options)
     : tid{tid},
       shard{shard},
       payload{std::move(payload)},
       userName{userName},
       options(options) {}
-
-template<typename... Args>
-ReplicatedOperation::ReplicatedOperation(std::in_place_t,
-                                         Args&&... args) noexcept
-    : operation(std::forward<Args>(args)...) {}
 
 auto ReplicatedOperation::fromOperationType(OperationType op) noexcept
     -> ReplicatedOperation {
@@ -100,12 +95,10 @@ auto ReplicatedOperation::buildDropShardOperation(ShardID shard) noexcept
 }
 
 auto ReplicatedOperation::buildCreateIndexOperation(
-    ShardID shard, velocypack::SharedSlice properties,
-    std::shared_ptr<methods::Indexes::ProgressTracker> progress) noexcept
+    ShardID shard, velocypack::SharedSlice properties) noexcept
     -> ReplicatedOperation {
-  return ReplicatedOperation{
-      std::in_place, CreateIndex{shard, std::move(properties),
-                                 CreateIndex::Parameters{std::move(progress)}}};
+  return ReplicatedOperation{std::in_place,
+                             CreateIndex{shard, std::move(properties)}};
 }
 
 auto ReplicatedOperation::buildDropIndexOperation(ShardID shard,
@@ -118,18 +111,17 @@ auto ReplicatedOperation::buildDocumentOperation(
     TRI_voc_document_operation_e const& op, TransactionId tid, ShardID shard,
     velocypack::SharedSlice payload, std::string_view userName,
     std::optional<DocumentOperation::Options> options) noexcept
-    -> ReplicatedOperation {
-  auto documentOp =
-      DocumentOperation(tid, shard, std::move(payload), options, userName);
+    -> UserTransactionOperation {
+  auto documentOp = DocumentOperation(tid, shard, std::move(payload), userName);
   switch (op) {
     case TRI_VOC_DOCUMENT_OPERATION_INSERT:
-      return ReplicatedOperation{std::in_place, Insert{std::move(documentOp)}};
+      return UserTransactionOperation{Insert{std::move(documentOp)}};
     case TRI_VOC_DOCUMENT_OPERATION_UPDATE:
-      return ReplicatedOperation{std::in_place, Update{std::move(documentOp)}};
+      return UserTransactionOperation{Update{std::move(documentOp)}};
     case TRI_VOC_DOCUMENT_OPERATION_REPLACE:
-      return ReplicatedOperation{std::in_place, Replace{std::move(documentOp)}};
+      return UserTransactionOperation{Replace{std::move(documentOp)}};
     case TRI_VOC_DOCUMENT_OPERATION_REMOVE:
-      return ReplicatedOperation{std::in_place, Remove{std::move(documentOp)}};
+      return UserTransactionOperation{Remove{std::move(documentOp)}};
     default:
       ADB_PROD_ASSERT(false) << "Unexpected document operation " << op;
   }
@@ -147,5 +139,15 @@ auto operator<<(std::ostream& ostream,
     -> std::ostream& {
   auto replicatedOp = ReplicatedOperation::fromOperationType(operation);
   return ostream << velocypack::serialize(replicatedOp).toJson();
+}
+auto operator==(ReplicatedOperation const& left,
+                ReplicatedOperation::OperationType const& right) -> bool {
+  // fall back to operator== on ReplicatedOperations
+  return left == ReplicatedOperation{std::in_place, right};
+}
+auto operator==(ReplicatedOperation::OperationType const& left,
+                ReplicatedOperation const& right) -> bool {
+  // fall back to operator== on ReplicatedOperations
+  return ReplicatedOperation{std::in_place, left} == right;
 }
 }  // namespace arangodb::replication2::replicated_state::document

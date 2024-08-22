@@ -437,6 +437,43 @@ const lowestIndexToKeepReached = function (log, leader, ltik) {
   };
 };
 
+const allFollowersAppliedEverything = function (log) {
+  return function () {
+    // incomplete type description, just enough for this function:
+    /** @type {
+     *   {
+     *     participants: {
+     *       response: {
+     *         role: ('leader'|'follower'|'unconfigured'),
+     *         local: {
+     *           spearhead: {
+     *             term: number,
+     *             index: number
+     *           },
+     *           appliedIndex: number
+     *         }
+     *       }
+     *     }
+     *   }
+     * }
+     */
+    const status = log.status();
+    const participants = _(status.participants).mapValues(p => p.response);
+    const leaderStatus = participants.find(p => p.role === 'leader').local;
+    const spearhead = leaderStatus.spearhead.index;
+    const followers = participants.pickBy(p => p.role === 'follower').mapValues(p => p.local);
+    if (followers.every(p => p.appliedIndex === spearhead)) {
+      return true;
+    } else {
+      return Error(`Followers haven't applied everything. Spearhead is ${spearhead}, and these followers have lower applied indexes: `
+        + followers
+            .pickBy(v => v.appliedIndex !== spearhead)
+            .map((v, p) => `[${p}] ${v.appliedIndex}`)
+            .join(', '));
+    }
+  };
+};
+
 exports.allServersHealthy = allServersHealthy;
 exports.replicatedLogIsGone = replicatedLogIsGone;
 exports.replicatedLogIsReady = replicatedLogIsReady;
@@ -458,3 +495,4 @@ exports.allServicesOperational = allServicesOperational;
 exports.replicatedStateConverged = replicatedStateConverged;
 exports.allReplicatedStatesConverged = allReplicatedStatesConverged;
 exports.lowestIndexToKeepReached = lowestIndexToKeepReached;
+exports.allFollowersAppliedEverything = allFollowersAppliedEverything;

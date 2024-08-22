@@ -394,7 +394,8 @@ futures::Future<arangodb::Result> Indexes::getAll(
 static futures::Future<Result> EnsureIndexLocal(
     arangodb::LogicalCollection& collection, VPackSlice definition, bool create,
     VPackBuilder& output, std::shared_ptr<Indexes::ProgressTracker> progress,
-    Indexes::Replication2Callback replicationCb) {
+    replication2::replicated_state::document::Replication2Callback
+        replicationCb) {
   auto lambda = [&]() -> futures::Future<futures::Unit> {
     bool created = false;
     std::shared_ptr<arangodb::Index> idx;
@@ -464,7 +465,8 @@ std::unordered_set<std::string_view> extractRelevantKeysForSharding(
 futures::Future<arangodb::Result> Indexes::ensureIndex(
     LogicalCollection& collection, VPackSlice input, bool create,
     VPackBuilder& output, std::shared_ptr<ProgressTracker> progress,
-    Replication2Callback replicationCb) {
+    replication2::replicated_state::document::Replication2Callback
+        replicationCb) {
   ErrorCode ensureIndexResult = TRI_ERROR_INTERNAL;
   // always log a message at the end of index creation
   auto logResultToAuditLog = scopeGuard([&]() noexcept {

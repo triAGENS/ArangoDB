@@ -32,6 +32,7 @@ using namespace arangodb::replication2::replicated_state;
 using namespace arangodb::replication2::replicated_state::document;
 
 struct DocumentStateFollowerTest : DocumentStateMachineTest {};
+struct DocumentStateFollowerDeathTest : DocumentStateFollowerTest {};
 
 TEST_F(DocumentStateFollowerTest, follower_associated_shard_map) {
   using namespace testing;
@@ -65,7 +66,7 @@ TEST_F(DocumentStateFollowerTest,
   // Then we intentionally insert two more entries (which are also
   // AbortAllOngoingTrx, for simplicity)
   EXPECT_CALL(*transactionHandlerMock,
-              applyEntry(Matcher<ReplicatedOperation>(_)))
+              applyEntry(An<ReplicatedOperation::AbortAllOngoingTrx const&>()))
       .Times(3);
   EXPECT_CALL(*leaderInterfaceMock, startSnapshot())
       .Times(1)
@@ -164,8 +165,7 @@ TEST_F(DocumentStateFollowerTest,
   auto follower = createFollower();
   auto res = follower->acquireSnapshot("participantId");
   EXPECT_TRUE(res.isReady() && res.waitAndGet().ok());
-  auto stream = std::make_shared<MockProducerStream>();
-  follower->setStream(stream);
+  auto stream = follower->stream;
 
   std::vector<DocumentLogEntry> entries;
   for (std::uint64_t tid : {6, 10, 14}) {
@@ -196,8 +196,7 @@ TEST_F(DocumentStateFollowerTest,
   auto follower = createFollower();
   auto res = follower->acquireSnapshot("participantId");
   EXPECT_TRUE(res.isReady() && res.waitAndGet().ok());
-  auto stream = std::make_shared<MockProducerStream>();
-  follower->setStream(stream);
+  auto stream = follower->stream;
 
   std::vector<DocumentLogEntry> entries;
   for (std::uint64_t tid : {6, 10, 14}) {
@@ -209,7 +208,7 @@ TEST_F(DocumentStateFollowerTest,
   // We only call release on commit or abort
   EXPECT_CALL(*stream, release).Times(0);
   EXPECT_CALL(*transactionHandlerMock,
-              applyEntry(Matcher<ReplicatedOperation::OperationType const&>(_)))
+              applyEntry(An<ReplicatedOperation::Insert const&>()))
       .Times(3);
   res = follower->applyEntries(std::move(entryIterator));
   ASSERT_TRUE(res.waitAndGet().ok());
@@ -223,8 +222,7 @@ TEST_F(DocumentStateFollowerTest,
   auto follower = createFollower();
   auto res = follower->acquireSnapshot("participantId");
   EXPECT_TRUE(res.isReady() && res.waitAndGet().ok());
-  auto stream = std::make_shared<MockProducerStream>();
-  follower->setStream(stream);
+  auto stream = follower->stream;
 
   std::vector<DocumentLogEntry> entries;
   auto tid = TransactionId{6};
@@ -242,7 +240,7 @@ TEST_F(DocumentStateFollowerTest,
   Mock::VerifyAndClearExpectations(stream.get());
 }
 
-TEST_F(DocumentStateFollowerTest,
+TEST_F(DocumentStateFollowerDeathTest,
        follower_applyEntries_dies_if_transaction_fails) {
   using namespace testing;
 
@@ -250,16 +248,14 @@ TEST_F(DocumentStateFollowerTest,
   auto follower = createFollower();
   auto res = follower->acquireSnapshot("participantId");
   EXPECT_TRUE(res.isReady() && res.waitAndGet().ok());
-  auto stream = std::make_shared<MockProducerStream>();
-  follower->setStream(stream);
+  auto stream = follower->stream;
 
   ON_CALL(*transactionHandlerMock,
-          applyEntry(Matcher<ReplicatedOperation::OperationType const&>(_)))
+          applyEntry(An<ReplicatedOperation::Insert const&>()))
       .WillByDefault(Return(Result(TRI_ERROR_WAS_ERLAUBE)));
   std::vector<DocumentLogEntry> entries;
-  entries.emplace_back(ReplicatedOperation::buildDocumentOperation(
-      TRI_VOC_DOCUMENT_OPERATION_INSERT, TransactionId{6}, shardId,
-      velocypack::SharedSlice(), "root"));
+  entries.emplace_back(ReplicatedOperation{ReplicatedOperation::Insert{
+      TransactionId{6}, shardId, velocypack::SharedSlice(), "root"}});
   auto entryIterator = std::make_unique<DocumentLogEntryIterator>(entries);
   ASSERT_DEATH_CORE_FREE(
       std::ignore =
@@ -275,8 +271,7 @@ TEST_F(DocumentStateFollowerTest,
   auto follower = createFollower();
   auto res = follower->acquireSnapshot("participantId");
   EXPECT_TRUE(res.isReady() && res.waitAndGet().ok());
-  auto stream = std::make_shared<MockProducerStream>();
-  follower->setStream(stream);
+  auto stream = follower->stream;
 
   // First commit then abort
   std::vector<DocumentLogEntry> entries;
@@ -294,8 +289,14 @@ TEST_F(DocumentStateFollowerTest,
     EXPECT_EQ(index.value, 3);
   });
   EXPECT_CALL(*transactionHandlerMock,
-              applyEntry(Matcher<ReplicatedOperation::OperationType const&>(_)))
-      .Times(7);
+              applyEntry(An<ReplicatedOperation::Insert const&>()))
+      .Times(5);
+  EXPECT_CALL(*transactionHandlerMock,
+              applyEntry(An<ReplicatedOperation::Commit const&>()))
+      .Times(1);
+  EXPECT_CALL(*transactionHandlerMock,
+              applyEntry(An<ReplicatedOperation::Abort const&>()))
+      .Times(1);
   res = follower->applyEntries(std::move(entryIterator));
   ASSERT_TRUE(res.waitAndGet().ok());
   Mock::VerifyAndClearExpectations(stream.get());
@@ -305,8 +306,7 @@ TEST_F(DocumentStateFollowerTest,
   follower = createFollower();
   res = follower->acquireSnapshot("participantId");
   EXPECT_TRUE(res.isReady() && res.waitAndGet().ok());
-  stream = std::make_shared<MockProducerStream>();
-  follower->setStream(stream);
+  stream = follower->stream;
   entries.clear();
 
   entries.emplace_back(createDocumentEntry(TransactionId{6}));
@@ -323,8 +323,14 @@ TEST_F(DocumentStateFollowerTest,
     EXPECT_EQ(index.value, 3);
   });
   EXPECT_CALL(*transactionHandlerMock,
-              applyEntry(Matcher<ReplicatedOperation::OperationType const&>(_)))
-      .Times(7);
+              applyEntry(An<ReplicatedOperation::Insert const&>()))
+      .Times(5);
+  EXPECT_CALL(*transactionHandlerMock,
+              applyEntry(An<ReplicatedOperation::Commit const&>()))
+      .Times(1);
+  EXPECT_CALL(*transactionHandlerMock,
+              applyEntry(An<ReplicatedOperation::Abort const&>()))
+      .Times(1);
   res = follower->applyEntries(std::move(entryIterator));
   ASSERT_TRUE(res.waitAndGet().ok());
 }
@@ -338,8 +344,7 @@ TEST_F(DocumentStateFollowerTest,
   auto res = follower->acquireSnapshot("participantId");
   EXPECT_TRUE(res.isReady() && res.waitAndGet().ok());
 
-  auto stream = std::make_shared<MockProducerStream>();
-  follower->setStream(stream);
+  auto stream = follower->stream;
 
   ShardID const myShard{12};
   CollectionID const myCollection = "myCollection";
@@ -381,7 +386,7 @@ TEST_F(DocumentStateFollowerTest,
   Mock::VerifyAndClearExpectations(shardHandlerMock.get());
 }
 
-TEST_F(DocumentStateFollowerTest,
+TEST_F(DocumentStateFollowerDeathTest,
        follower_dies_if_shard_creation_or_deletion_fails) {
   using namespace testing;
 
@@ -389,8 +394,7 @@ TEST_F(DocumentStateFollowerTest,
   auto follower = createFollower();
   auto res = follower->acquireSnapshot("participantId");
   EXPECT_TRUE(res.isReady() && res.waitAndGet().ok());
-  auto stream = std::make_shared<MockProducerStream>();
-  follower->setStream(stream);
+  auto stream = follower->stream;
 
   std::vector<DocumentLogEntry> entries;
   entries.emplace_back(ReplicatedOperation::buildCreateShardOperation(
@@ -421,15 +425,15 @@ TEST_F(DocumentStateFollowerTest, follower_ignores_invalid_transactions) {
   auto follower = createFollower();
   auto res = follower->acquireSnapshot("participantId");
   EXPECT_TRUE(res.isReady() && res.waitAndGet().ok());
-  auto stream = std::make_shared<MockProducerStream>();
-  follower->setStream(stream);
+  auto stream = follower->stream;
 
   // Try to apply a regular entry, but pretend the shard is not available
   std::vector<DocumentLogEntry> entries;
   entries.emplace_back(createDocumentEntry(TransactionId{6}));
   auto entryIterator = std::make_unique<DocumentLogEntryIterator>(entries);
   EXPECT_CALL(*transactionHandlerMock,
-              applyEntry(entries[0].getInnerOperation()))
+              applyEntry(std::get<ReplicatedOperation::Insert>(
+                  entries[0].getInnerOperation())))
       .Times(1)
       .WillOnce(Return(Result(TRI_ERROR_ARANGO_DATA_SOURCE_NOT_FOUND)));
   res = follower->applyEntries(std::move(entryIterator));
@@ -442,7 +446,8 @@ TEST_F(DocumentStateFollowerTest, follower_ignores_invalid_transactions) {
       ReplicatedOperation::buildCommitOperation(TransactionId{6}));
   entryIterator = std::make_unique<DocumentLogEntryIterator>(entries);
   EXPECT_CALL(*transactionHandlerMock,
-              applyEntry(entries[0].getInnerOperation()))
+              applyEntry(std::get<ReplicatedOperation::Commit>(
+                  entries[0].getInnerOperation())))
       .Times(0);
   // we do not actually commit anything, because the transaction is invalid, but
   // we still release the entry!
@@ -456,7 +461,8 @@ TEST_F(DocumentStateFollowerTest, follower_ignores_invalid_transactions) {
   entries.emplace_back(createDocumentEntry(TransactionId{10}));
   entryIterator = std::make_unique<DocumentLogEntryIterator>(entries);
   EXPECT_CALL(*transactionHandlerMock,
-              applyEntry(entries[0].getInnerOperation()))
+              applyEntry(std::get<ReplicatedOperation::Insert>(
+                  entries[0].getInnerOperation())))
       .Times(1);
   res = follower->applyEntries(std::move(entryIterator));
   ASSERT_TRUE(res.waitAndGet().ok());
@@ -472,16 +478,17 @@ TEST_F(DocumentStateFollowerTest,
   auto follower = createFollower();
   auto res = follower->acquireSnapshot("participantId");
   EXPECT_TRUE(res.isReady() && res.waitAndGet().ok());
-  auto stream = std::make_shared<MockProducerStream>();
-  follower->setStream(stream);
+  auto stream = follower->stream;
 
   std::vector<DocumentLogEntry> entries;
-  entries.emplace_back(ReplicatedOperation::buildDocumentOperation(
-      TRI_VOC_DOCUMENT_OPERATION_INSERT, TransactionId{6}, ShardID{1},
-      velocypack::SharedSlice(), "root"));
-  entries.emplace_back(ReplicatedOperation::buildDocumentOperation(
-      TRI_VOC_DOCUMENT_OPERATION_INSERT, TransactionId{10}, ShardID{2},
-      velocypack::SharedSlice(), "root"));
+  entries.emplace_back(
+      ReplicatedOperation{ReplicatedOperation::buildDocumentOperation(
+          TRI_VOC_DOCUMENT_OPERATION_INSERT, TransactionId{6}, ShardID{1},
+          velocypack::SharedSlice(), "root")});
+  entries.emplace_back(
+      ReplicatedOperation{ReplicatedOperation::buildDocumentOperation(
+          TRI_VOC_DOCUMENT_OPERATION_INSERT, TransactionId{10}, ShardID{2},
+          velocypack::SharedSlice(), "root")});
   auto entryIterator = std::make_unique<DocumentLogEntryIterator>(entries);
   res = follower->applyEntries(std::move(entryIterator));
   ASSERT_TRUE(res.waitAndGet().ok());
@@ -497,18 +504,17 @@ TEST_F(DocumentStateFollowerTest,
       .WillByDefault(Return(std::vector<TransactionId>{TransactionId{10}}));
   EXPECT_CALL(*transactionHandlerMock, getTransactionsForShard(ShardID{1}))
       .Times(1);
-  EXPECT_CALL(
-      *transactionHandlerMock,
-      applyEntry(ReplicatedOperation::buildAbortOperation(TransactionId{6})))
+  EXPECT_CALL(*transactionHandlerMock,
+              applyEntry(ReplicatedOperation::Abort{TransactionId{6}}))
       .Times(1);
   EXPECT_CALL(*transactionHandlerMock, getTransactionsForShard(ShardID{2}))
       .Times(0);
-  EXPECT_CALL(
-      *transactionHandlerMock,
-      applyEntry(ReplicatedOperation::buildAbortOperation(TransactionId{10})))
+  EXPECT_CALL(*transactionHandlerMock,
+              applyEntry(ReplicatedOperation::Abort{TransactionId{10}}))
       .Times(0);
   EXPECT_CALL(*transactionHandlerMock,
-              applyEntry(entries[0].getInnerOperation()))
+              applyEntry(std::get<ReplicatedOperation::DropShard>(
+                  entries[0].getInnerOperation())))
       .Times(1);
   EXPECT_CALL(*stream, release(LogIndex{1})).Times(1);
 

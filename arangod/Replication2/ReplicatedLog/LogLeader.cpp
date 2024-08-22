@@ -70,6 +70,7 @@
 #include "Replication2/ReplicatedLog/ReplicatedLogMetrics.h"
 #include "Replication2/ReplicatedLog/Components/StorageManager.h"
 #include "Replication2/ReplicatedLog/Components/CompactionManager.h"
+#include "Replication2/ReplicatedLog/Components/StateMetadataTransaction.h"
 #include "Replication2/Storage/IStorageEngineMethods.h"
 #include "Replication2/Storage/IteratorPosition.h"
 
@@ -721,8 +722,8 @@ auto replicated_log::LogLeader::GuardedLeaderData::updateCommitIndexLeader(
   // TODO Should _lastQuorum be moved into the InMemoryLogManager?
   _lastQuorum = quorum;
 
-  struct MethodsImpl : IReplicatedLogLeaderMethods {
-    explicit MethodsImpl(LogLeader& log) : _log(log) {}
+  struct LeaderMethodsImpl : IReplicatedLogLeaderMethods {
+    explicit LeaderMethodsImpl(LogLeader& log) : _log(log) {}
     auto releaseIndex(LogIndex index) -> void override {
       return _log.updateReleaseIndex(index);
     }
@@ -742,6 +743,21 @@ auto replicated_log::LogLeader::GuardedLeaderData::updateCommitIndexLeader(
       return _log.waitForIterator(index);
     }
 
+    auto beginMetadataTrx()
+        -> std::unique_ptr<IStateMetadataTransaction> override {
+      return std::make_unique<StateMetadataTransaction>(
+          _log._storageManager->beginMetaInfoTrx());
+    }
+    auto commitMetadataTrx(std::unique_ptr<IStateMetadataTransaction> ptr)
+        -> Result override {
+      auto& trx = dynamic_cast<StateMetadataTransaction&>(*ptr);
+      return _log._storageManager->commitMetaInfoTrx(std::move(trx.trx));
+    }
+    auto getCommittedMetadata() const
+        -> IStateMetadataTransaction::DataType override {
+      return _log._storageManager->getCommittedMetaInfo().stateOwnedMetadata;
+    }
+
     LogLeader& _log;
   };
 
@@ -750,7 +766,8 @@ auto replicated_log::LogLeader::GuardedLeaderData::updateCommitIndexLeader(
     ADB_PROD_ASSERT(newCommitIndex > LogIndex{0});
     _leadershipEstablished = true;
     LOG_CTX("f1136", DEBUG, _self._logContext) << "leadership established";
-    _stateHandle->leadershipEstablished(std::make_unique<MethodsImpl>(_self));
+    _stateHandle->leadershipEstablished(
+        std::make_unique<LeaderMethodsImpl>(_self));
   }
 
   if (activeInnerTermConfig != committedInnerTermConfig) {
