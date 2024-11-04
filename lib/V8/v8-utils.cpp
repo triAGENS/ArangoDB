@@ -5559,9 +5559,19 @@ void TRI_CreateErrorObject(v8::Isolate* isolate, ErrorCode errorNumber,
     } else {
       CreateErrorObject(isolate, errorNumber, message);
     }
+  } catch (std::exception const& ex) {
+    // we cannot do anything about this here, but no C++ exception must
+    // escape the C++ bindings called by V8
+    ADB_PROD_CRASH()
+        << "Exception thrown while creating V8 error. Exception is: ```"
+        << ex.what() << "'''. Error to be created was: " << errorNumber << " "
+        << message;
   } catch (...) {
     // we cannot do anything about this here, but no C++ exception must
     // escape the C++ bindings called by V8
+    ADB_PROD_CRASH() << "Unknown exception thrown while creating V8 error. "
+                        "Error to be created was: "
+                     << errorNumber << " " << message;
   }
 }
 
