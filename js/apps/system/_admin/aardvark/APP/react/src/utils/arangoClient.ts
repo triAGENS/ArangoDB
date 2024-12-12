@@ -4,7 +4,7 @@ import { memoize } from "lodash";
 export const getDB = memoize(
   (db: string) =>
     new Database({
-      url: window.location.origin,
+      url: window.location.origin + window.frontendConfig.basePath,
       databaseName: db,
       auth: {
         token: window.arangoHelper.getCurrentJwt()
