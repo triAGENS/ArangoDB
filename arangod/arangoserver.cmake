@@ -150,6 +150,7 @@ add_library(arangoserver STATIC
   RestServer/UpgradeFeature.cpp
   RestServer/ViewTypesFeature.cpp
   RestServer/VocbaseContext.cpp
+  Scheduler/EventCount.cpp
   Scheduler/LockfreeThreadPool.cpp
   Scheduler/Scheduler.cpp
   Scheduler/SchedulerFeature.cpp
