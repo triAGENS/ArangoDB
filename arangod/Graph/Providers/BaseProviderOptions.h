@@ -227,6 +227,12 @@ struct ClusterBaseProviderOptions {
     _clearEdgeCacheOnClear = flag;
   }
 
+  bool depthSpecificLookup() const noexcept { return _depthSpecificLookup; }
+
+  void setDepthSpecificLookup(bool flag) noexcept {
+    _depthSpecificLookup = flag;
+  }
+
  private:
   std::shared_ptr<RefactoredClusterTraverserCache> _cache;
 
@@ -257,13 +263,27 @@ struct ClusterBaseProviderOptions {
 
   std::unordered_set<uint64_t> _availableDepthsSpecificConditions;
 
-  // Traditionally, this was `true`, since the data stored in the edge cache
-  // on the coordinator is only valid for a single computation, since it might
-  // have filtered certain edges and the filter conditions might have changed.
-  // For ShortestPath computations and consequently Yen computations, this is
-  // not true and hurts performance. Therefore, for these cases it is possible
-  // to set this flag to `false` to retain cached data across calls to `clear`.
+  // Traditionally, the following was `true`, since the data stored
+  // in the edge cache on the coordinator is only valid for a single
+  // computation, since it might have filtered certain edges and the
+  // filter conditions might have changed. For ShortestPath computations
+  // and consequently Yen computations, this is not true and hurts
+  // performance. Therefore, for these cases it is possible to set this
+  // flag to `false` to retain cached data across calls to `clear`.
   bool _clearEdgeCacheOnClear = true;
+
+  // For one sided traversals (used for normal traversals) we have different
+  // needs than for two sided traversals (shortest paths). For the former,
+  // we deeply care about the depth of a step and try to do some depth-based
+  // filtering already on the dbservers. As a consequence, we can only
+  // cache edge data less aggressively, and we have to fetch edges
+  // separately for different depths.
+  // For two sided traversals, we do not really care about depth and we
+  // cannot do the dbserver-based filtering anyway. Therefore we want to
+  // have a switch here to inform the ClusterProvider what we want:
+  bool _depthSpecificLookup = true;
+  // The default setting of `true` is for one sided traversals, we set this
+  // to `false` for two sided traversals.
 };
 
 }  // namespace graph

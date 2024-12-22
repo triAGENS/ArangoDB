@@ -512,8 +512,12 @@ std::unique_ptr<ExecutionBlock> ShortestPathNode::createBlock(
         opts->query().resourceMonitor());
     ClusterBaseProviderOptions forwardProviderOptions(cache, engines(), false,
                                                       opts->produceVertices());
+    forwardProviderOptions.setClearEdgeCacheOnClear(false);
+    forwardProviderOptions.setDepthSpecificLookup(false);
     ClusterBaseProviderOptions backwardProviderOptions(cache, engines(), true,
                                                        opts->produceVertices());
+    backwardProviderOptions.setClearEdgeCacheOnClear(false);
+    backwardProviderOptions.setDepthSpecificLookup(false);
 
     auto usesWeight =
         checkWeight(forwardProviderOptions, backwardProviderOptions);

@@ -413,7 +413,7 @@ ShortestPathEngine::ShortestPathEngine(TRI_vocbase_t& vocbase,
 ShortestPathEngine::~ShortestPathEngine() = default;
 
 void ShortestPathEngine::getEdges(VPackSlice vertex, bool backward,
-                                  VPackBuilder& builder) {
+                                  bool listoflists, VPackBuilder& builder) {
   TRI_ASSERT(vertex.isString() || vertex.isArray());
 
   builder.openObject();
@@ -424,7 +424,13 @@ void ShortestPathEngine::getEdges(VPackSlice vertex, bool backward,
       if (!v.isString()) {
         continue;
       }
+      if (listoflists) {
+        builder.openArray(true);
+      }
       addEdgeData(builder, backward, v.stringView());
+      if (listoflists) {
+        builder.close();
+      }
       // Result now contains all valid edges, probably multiples.
     }
   } else if (vertex.isString()) {

@@ -681,9 +681,11 @@ std::unique_ptr<ExecutionBlock> EnumeratePathsNode::createBlock(
     ClusterBaseProviderOptions forwardProviderOptions(cache, engines(), false,
                                                       opts->produceVertices());
     forwardProviderOptions.setClearEdgeCacheOnClear(false);
+    forwardProviderOptions.setDepthSpecificLookup(false);
     ClusterBaseProviderOptions backwardProviderOptions(cache, engines(), true,
                                                        opts->produceVertices());
     backwardProviderOptions.setClearEdgeCacheOnClear(false);
+    backwardProviderOptions.setDepthSpecificLookup(false);
     // A comment is in order here: For all cases covered here
     // (k-shortest-paths, all shortest paths, k-paths) we do not need to
     // filter edges when we fetch them from dbservers. As a consequence,

@@ -306,31 +306,55 @@ void ClusterProvider<StepImpl>::destroyEngines() {
 }
 
 template<class StepImpl>
-Result ClusterProvider<StepImpl>::fetchEdgesFromEngines(Step* step) {
-  TRI_ASSERT(step != nullptr);
-  LOG_TOPIC("fa7dc", TRACE, Logger::GRAPHS)
-      << "<ClusterProvider> Expanding " << step->getVertex().getID();
+Result ClusterProvider<StepImpl>::fetchEdgesFromEngines(
+    std::vector<Step*> const& batch) {
+  TRI_ASSERT(!batch.empty());  // not allowed, because it is unnecessary!
+  if (_opts.depthSpecificLookup()) {
+    // We only allow one vertex in this case, because otherwise we run into
+    // the danger that they might be different depths, and the API in the
+    // traverser cannot handle this.
+    TRI_ASSERT(batch.size() == 1);
+  }
   auto const* engines = _opts.engines();
   transaction::BuilderLeaser leased(trx());
   leased->openObject(true);
+  if (!_opts.depthSpecificLookup() && batch.size() != 1) {
+    // Ask for new API, in which we get a list of lists of edges rather
+    // than a flat list of edges. Note that if we deal with an old dbserver,
+    // which refuses to do this, we will error out below and fall back to
+    // the old method.
+    leased->add("style", VPackValue("listoflists"));
+  }
   leased->add("backward",
               VPackValue(_opts.isBackward()));  // [GraphRefactor] ksp only?
 
-  // [GraphRefactor] TODO: Differentiate between algorithms -> traversal vs.
-  // ksp.
-  /* Needed for TRAVERSALS only - Begin */
-  // But note that the field "depth" must be set to an integer in any case!
-  leased->add("depth", VPackValue(step->getDepth()));
-  if (_opts.expressionContext() != nullptr) {
-    leased->add(VPackValue("variables"));
-    leased->openArray();
-    _opts.expressionContext()->serializeAllVariables(trx()->vpackOptions(),
-                                                     *(leased.get()));
-    leased->close();
+  if (_opts.depthSpecificLookup()) {
+    /* Needed for TRAVERSALS only - Begin */
+    leased->add("depth", VPackValue(batch[0]->getDepth()));
+    if (_opts.expressionContext() != nullptr) {
+      leased->add(VPackValue("variables"));
+      leased->openArray();
+      _opts.expressionContext()->serializeAllVariables(trx()->vpackOptions(),
+                                                       *(leased.get()));
+      leased->close();
+    }
+    /* Needed for TRAVERSALS only - End */
   }
-  /* Needed for TRAVERSALS only - End */
 
-  leased->add("keys", VPackValue(step->getVertex().getID().toString()));
+  leased->add(VPackValue("keys"));  // only key
+  {
+    if (batch.size() > 1) {
+      leased->openArray();
+    }
+    for (auto* step : batch) {
+      leased->add(VPackValue(step->getVertex().getID().toString()));
+      LOG_TOPIC("fa7dc", TRACE, Logger::GRAPHS)
+          << "<ClusterProvider> Expanding " << step->getVertex().getID();
+    }
+    if (batch.size() > 1) {
+      leased->close();
+    }
+  }
   leased->close();
 
   auto* pool =
@@ -361,7 +385,8 @@ Result ClusterProvider<StepImpl>::fetchEdgesFromEngines(Step* step) {
         reqOpts));
   }
 
-  std::vector<std::pair<EdgeType, VertexType>> connectedEdges;
+  std::unordered_map<VertexType, std::vector<std::pair<EdgeType, VertexType>>>
+      allConnectedEdges;
   for (Future<network::Response>& f : futures) {
     network::Response const& r = f.waitAndGet();
 
@@ -394,31 +419,53 @@ Result ClusterProvider<StepImpl>::fetchEdgesFromEngines(Step* step) {
 
     bool allCached = true;
     VPackSlice edges = resSlice.get("edges");
-    for (VPackSlice e : VPackArrayIterator(edges)) {
-      VPackSlice id = e.get(StaticStrings::IdString);
-      if (!id.isString()) {
-        // invalid id type
-        LOG_TOPIC("eb7cd", ERR, Logger::GRAPHS)
-            << "got invalid edge id type: " << id.typeName();
-        continue;
+    TRI_ASSERT(edges.isArray());
+    // Let's first check if we are dealing with an old dbserver:
+    if (!_opts.depthSpecificLookup() && batch.size() > 1) {
+      if (!(edges.length() == batch.size()) || !edges.at(0).isArray()) {
+        // We have an old dbserver, which does not support the new API.
+        // We have to fall back to the old method.
+        LOG_TOPIC("33321", WARN, Logger::GRAPHS)
+            << "Detected old dbserver, falling back to legacy API: "
+            << edges.toJson();
+        return TRI_ERROR_NOT_IMPLEMENTED;
       }
-      LOG_TOPIC("f4b3b", TRACE, Logger::GRAPHS)
-          << "<ClusterProvider> Neighbor of " << step->getVertex().getID()
-          << " -> " << id.toJson();
-
-      auto [edge, needToCache] = _opts.getCache()->persistEdgeData(e);
-      if (needToCache) {
-        allCached = false;
+    }
+    for (size_t i = 0; i < batch.size(); ++i) {
+      VPackSlice innerEdges = edges;
+      if (!_opts.depthSpecificLookup() && batch.size() > 1) {
+        innerEdges = edges.at(i);
       }
+      Step* step = batch[i];
+      VertexType const vertex = step->getVertex().getID();
+      auto& connectedEdges = allConnectedEdges[vertex];
 
-      arangodb::velocypack::HashedStringRef edgeIdRef(
-          edge.get(StaticStrings::IdString));
+      for (VPackSlice e : VPackArrayIterator(innerEdges)) {
+        VPackSlice id = e.get(StaticStrings::IdString);
+        if (!id.isString()) {
+          // invalid id type
+          LOG_TOPIC("eb7cd", ERR, Logger::GRAPHS)
+              << "got invalid edge id type: " << id.typeName();
+          continue;
+        }
 
-      auto edgeToEmplace = std::make_pair(
-          edgeIdRef,
-          VertexType{getEdgeDestination(edge, step->getVertex().getID())});
+        LOG_TOPIC("f4b3b", TRACE, Logger::GRAPHS)
+            << "<ClusterProvider> Neighbor of " << vertex.toString() << " -> "
+            << id.toJson();
 
-      connectedEdges.emplace_back(edgeToEmplace);
+        auto [edge, needToCache] = _opts.getCache()->persistEdgeData(e);
+        if (needToCache) {
+          allCached = false;
+        }
+
+        arangodb::velocypack::HashedStringRef edgeIdRef(
+            edge.get(StaticStrings::IdString));
+
+        auto edgeToEmplace = std::make_pair(
+            edgeIdRef, VertexType{getEdgeDestination(edge, vertex)});
+
+        connectedEdges.emplace_back(edgeToEmplace);
+      }
     }
 
     if (!allCached) {
@@ -428,17 +475,18 @@ Result ClusterProvider<StepImpl>::fetchEdgesFromEngines(Step* step) {
   // Note: This disables the ScopeGuard
   futures.clear();
 
-  std::uint64_t memoryPerItem =
-      costPerVertexOrEdgeType +
-      (connectedEdges.size() * (costPerVertexOrEdgeType * 2));
-  ResourceUsageScope guard(*_resourceMonitor, memoryPerItem);
+  for (auto const& pair : allConnectedEdges) {
+    std::uint64_t memoryPerItem =
+        costPerVertexOrEdgeType +
+        (pair.second.size() * (costPerVertexOrEdgeType * 2));
+    ResourceUsageScope guard(*_resourceMonitor, memoryPerItem);
 
-  auto [it, inserted] = _vertexConnectedEdges.emplace(
-      step->getVertex().getID(), std::move(connectedEdges));
-  if (inserted) {
-    guard.steal();
+    auto [it, inserted] =
+        _vertexConnectedEdges.emplace(pair.first, pair.second);
+    if (inserted) {
+      guard.steal();
+    }
   }
-
   return TRI_ERROR_NO_ERROR;
 }
 
@@ -471,9 +519,48 @@ auto ClusterProvider<StepImpl>::fetchVertices(
 template<class StepImpl>
 auto ClusterProvider<StepImpl>::fetchEdges(
     std::vector<Step*> const& fetchedVertices) -> Result {
+  // If we do depth specific lookups, we need to work on all edges one
+  // after another. This could potentially be fixed, but this seems
+  // difficult. This is what is used in one-sided-traversals.
+  // Therefore we distinguish here between this case and the other case
+  // (for two-sided-traversals), in which we can fetch edges in batches:
+  if (!_opts.depthSpecificLookup()) {
+    // Can do batches!
+    std::vector<Step*> batch;
+    batch.reserve(fetchedVertices.size());
+    for (auto const& step : fetchedVertices) {
+      if (!_vertexConnectedEdges.contains(step->getVertex().getID())) {
+        batch.push_back(step);
+      }
+    }
+    auto setAllFetched = [&fetchedVertices]() {
+      for (auto const& step : fetchedVertices) {
+        step->setEdgesFetched();
+      }
+    };
+
+    if (batch.empty()) {
+      setAllFetched();
+      return TRI_ERROR_NO_ERROR;
+    }
+    auto res = fetchEdgesFromEngines(batch);
+    _stats.incrHttpRequests(_opts.engines()->size());
+
+    if (res.ok()) {
+      setAllFetched();
+      return TRI_ERROR_NO_ERROR;
+    }
+    if (!res.is(TRI_ERROR_NOT_IMPLEMENTED)) {
+      THROW_ARANGO_EXCEPTION(res);
+    }
+    // We allow a fallback to the slow path, if we have hit a dbserver, which
+    // does not support the batched edge fetch.
+  }
+
   for (auto const& step : fetchedVertices) {
     if (!_vertexConnectedEdges.contains(step->getVertex().getID())) {
-      auto res = fetchEdgesFromEngines(step);
+      std::vector<Step*> single{step};
+      auto res = fetchEdgesFromEngines(single);
       _stats.incrHttpRequests(_opts.engines()->size());
 
       if (res.fail()) {
@@ -482,7 +569,8 @@ auto ClusterProvider<StepImpl>::fetchEdges(
     }
     // else: We already fetched this vertex.
 
-    // mark a looseEnd as fetched as vertex fetch + edges fetch was a success
+    // mark a looseEnd as fetched as vertex fetch + edges fetch was a
+    // success
     step->setEdgesFetched();
   }
   return TRI_ERROR_NO_ERROR;
@@ -514,8 +602,8 @@ auto ClusterProvider<StepImpl>::expand(
       bool edgesCached = _vertexConnectedEdges.contains(relation.second);
       typename Step::FetchedType fetchedType =
           ::getFetchedType(vertexCached, edgesCached);
-      // [GraphRefactor] TODO: KShortestPaths does not require Depth/Weight. We
-      // need a mechanism here as well to distinguish between (non)required
+      // [GraphRefactor] TODO: KShortestPaths does not require Depth/Weight.
+      // We need a mechanism here as well to distinguish between (non)required
       // parameters.
       callback(
           Step{relation.second, relation.first, previous, fetchedType,

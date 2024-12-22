@@ -204,6 +204,15 @@ void InternalRestTraverserHandler::queryEngine() {
         break;
       }
       case BaseEngine::EngineType::SHORTESTPATH: {
+        // The following option was introduced in 3.12.3 and asks to
+        // return the list of edges as a list of lists, rather than a
+        // flat list.
+        bool listoflists = false;
+        VPackSlice styleSlice = body.get("style");
+        if (styleSlice.isString() && styleSlice.stringView() == "listoflists") {
+          listoflists = true;
+        }
+
         VPackSlice bwSlice = body.get("backward");
         if (!bwSlice.isBool()) {
           generateError(ResponseCode::BAD, TRI_ERROR_HTTP_BAD_PARAMETER,
@@ -213,7 +222,7 @@ void InternalRestTraverserHandler::queryEngine() {
         // Safe cast ShortestPathEngines are all of type SHORTESTPATH
         auto eng = static_cast<ShortestPathEngine*>(engine);
         TRI_ASSERT(eng != nullptr);
-        eng->getEdges(keysSlice, bwSlice.getBoolean(), result);
+        eng->getEdges(keysSlice, bwSlice.getBoolean(), listoflists, result);
         break;
       }
       default:

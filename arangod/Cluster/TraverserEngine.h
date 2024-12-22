@@ -154,7 +154,7 @@ class ShortestPathEngine : public BaseEngine {
 
   ~ShortestPathEngine();
 
-  void getEdges(arangodb::velocypack::Slice, bool backward,
+  void getEdges(arangodb::velocypack::Slice, bool backward, bool listoflists,
                 arangodb::velocypack::Builder&);
 
   EngineType getType() const override { return SHORTESTPATH; }
