@@ -1265,8 +1265,20 @@ RestStatus RestAdminClusterHandler::handleCreateSingleServerJob(
     builder.add("jobId", VPackValue(jobId));
     builder.add("creator", VPackValue(ServerState::instance()->getId()));
     if (job == "resignLeadership") {
-      if (body.isObject() && body.hasKey("undoMoves")) {
-        builder.add("undoMoves", VPackValue(body.get("undoMoves").isTrue()));
+      if (body.isObject()) {
+        if (auto undoMoves = body.get("undoMoves"); undoMoves.isBool()) {
+          builder.add("undoMoves", VPackValue(undoMoves.isTrue()));
+        }
+
+        if (auto waitForInSync = body.get("waitForInSync");
+            waitForInSync.isBool()) {
+          builder.add("waitForInSync", VPackValue(waitForInSync.isTrue()));
+          if (auto timeout = body.get("waitForInSyncTimeout");
+              timeout.isNumber<uint64_t>()) {
+            builder.add("waitForInSyncTimeout",
+                        VPackValue(timeout.getNumber<uint64_t>()));
+          }
+        }
       }
     }
     builder.add(

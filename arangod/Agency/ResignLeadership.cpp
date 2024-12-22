@@ -55,11 +55,16 @@ ResignLeadership::ResignLeadership(Node const& snapshot, AgentInterface* agent,
   auto tmp_server = _snapshot.hasAsString(path + "server");
   auto tmp_creator = _snapshot.hasAsString(path + "creator");
   auto tmp_undoMoves = _snapshot.hasAsBool(path + "undoMoves");
+  auto tmp_waitForInSync = _snapshot.hasAsBool(path + "waitForInSync");
+  auto tmp_waitForInSyncTimeout =
+      _snapshot.hasAsUInt(path + "waitForInSyncTimeout");
 
   if (tmp_server && tmp_creator) {
     _server = tmp_server.value();
     _creator = tmp_creator.value();
     _undoMoves = tmp_undoMoves.value_or(true);
+    _waitForInSync = tmp_waitForInSync.value_or(false);
+    _waitForInSyncTimeout = tmp_waitForInSyncTimeout.value_or(0);
   } else {
     std::stringstream err;
     err << "Failed to find job " << _jobId << " in agency.";
@@ -178,6 +183,8 @@ bool ResignLeadership::create(std::shared_ptr<VPackBuilder> envelope) {
       _jb->add("jobId", VPackValue(_jobId));
       _jb->add("creator", VPackValue(_creator));
       _jb->add("undoMoves", VPackValue(_undoMoves));
+      _jb->add("waitForInSync", VPackValue(_waitForInSync));
+      _jb->add("waitForInSyncTimeout", VPackValue(_waitForInSyncTimeout));
       _jb->add("timeCreated",
                VPackValue(timepointToString(std::chrono::system_clock::now())));
     }
@@ -337,7 +344,28 @@ bool ResignLeadership::start(bool& aborts) {
 
       // Schedule shard relocations
       if (!scheduleMoveShards(pending)) {
-        finish("", "", false, "Could not schedule MoveShard.");
+        LOG_TOPIC("d4473", DEBUG, Logger::SUPERVISION)
+            << "Not starting resign leadership job because some shards have no "
+               "common in sync follower";
+        // check if a timeout value is specified
+        if (_waitForInSyncTimeout > 0) {
+          auto tmp_time =
+              _snapshot.hasAsString(pendingPrefix + _jobId + "/timeCreated");
+          std::string timeCreatedString = tmp_time.value();
+          Supervision::TimePoint timeCreated =
+              stringToTimepoint(timeCreatedString);
+          Supervision::TimePoint now(std::chrono::system_clock::now());
+          if (now - timeCreated >=
+              std::chrono::seconds{_waitForInSyncTimeout}) {
+            LOG_TOPIC("d4475", ERR, Logger::SUPERVISION)
+                << "Failing resign leadership job (" << _jobId
+                << ") because some shards have no common in sync follower";
+            finish("", "", false,
+                   "Some shards failed to have an in sync follower after "
+                   "timeout.");
+            return false;
+          }
+        }
         return false;
       }
 
@@ -457,6 +485,15 @@ bool ResignLeadership::scheduleMoveShards(std::shared_ptr<Builder>& trx) {
               _snapshot, database.first, collptr.first, shard.first, _server);
 
           if (toServer.empty()) {
+            LOG_TOPIC("5c92e", INFO, Logger::SUPERVISION)
+                << "ResignLeadership job: " << _jobId << " server: " << _server
+                << "no common in-sync follower found for shard "
+                << database.first << "/" << collptr.first << "/" << shard.first
+                << (_waitForInSync ? " - waiting for follower."
+                                   : " - ignoring.");
+            if (_waitForInSync) {
+              return false;
+            }
             continue;  // can not resign from that shard
           }
 

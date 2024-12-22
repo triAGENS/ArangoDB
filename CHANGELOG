@@ -288,6 +288,8 @@ devel
   A REST call gives information about all these operations via a list of all
   ongoing stacktraces.
 
+* Add `waitForInSync`/`waitForInSyncTimeout` option to the resign
+  leadership job and api.
 
 3.12.3 (2024-10-25)
 -------------------

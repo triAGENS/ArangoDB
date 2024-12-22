@@ -55,6 +55,8 @@ struct ResignLeadership : public Job {
 
   std::string _server;
   bool _undoMoves{true};
+  bool _waitForInSync{false};
+  uint64_t _waitForInSyncTimeout{30 * 60};
 };
 }  // namespace consensus
 }  // namespace arangodb

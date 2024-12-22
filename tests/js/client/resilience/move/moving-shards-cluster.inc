@@ -436,12 +436,13 @@ exports.MovingShardsSuite = function({useData, replVersion}) {
 /// @brief request a dbserver to resign:
 ////////////////////////////////////////////////////////////////////////////////
 
-  function resignLeadership(id, undoMoves = false) {
+  function resignLeadership(id, options = {}) {
+    const {undoMoves = false, waitForInSync = false, waitForInSyncTimeout = 60} = options;
     var coordEndpoint =
         getCoordinators()[0];
     var request = require("@arangodb/request");
     var url = coordEndpoint.url;
-    var body = {"server": id, undoMoves};
+    var body = {"server": id, undoMoves, waitForInSync, waitForInSyncTimeout};
     var result;
     try {
       result = request({
@@ -990,6 +991,36 @@ exports.MovingShardsSuite = function({useData, replVersion}) {
       checkCollectionContents();
     },
 
+////////////////////////////////////////////////////////////////////////////////
+/// @brief resign leadership for a dbserver but wait for in sync
+////////////////////////////////////////////////////////////////////////////////
+
+    testResignLeadershipWaitForInSync: function () {
+      assertTrue(waitForSynchronousReplication(dbn));
+      var servers = findCollectionServers(dbn, c[0].name());
+      var toResign = servers[0];
+      assertTrue(resignLeadership(toResign,
+          {waitForInSync: true}));
+      assertTrue(testServerNoLeader(toResign));
+      assertTrue(waitForSupervision());
+      checkCollectionContents();
+    },
+
+////////////////////////////////////////////////////////////////////////////////
+/// @brief resign leadership for a dbserver but wait for in sync with timeout
+////////////////////////////////////////////////////////////////////////////////
+
+    testResignLeadershipWaitForInSyncTimeout: function () {
+      assertTrue(waitForSynchronousReplication(dbn));
+      var servers = findCollectionServers(dbn, c[0].name());
+      var toResign = servers[0];
+      assertTrue(resignLeadership(toResign,
+          {waitForInSync: true, waitForInSyncTimeout: 5}));
+      assertTrue(testServerNoLeader(toResign));
+      assertTrue(waitForSupervision());
+      checkCollectionContents();
+    },
+
 
 ////////////////////////////////////////////////////////////////////////////////
 /// @brief resign leadership for a dbserver and wait for restore
@@ -1003,7 +1034,7 @@ exports.MovingShardsSuite = function({useData, replVersion}) {
         var servers = findCollectionServers(dbn, c[0].name());
         var toResign = servers[0];
         const shards = findLeaderShardsForServer(toResign);
-        assertTrue(resignLeadership(toResign, true));
+        assertTrue(resignLeadership(toResign, {undoMoves: true}));
         assertTrue(testServerNoLeader(toResign));
         assertTrue(waitForSupervision());
 
