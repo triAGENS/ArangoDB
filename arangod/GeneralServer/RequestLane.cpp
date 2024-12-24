@@ -105,4 +105,11 @@ std::ostream& operator<<(std::ostream& out, RequestLane const& lane) {
   out << PriorityName(lane);
   return out;
 }
+
+std::string to_string(RequestLane lane) {
+  auto ss = std::stringstream();
+  ss << lane;
+  return std::move(ss).str();
+}
+
 }  // namespace arangodb

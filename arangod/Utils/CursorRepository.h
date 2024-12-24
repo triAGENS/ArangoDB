@@ -34,6 +34,12 @@ struct TRI_vocbase_t;
 
 namespace arangodb {
 
+namespace futures {
+template<typename T>
+class Future;
+struct Unit;
+}  // namespace futures
+
 namespace velocypack {
 class Builder;
 }
@@ -69,9 +75,9 @@ class CursorRepository {
   /// the cursor will be returned with the usage flag set to true. it must be
   /// returned later using release()
   /// the cursor will create a query internally and retain it until deleted
-  Cursor* createQueryStream(std::shared_ptr<arangodb::aql::Query> q,
-                            size_t batchSize, double ttl, bool isRetriable,
-                            transaction::OperationOrigin operationOrigin);
+  futures::Future<Cursor*> createQueryStream(std::shared_ptr<aql::Query> q,
+                                             size_t batchSize, double ttl,
+                                             bool isRetriable);
 
   /// @brief remove a cursor by id
   bool remove(CursorId id);

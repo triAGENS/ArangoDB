@@ -378,7 +378,7 @@ TYPED_TEST(AsyncTest, coroutine_is_removed_before_registry_entry) {
               2);
   }
   {
-    { coro(); }
+    { std::ignore = coro(); }
 
     EXPECT_EQ(InstanceCounterValue::instanceCounter, 0);
     EXPECT_EQ(promise_count(arangodb::async_registry::get_thread_registry()),
@@ -470,7 +470,7 @@ TYPED_TEST(AsyncTest, execution_context_is_local_to_coroutine) {
   };
   EXPECT_EQ(ExecContext::current().user(), "Begin");
 
-  calling_coro();
+  std::ignore = calling_coro();
   EXPECT_EQ(ExecContext::current().user(), "Begin");
 
   ExecContextScope new_exec(std::make_shared<ExecContext_End>());
@@ -561,7 +561,7 @@ TYPED_TEST(
     };
   };
 
-  Functions::waiter_fn(this);
+  std::ignore = Functions::waiter_fn(this);
 
   this->wait.resume();
   this->wait.await();
@@ -631,7 +631,7 @@ TYPED_TEST(
     };
   };
 
-  Functions::waiter_fn(this);
+  std::ignore = Functions::waiter_fn(this);
 
   this->wait.resume();
   this->wait.await();
@@ -681,7 +681,7 @@ TYPED_TEST(AsyncTest,
   };
 
   auto awaited_coro = Functions::awaited_fn(this);
-  Functions::waiter_fn(std::move(awaited_coro));
+  std::ignore = Functions::waiter_fn(std::move(awaited_coro));
 
   this->wait.resume();
   this->wait.await();
@@ -723,7 +723,7 @@ TYPED_TEST(
   };
 
   auto awaited_coro = Functions::awaited_fn();
-  Functions::waiter_fn(std::move(awaited_coro), this);
+  std::ignore = Functions::waiter_fn(std::move(awaited_coro), this);
 
   this->wait.resume();
   this->wait.await();

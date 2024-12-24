@@ -502,7 +502,6 @@ struct MultiConnection : public GeneralConnection<ST, RT> {
     const bool wasReading = this->_reading;
     const bool wasWriting = this->_writing;
     if (wasReading || wasWriting) {
-      FUERTE_ASSERT(_lastIO + kIOTimeout > now);
       tp = std::min(tp, _lastIO + kIOTimeout);
     }
 

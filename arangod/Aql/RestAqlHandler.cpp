@@ -26,7 +26,6 @@
 #include "ApplicationFeatures/ApplicationServer.h"
 #include "Aql/AqlCallStack.h"
 #include "Aql/AqlExecuteResult.h"
-#include "Aql/BlocksWithClients.h"
 #include "Aql/ClusterQuery.h"
 #include "Aql/ExecutionBlock.h"
 #include "Aql/ExecutionEngine.h"
@@ -34,6 +33,7 @@
 #include "Aql/ProfileLevel.h"
 #include "Aql/QueryRegistry.h"
 #include "Aql/SharedQueryState.h"
+#include "Async/async.h"
 #include "Basics/Exceptions.h"
 #include "Basics/StaticStrings.h"
 #include "Basics/StringUtils.h"
@@ -41,7 +41,6 @@
 #include "Cluster/CallbackGuard.h"
 #include "Cluster/ClusterFeature.h"
 #include "Cluster/ClusterInfo.h"
-#include "Cluster/RebootTracker.h"
 #include "Cluster/ServerState.h"
 #include "Cluster/TraverserEngine.h"
 #include "GeneralServer/RestHandler.h"
@@ -361,10 +360,10 @@ futures::Future<futures::Unit> RestAqlHandler::setupClusterQuery() {
     generateError(revisionRes);
     co_return;
   }
-  q->prepareFromVelocyPack(querySlice, collectionBuilder.slice(),
-                           variablesSlice, snippetsSlice, traverserSlice,
-                           _request->value(StaticStrings::UserString),
-                           answerBuilder, analyzersRevision, fastPath);
+  co_await q->prepareFromVelocyPack(
+      querySlice, collectionBuilder.slice(), variablesSlice, snippetsSlice,
+      traverserSlice, _request->value(StaticStrings::UserString), answerBuilder,
+      analyzersRevision, fastPath);
 
   answerBuilder.close();  // result
   answerBuilder.close();

@@ -81,6 +81,8 @@ struct SourceLocation {
 
 auto operator<<(std::ostream&, SourceLocation const&) -> std::ostream&;
 
+auto to_string(SourceLocation const&) -> std::string;
+
 // if pathStr is `/path/to/arangodb/lib/Basics/SourceLocation.h`,
 // then this will return `lib/Basics/SourceLocation.h`
 consteval auto SourceLocation::_stripPrefix(const char* pathStr) -> const

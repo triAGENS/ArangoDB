@@ -24,6 +24,7 @@
 #pragma once
 
 #include "Basics/ResultT.h"
+#include "Basics/UnshackledMutex.h"
 #include "Futures/Unit.h"
 #include "GeneralServer/RequestLane.h"
 #include "Logger/LogContext.h"
@@ -54,7 +55,7 @@ class GeneralRequest;
 class RequestStatistics;
 class Result;
 
-enum class RestStatus { DONE, WAITING, FAIL };
+enum class RestStatus { DONE, WAITING };
 
 namespace rest {
 class RestHandler : public std::enable_shared_from_this<RestHandler> {
@@ -201,7 +202,8 @@ class RestHandler : public std::enable_shared_from_this<RestHandler> {
   RequestStatistics::Item _statistics;
 
  private:
-  mutable std::mutex _executionMutex;
+  mutable basics::UnshackledMutex _executionMutex;
+  mutable bool _lockAdopted = false;
   mutable std::atomic_uint8_t _executionCounter{0};
   mutable RestStatus _followupRestStatus;
 

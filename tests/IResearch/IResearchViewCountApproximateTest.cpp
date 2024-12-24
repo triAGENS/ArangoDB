@@ -30,6 +30,7 @@
 #include "Aql/Executor/IResearchViewMergeExecutor.h"
 #include "Aql/Query.h"
 #include "Aql/SingleRowFetcher.h"
+#include "Async/async.h"
 #include "Basics/GlobalResourceMonitor.h"
 #include "Basics/ResourceUsage.h"
 #include "IResearch/IResearchExecutionPool.h"
@@ -526,7 +527,7 @@ TEST_F(IResearchViewCountApproximateTest, directSkipAllForMergeExecutorExact) {
       arangodb::transaction::StandaloneContext::create(
           vocbase(), arangodb::transaction::OperationOriginTestCase{}),
       arangodb::aql::QueryString(queryString), nullptr);
-  query->prepareQuery();
+  arangodb::tests::waitForAsync(query->prepareQuery());
   ASSERT_TRUE(query->ast());
   auto plan =
       arangodb::aql::ExecutionPlan::instantiateFromAst(query->ast(), false);
@@ -609,7 +610,7 @@ TEST_F(IResearchViewCountApproximateTest,
       arangodb::transaction::StandaloneContext::create(
           vocbase(), arangodb::transaction::OperationOriginTestCase{}),
       arangodb::aql::QueryString(queryString), nullptr);
-  query->prepareQuery();
+  arangodb::tests::waitForAsync(query->prepareQuery());
   ASSERT_TRUE(query->ast());
   auto plan =
       arangodb::aql::ExecutionPlan::instantiateFromAst(query->ast(), false);
@@ -693,7 +694,7 @@ TEST_F(IResearchViewCountApproximateTest, directSkipAllForMergeExecutorCost) {
       arangodb::transaction::StandaloneContext::create(
           vocbase(), arangodb::transaction::OperationOriginTestCase{}),
       arangodb::aql::QueryString(queryString), nullptr);
-  query->prepareQuery();
+  arangodb::tests::waitForAsync(query->prepareQuery());
   ASSERT_TRUE(query->ast());
   auto plan =
       arangodb::aql::ExecutionPlan::instantiateFromAst(query->ast(), false);

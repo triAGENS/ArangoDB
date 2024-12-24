@@ -369,7 +369,6 @@ Result ExecutionBlockImpl<RemoteExecutor>::sendAsyncRequest(
   network::RequestOptions options;
   options.database = _query.vocbase().name();
   options.timeout = kDefaultTimeOutSecs;
-  options.skipScheduler = false;
   options.continuationLane = RequestLane::CLUSTER_INTERNAL;
   // the code below assumes that the network callback is resolved with higher
   // priority than aql, which is currently medium.

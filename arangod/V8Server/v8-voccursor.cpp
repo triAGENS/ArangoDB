@@ -352,8 +352,9 @@ struct V8Cursor final {
         aql::QueryOptions(options.slice()));
 
     // specify ID 0 so it uses the external V8 context
-    Cursor* cc = cursors->createQueryStream(std::move(q), batchSize, ttl,
-                                            isRetriable, origin);
+    Cursor* cc =
+        cursors->createQueryStream(std::move(q), batchSize, ttl, isRetriable)
+            .waitAndGet();
     // a soft shutdown will throw here!
 
     arangodb::ScopeGuard releaseCursorGuard([&]() noexcept { cc->release(); });

@@ -111,6 +111,9 @@ devel
 * Put in more diagnostics and avoid a crash in follower on commit of a
   transaction in case a collection is already gone (BTS-2033).
 
+* During AQL setup, the Coordinator will no longer block threads while waiting
+  for DBServers to finish the query instantiation.
+
 * Fix delivery of planCacheKey attribute for batched and streaming cursors.
 
 * Fix view usage in cached query plans.

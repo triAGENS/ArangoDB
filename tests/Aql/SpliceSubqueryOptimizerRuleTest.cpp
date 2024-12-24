@@ -33,6 +33,7 @@
 #include "Aql/ExecutionNode/SubqueryEndExecutionNode.h"
 #include "Aql/ExecutionNode/SubqueryStartExecutionNode.h"
 #include "Aql/WalkerWorker.h"
+#include "Async/async.h"
 #include "Logger/LogMacros.h"
 #include "RestServer/QueryRegistryFeature.h"
 #include "StorageEngine/PhysicalCollection.h"
@@ -142,7 +143,7 @@ class SpliceSubqueryNodeOptimizerRuleTest : public ::testing::Test {
     auto splicedQuery = arangodb::aql::Query::create(
         std::move(ctx), arangodb::aql::QueryString(querystring), bindParamVpack,
         arangodb::aql::QueryOptions(ruleOptions(additionalOptions)->slice()));
-    splicedQuery->prepareQuery();
+    waitForAsync(splicedQuery->prepareQuery());
     ASSERT_EQ(queryRegistry->numberRegisteredQueries(), 0)
         << "query string: " << querystring;
 

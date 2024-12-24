@@ -31,6 +31,7 @@
 #include "Aql/OptimizerRule.h"
 #include "Aql/Query.h"
 #include "Aql/QueryRegistry.h"
+#include "Async/async.h"
 #include "IResearch/ApplicationServerHelper.h"
 #include "IResearch/IResearchFilterFactory.h"
 #include "IResearch/IResearchLink.h"
@@ -244,7 +245,7 @@ bool findEmptyNodes(
       arangodb::aql::QueryString(queryString), bindVars,
       arangodb::aql::QueryOptions(options->slice()));
 
-  query->prepareQuery();
+  waitForAsync(query->prepareQuery());
 
   arangodb::containers::SmallVector<arangodb::aql::ExecutionNode*, 8> nodes;
 

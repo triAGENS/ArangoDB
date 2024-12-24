@@ -21,7 +21,6 @@
 
 #include "Scheduler.h"
 #include "SimpleThreadPool.h"
-#include "LockfreeThreadPool.h"
 #include "WorkStealingThreadPool.h"
 #include "SchedulerMetrics.h"
 

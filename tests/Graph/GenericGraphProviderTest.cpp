@@ -162,7 +162,7 @@ class GraphProviderTest : public ::testing::Test {
                                        arangodb::aql::Collection::Hint::Shard);
         } catch (...) {
         }
-        fakeQuery->prepareQuery();
+        waitForAsync(fakeQuery->prepareQuery());
         auto ast = fakeQuery->ast();
         auto tmpVar = ast->variables()->createTemporaryVariable();
         auto tmpVarRef = ast->createNodeReference(tmpVar);
@@ -230,7 +230,7 @@ class GraphProviderTest : public ::testing::Test {
         query->collections().add("e", AccessMode::Type::READ,
                                  arangodb::aql::Collection::Hint::Collection);
 
-        query->prepareQuery();
+        waitForAsync(query->prepareQuery());
       }
 
       clusterEngines =

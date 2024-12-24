@@ -286,6 +286,8 @@ class SharedState : public async_registry::AddToAsyncRegistry {
     _attached.fetch_add(1);
     // SharedStateScope makes this exception safe
     SharedStateScope scope(this);  // will call detachOne()
+    // TODO make this line noexcept
+    // [&]() noexcept { _callback(std::move(_result)); }();
     _callback(std::move(_result));
 
     update_state(async_registry::State::Resolved);

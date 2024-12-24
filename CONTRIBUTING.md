@@ -1205,7 +1205,7 @@ Hence a downgrade of the communication to JSON can be made at start time:
 Don't want to miss a beat of your test? If you want to invoke tcpdump with sudo,
 make sure that your current shell has sudo enabled. Try like this:
 
-    sudo /bin/true; ./scripts/unittest http_server \
+    sudo -v; ./scripts/unittest http_server \
       --sniff sudo --cleanup false
 
 The pcap file will end up in your tests temporary directory. You may need to

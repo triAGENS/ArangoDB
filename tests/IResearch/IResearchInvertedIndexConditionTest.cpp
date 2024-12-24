@@ -33,6 +33,7 @@
 #include "Aql/ExpressionContext.h"
 #include "Aql/Projections.h"
 #include "Aql/Query.h"
+#include "Async/async.h"
 #include "Basics/GlobalResourceMonitor.h"
 #include "Basics/StaticStrings.h"
 #include "IResearch/AqlHelper.h"
@@ -223,7 +224,7 @@ class IResearchInvertedIndexConditionTest
     auto query = Query::create(ctx, QueryString(queryString), bindVars);
 
     ASSERT_NE(query.get(), nullptr);
-    query->prepareQuery();
+    arangodb::tests::waitForAsync(query->prepareQuery());
     auto* ast = query->ast();
     ASSERT_TRUE(ast);
     auto* root = ast->root();

@@ -142,3 +142,8 @@ void QueryContext::enterV8Executor() {
   THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_NOT_IMPLEMENTED,
                                  "V8 support not implemented");
 }
+
+QueryContext::ExecuteCallerWaiting QueryContext::executeCallerWaiting()
+    const noexcept {
+  return _executeCallerWaiting;
+}

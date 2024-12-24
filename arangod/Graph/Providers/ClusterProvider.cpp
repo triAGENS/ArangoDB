@@ -206,6 +206,9 @@ void ClusterProvider<StepImpl>::fetchVerticesFromEngines(
   }
 
   for (Future<network::Response>& f : futures) {
+    // NOTE: If you remove this waitAndGet() in favour of an asynchronous
+    // operation, remember to remove the `skipScheduler = true` option of the
+    // corresponding requests.
     network::Response const& r = f.waitAndGet();
 
     if (r.fail()) {
@@ -288,6 +291,10 @@ void ClusterProvider<StepImpl>::destroyEngines() {
   auto const* engines = _opts.engines();
   for (auto const& engine : *engines) {
     _stats.incrHttpRequests(1);
+
+    // NOTE: If you remove this waitAndGet() in favour of an asynchronous
+    // operation, remember to remove the `skipScheduler = true` option of the
+    // corresponding requests.
     auto res = network::sendRequestRetry(
                    pool, "server:" + engine.first, fuerte::RestVerb::Delete,
                    "/_internal/traverser/" +
@@ -363,6 +370,9 @@ Result ClusterProvider<StepImpl>::fetchEdgesFromEngines(Step* step) {
 
   std::vector<std::pair<EdgeType, VertexType>> connectedEdges;
   for (Future<network::Response>& f : futures) {
+    // NOTE: If you remove this waitAndGet() in favour of an asynchronous
+    // operation, remember to remove the `skipScheduler = true` option of the
+    // corresponding requests.
     network::Response const& r = f.waitAndGet();
 
     if (r.fail()) {

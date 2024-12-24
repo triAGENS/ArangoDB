@@ -34,6 +34,9 @@
 #include "Aql/QueryString.h"
 #include "Basics/Guarded.h"
 #include "Basics/ResourceUsage.h"
+#include "Futures/Future.h"
+#include "Futures/Try.h"
+#include "Futures/Unit.h"
 #include "Scheduler/SchedulerFeature.h"
 #include "VocBase/Identifiers/TransactionId.h"
 
@@ -61,6 +64,9 @@ class LogicalDataSource;
 #ifdef USE_V8
 class V8Executor;
 #endif
+
+template<typename>
+struct async;
 
 namespace transaction {
 class Context;
@@ -174,7 +180,7 @@ class Query : public QueryContext, public std::enable_shared_from_this<Query> {
   /// the start of finalize)
   double executionTime() const noexcept;
 
-  void prepareQuery();
+  async<void> prepareQuery();
 
   /// @brief execute an AQL query
   ExecutionState execute(QueryResult& res);
@@ -203,13 +209,13 @@ class Query : public QueryContext, public std::enable_shared_from_this<Query> {
   /// @brief prepare a query out of some velocypack data.
   /// only to be used on single server or coordinator.
   /// never call this on a DB server!
-  void prepareFromVelocyPack(velocypack::Slice querySlice,
-                             velocypack::Slice collections,
-                             velocypack::Slice views,
-                             velocypack::Slice variables,
-                             velocypack::Slice snippets);
+  void prepareFromVelocyPackWithoutInstantiate(velocypack::Slice querySlice,
+                                               velocypack::Slice collections,
+                                               velocypack::Slice views,
+                                               velocypack::Slice variables,
+                                               velocypack::Slice snippets);
 
-  void instantiatePlan(velocypack::Slice snippets);
+  async<void> instantiatePlan(velocypack::Slice snippets);
 
   /// @brief whether or not a query is a modification query
   bool isModificationQuery() const noexcept final;
@@ -376,7 +382,8 @@ class Query : public QueryContext, public std::enable_shared_from_this<Query> {
   std::function<void(velocypack::Builder&)> buildSerializeQueryDataCallback(
       CollectionSerializationFlags flags) const;
 
-  enum class ExecutionPhase { INITIALIZE, EXECUTE, FINALIZE };
+  enum class ExecutionPhase { INITIALIZE, PREPARE, EXECUTE, FINALIZE };
+  friend auto toString(ExecutionPhase) -> std::string_view;
 
  protected:
   AqlItemBlockManager _itemBlockManager;
@@ -502,6 +509,10 @@ class Query : public QueryContext, public std::enable_shared_from_this<Query> {
 
   /// @brief was this query killed (can only be set once)
   std::atomic<bool> _queryKilled;
+
+  // This holds a possible exception of prepareQuery, so it can be re-thrown at
+  // the right moment.
+  futures::Try<futures::Unit> _prepareResult;
 };
 
 }  // namespace aql

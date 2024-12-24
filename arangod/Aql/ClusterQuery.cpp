@@ -32,6 +32,7 @@
 #include "Aql/QueryRegistry.h"
 #include "Aql/QueryProfile.h"
 #include "Aql/SharedQueryState.h"
+#include "Async/async.h"
 #include "Basics/ScopeGuard.h"
 #include "Cluster/ServerState.h"
 #include "Cluster/TraverserEngine.h"
@@ -116,7 +117,7 @@ void ClusterQuery::buildTraverserEngines(velocypack::Slice traverserSlice,
 /// @brief prepare a query out of some velocypack data.
 /// only to be used on a DB server.
 /// never call this on a single server or coordinator!
-void ClusterQuery::prepareFromVelocyPack(
+async<void> ClusterQuery::prepareFromVelocyPack(
     velocypack::Slice querySlice, velocypack::Slice collections,
     velocypack::Slice variables, velocypack::Slice snippets,
     velocypack::Slice traverserSlice, std::string const& user,
@@ -125,7 +126,8 @@ void ClusterQuery::prepareFromVelocyPack(
   TRI_ASSERT(ServerState::instance()->isDBServer());
 
   LOG_TOPIC("45493", DEBUG, Logger::QUERIES)
-      << elapsedSince(_startTime) << " ClusterQuery::prepareFromVelocyPack"
+      << elapsedSince(_startTime)
+      << " ClusterQuery::prepareFromVelocyPackWithoutInstantiate"
       << " this: " << (uintptr_t)this;
 
   // track memory usage
@@ -203,19 +205,24 @@ void ClusterQuery::prepareFromVelocyPack(
   enterState(QueryExecutionState::ValueType::PARSING);
 
   bool const planRegisters = !_queryString.empty();
-  auto instantiateSnippet = [&](velocypack::Slice snippet) {
+  auto instantiateSnippet = [&](velocypack::Slice snippet) -> async<void> {
     auto plan = ExecutionPlan::instantiateFromVelocyPack(_ast.get(), snippet,
                                                          /*simple*/ false);
     TRI_ASSERT(plan != nullptr);
 
-    ExecutionEngine::instantiateFromPlan(*this, *plan, planRegisters);
+    // Note that instantiateFromPlan only does something async on a Coordinator.
+    // Maybe it makes sense to split it into two different functions, which
+    // might also make it clearer which code runs on a Coordinator, and which
+    // runs on a DBServer.
+    co_await ExecutionEngine::instantiateFromPlan(*this, *plan, planRegisters);
     _plans.push_back(std::move(plan));
+    co_return;
   };
 
   TRI_ASSERT(answerBuilder.isOpenObject());
   answerBuilder.add("snippets", VPackValue(VPackValueType::Object));
   for (auto pair : VPackObjectIterator(snippets, /*sequential*/ true)) {
-    instantiateSnippet(pair.value);
+    co_await instantiateSnippet(pair.value);
 
     TRI_ASSERT(!_snippets.empty());
     TRI_ASSERT(_snippets.back()->engineId() != 0);

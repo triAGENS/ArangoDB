@@ -399,7 +399,7 @@ std::unique_ptr<graph::BaseOptions> createTraversalOptions(
       !(options->isUniqueGlobalVerticesAllowed())) {
     THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_BAD_PARAMETER,
                                    "uniqueVertices: 'global' is only "
-                                   "supported, with mode: bfs|weighted due to "
+                                   "supported, with order: bfs|weighted due to "
                                    "otherwise unpredictable results.");
   }
 

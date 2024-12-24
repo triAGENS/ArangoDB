@@ -29,7 +29,7 @@ namespace arangodb::basics {
 
 // @brief Normal Mutexes, like std::mutex or pthread_mutex_t, require to be
 // unlocked by the same thread they were locked. However, with rising use of
-// async programming / futures, this is not always practical any more.
+// async programming / futures, this is not always practical anymore.
 // This mutex lifts this requirement and can be unlocked from another thread.
 class UnshackledMutex {
  public:

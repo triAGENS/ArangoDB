@@ -24,6 +24,7 @@
 #include "SourceLocation.h"
 
 #include <iostream>
+#include <sstream>
 
 namespace arangodb::basics {
 
@@ -34,6 +35,12 @@ auto operator<<(std::ostream& ostream, SourceLocation const& sourceLocation)
                  // I guess the column usually isn't useful.
                  // << sourceLocation.column() << ":"
                  << "[" << sourceLocation.function_name() << "]";
+}
+
+auto to_string(SourceLocation const& sourceLocation) -> std::string {
+  auto ss = std::stringstream{};
+  ss << sourceLocation;
+  return std::move(ss).str();
 }
 
 }  // namespace arangodb::basics

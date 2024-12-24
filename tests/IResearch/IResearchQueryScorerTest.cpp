@@ -34,6 +34,7 @@
 #include "Aql/Expression.h"
 #include "Aql/OptimizerRule.h"
 #include "Aql/Query.h"
+#include "Async/async.h"
 #include "IResearch/IResearchFeature.h"
 #include "IResearch/IResearchVPackComparer.h"
 #include "IResearch/IResearchView.h"
@@ -542,7 +543,7 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      waitForAsync(query->prepareQuery());
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -649,7 +650,7 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      waitForAsync(query->prepareQuery());
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -761,7 +762,7 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      waitForAsync(query->prepareQuery());
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -872,7 +873,7 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      waitForAsync(query->prepareQuery());
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -984,7 +985,7 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      waitForAsync(query->prepareQuery());
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -1096,7 +1097,7 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      waitForAsync(query->prepareQuery());
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -1218,7 +1219,7 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      waitForAsync(query->prepareQuery());
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -1330,7 +1331,7 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      waitForAsync(query->prepareQuery());
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -1418,7 +1419,7 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      waitForAsync(query->prepareQuery());
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -1508,7 +1509,7 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      waitForAsync(query->prepareQuery());
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -1629,7 +1630,7 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      waitForAsync(query->prepareQuery());
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -1719,7 +1720,7 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      waitForAsync(query->prepareQuery());
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 
@@ -1804,7 +1805,7 @@ class QueryScorer : public QueryTest {
               _vocbase, arangodb::transaction::OperationOriginTestCase{}),
           arangodb::aql::QueryString(queryString), nullptr);
 
-      query->prepareQuery();
+      waitForAsync(query->prepareQuery());
       auto* plan = query->plan();
       ASSERT_TRUE(plan);
 

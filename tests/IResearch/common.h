@@ -59,6 +59,9 @@ namespace arangodb {
 class IndexId;
 class DatabasePathFeature;  // forward declaration
 
+template<typename>
+struct async;
+
 namespace application_features {
 class ApplicationServer;
 }
@@ -74,6 +77,8 @@ class ByExpression;
 }
 
 namespace tests {
+
+void waitForAsync(async<void>&& as);
 
 extern std::string const AnalyzerCollectionName;
 

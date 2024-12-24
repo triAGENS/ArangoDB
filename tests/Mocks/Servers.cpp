@@ -37,6 +37,7 @@
 #include "Aql/ProfileLevel.h"
 #include "Aql/Query.h"
 #include "Aql/QueryInfoLoggerFeature.h"
+#include "Async/async.h"
 #include "Basics/StringUtils.h"
 #include "Basics/TimeString.h"
 #include "Basics/files.h"
@@ -481,7 +482,7 @@ std::shared_ptr<aql::Query> MockAqlServer::createFakeQuery(
       aql::QueryString(queryString), nullptr,
       aql::QueryOptions(queryOptions.slice()), scheduler);
   callback(*query);
-  query->prepareQuery();
+  waitForAsync(query->prepareQuery());
 
   return query;
 }
@@ -624,7 +625,7 @@ std::shared_ptr<aql::Query> MockClusterServer::createFakeQuery(
       aql::QueryString(queryString), nullptr,
       aql::QueryOptions(queryOptions.slice()));
   callback(*query);
-  query->prepareQuery();
+  waitForAsync(query->prepareQuery());
 
   return query;
 }
