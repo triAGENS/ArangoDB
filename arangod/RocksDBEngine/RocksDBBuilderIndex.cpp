@@ -92,6 +92,9 @@ Result partiallyCommitInsertions(RocksDBBatchedBaseMethods& batched,
                                  RocksDBTransactionCollection* trxColl,
                                  std::atomic<uint64_t>& docsProcessed,
                                  RocksDBIndex& ridx, bool isForeground) {
+  TRI_ASSERT(rootDB != nullptr);
+  TRI_ASSERT(trxColl != nullptr);
+
   auto docsInBatch = batch.GetWriteBatch()->Count();
   if (docsInBatch > 0) {
     rocksdb::WriteOptions wo;

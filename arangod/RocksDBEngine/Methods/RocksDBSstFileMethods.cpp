@@ -29,17 +29,18 @@
 #include "Basics/FileUtils.h"
 #include "Basics/RocksDBUtils.h"
 #include "Basics/Thread.h"
+#include "Logger/LogMacros.h"
 #include "Random/RandomGenerator.h"
 #include "RestServer/DatabasePathFeature.h"
 #include "RestServer/TemporaryStorageFeature.h"
 
-#include "Logger/LogMacros.h"
+#include <absl/strings/str_cat.h>
 
 using namespace arangodb;
 
 RocksDBSstFileMethods::RocksDBSstFileMethods(
     bool isForeground, rocksdb::DB* rootDB,
-    RocksDBTransactionCollection* trxColl, RocksDBIndex& ridx,
+    RocksDBTransactionCollection* trxColl, RocksDBIndex* ridx,
     rocksdb::Options const& dbOptions, std::string const& idxPath,
     StorageUsageTracker& usageTracker,
     RocksDBMethodsMemoryTracker& memoryTracker)
@@ -47,10 +48,11 @@ RocksDBSstFileMethods::RocksDBSstFileMethods(
       _isForeground(isForeground),
       _rootDB(rootDB),
       _trxColl(trxColl),
-      _ridx(&ridx),
-      _cf(ridx.columnFamily()),
+      _ridx(ridx),
+      _cf(ridx->columnFamily()),
       _sstFileWriter(rocksdb::EnvOptions(dbOptions), dbOptions,
-                     ridx.columnFamily()),
+                     ridx->columnFamily()->GetComparator(),
+                     ridx->columnFamily()),
       _idxPath(idxPath),
       _usageTracker(usageTracker),
       _bytesWrittenToDir(0) {}
@@ -64,6 +66,7 @@ RocksDBSstFileMethods::RocksDBSstFileMethods(
       _isForeground(false),
       _rootDB(rootDB),
       _trxColl(nullptr),
+      _ridx(nullptr),
       _cf(cf),
       _sstFileWriter(rocksdb::EnvOptions(dbOptions), dbOptions,
                      _cf->GetComparator(), _cf),
@@ -76,6 +79,7 @@ RocksDBSstFileMethods::~RocksDBSstFileMethods() { cleanUpFiles(); }
 void RocksDBSstFileMethods::insertEstimators() {
   auto ops = _trxColl->stealTrackedIndexOperations();
   if (!ops.empty()) {
+    TRI_ASSERT(_ridx != nullptr);
     TRI_ASSERT(_ridx->hasSelectivityEstimate() && ops.size() == 1);
     auto it = ops.begin();
     TRI_ASSERT(_ridx->id() == it->first);
@@ -101,16 +105,14 @@ rocksdb::Status RocksDBSstFileMethods::writeToFile() {
 
   auto comparator = _cf->GetComparator();
   std::sort(_keyValPairs.begin(), _keyValPairs.end(),
-            [&comparator](auto& v1, auto& v2) {
+            [&comparator](auto const& v1, auto const& v2) {
               return comparator->Compare({v1.first}, {v2.first}) < 0;
             });
   TRI_pid_t pid = Thread::currentProcessId();
   std::string tmpFileName =
-      std::to_string(pid) + '-' +
-      std::to_string(RandomGenerator::interval(UINT32_MAX));
-  std::string fileName =
-      basics::FileUtils::buildFilename(_idxPath, tmpFileName);
-  fileName += ".sst";
+      absl::StrCat(pid, "-", RandomGenerator::interval(UINT32_MAX));
+  std::string fileName = absl::StrCat(
+      basics::FileUtils::buildFilename(_idxPath, tmpFileName), ".sst");
   rocksdb::Status res = _sstFileWriter.Open(fileName);
   if (res.ok()) {
     _bytesToWriteCount = 0;
@@ -136,10 +138,17 @@ rocksdb::Status RocksDBSstFileMethods::writeToFile() {
     }
     if (!res.ok()) {
       cleanUpFiles();
-    } else if (_ridx.get() != nullptr) {
+    } else if (_ridx != nullptr) {
       insertEstimators();
     }
   }
+
+  if (!res.ok()) {
+    LOG_TOPIC("fad7f", WARN, Logger::ENGINES)
+        << "error during insertion into SST file " << fileName << ": "
+        << rocksutils::convertStatus(res).errorMessage();
+  }
+
   return res;
 }
 

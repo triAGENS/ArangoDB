@@ -148,11 +148,6 @@
 #include <limits>
 #include <utility>
 
-// we will not use the multithreaded index creation that uses rocksdb's sst
-// file ingestion until rocksdb external file ingestion is fixed to have
-// correct sequence numbers for the files without gaps
-#undef USE_SST_INGESTION
-
 // #define USE_CUSTOM_WAL
 
 using namespace arangodb;
@@ -1023,11 +1018,11 @@ void RocksDBEngine::start() {
             arangodb::basics::VelocyPackHelper::SortingMethod::Legacy>>());
   }
 
-#ifdef USE_SST_INGESTION
   _idxPath = basics::FileUtils::buildFilename(_path, "tmp-idx-creation");
   if (basics::FileUtils::isDirectory(_idxPath)) {
     for (auto const& fileName : TRI_FullTreeDirectory(_idxPath.c_str())) {
-      TRI_UnlinkFile(basics::FileUtils::buildFilename(path, fileName).data());
+      TRI_UnlinkFile(
+          basics::FileUtils::buildFilename(_idxPath, fileName).c_str());
     }
   } else {
     auto errorMsg = TRI_ERROR_NO_ERROR;
@@ -1037,7 +1032,6 @@ void RocksDBEngine::start() {
       FATAL_ERROR_EXIT();
     }
   }
-#endif
 
   uint64_t totalSpace;
   uint64_t freeSpace;

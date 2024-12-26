@@ -689,9 +689,7 @@ Result IndexFactory::enhanceJsonIndexGeneric(VPackSlice definition,
     // "inBackground"
     processIndexInBackground(definition, builder);
     // "parallelism"
-#ifdef USE_SST_INGESTION
     processIndexParallelism(definition, builder);
-#endif
     // "cacheEnabled"
     processIndexCacheEnabled(definition, builder);
   }
