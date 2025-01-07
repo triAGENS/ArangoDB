@@ -42,31 +42,6 @@
 using namespace arangodb;
 using namespace arangodb::async_registry;
 
-auto all_undeleted_promises()
-    -> std::pair<WaiterForest<PromiseSnapshot>, std::vector<Id>> {
-  WaiterForest<PromiseSnapshot> forest;
-  std::vector<Id> roots;
-  registry.for_promise([&](PromiseSnapshot promise) {
-    if (promise.state != State::Deleted) {
-      // only async waiters are considered here, they point to other promises in
-      // the registry
-      // sync waiters point to threads that are waiting synchronously and are
-      // not relevant for creating the forest
-      std::visit(overloaded{
-                     [&](PromiseId waiter) {
-                       forest.insert(promise.id, waiter, promise);
-                     },
-                     [&](ThreadId thread) {
-                       forest.insert(promise.id, nullptr, promise);
-                       roots.emplace_back(promise.id);
-                     },
-                 },
-                 promise.requester);
-    }
-  });
-  return std::make_pair(forest, roots);
-}
-
 struct Entry {
   TreeHierarchy hierarchy;
   PromiseSnapshot data;
@@ -83,24 +58,57 @@ RestHandler::RestHandler(ArangodServer& server, GeneralRequest* request,
       _feature(server.getFeature<Feature>()) {}
 
 namespace {
-auto getData() -> VPackBuilder {
-  auto [promises, roots] = all_undeleted_promises();
-  auto awaited_promises = promises.index_by_awaitee();
+/**
+   Creates a forest of all promises in the async registry
 
+   An edge between two promises means that the lower hierarchy promise waits for
+ the larger hierarchy promise.
+ **/
+auto all_undeleted_promises() -> ForestWithRoots<PromiseSnapshot> {
+  WaiterForest<PromiseSnapshot> forest;
+  std::vector<Id> roots;
+  registry.for_promise([&](PromiseSnapshot promise) {
+    if (promise.state != State::Deleted) {
+      std::visit(overloaded{
+                     [&](PromiseId async_waiter) {
+                       forest.insert(promise.id, async_waiter, promise);
+                     },
+                     [&](ThreadId sync_waiter_thread) {
+                       forest.insert(promise.id, nullptr, promise);
+                       roots.emplace_back(promise.id);
+                     },
+                 },
+                 promise.requester);
+    }
+  });
+  return ForestWithRoots{forest, roots};
+}
+
+/**
+   Converts a forest of promises into a list of stacktraces inside a
+ velocypack.
+
+   The list of stacktraces include one stacktrace per tree in the forest. To
+ create one stacktrace, it uses a depth first search to traverse the forest in
+ post order, such that promises with the highest hierarchy in a tree are given
+ first and the root promise is given last.
+ **/
+auto getStacktraceData(IndexedForestWithRoots<PromiseSnapshot> const& promises)
+    -> VPackBuilder {
   VPackBuilder builder;
   builder.openObject();
   builder.add(VPackValue("promise_stacktraces"));
   builder.openArray();
-  for (auto root : roots) {
+  for (auto const& root : promises._roots) {
     builder.openArray();
-    auto dfs = DFS_PostOrder{awaited_promises, root};
+    auto dfs = DFS_PostOrder{promises, root};
     do {
       auto next = dfs.next();
       if (next == std::nullopt) {
         break;
       }
       auto [id, hierarchy] = next.value();
-      auto data = awaited_promises.data(id);
+      auto data = promises.data(id);
       if (data != std::nullopt) {
         auto entry = Entry{.hierarchy = hierarchy, .data = data.value()};
         velocypack::serialize(builder, entry);
@@ -126,6 +134,7 @@ auto RestHandler::executeAsync() -> futures::Future<futures::Unit> {
     co_return;
   }
 
+  // forwarding
   bool foundServerIdParameter;
   std::string const& serverId =
       _request->value("serverId", foundServerIdParameter);
@@ -178,6 +187,9 @@ auto RestHandler::executeAsync() -> futures::Future<futures::Unit> {
   }
 
   auto lock_guard = co_await _feature.asyncLock();
-  generateResult(rest::ResponseCode::OK, getData().slice());
+
+  // do actual work
+  auto promises = all_undeleted_promises().index_by_awaitee();
+  generateResult(rest::ResponseCode::OK, getStacktraceData(promises).slice());
   co_return;
 }
