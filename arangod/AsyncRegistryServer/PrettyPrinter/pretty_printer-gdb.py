@@ -4,18 +4,47 @@ Parsing
 
 """
 
-# class Promise:
-#     def __init__(self, value):
+class Requester:
+    def __init__(self, value):
+        self.alternative = value['_M_index'] # this is currently 0
+        self.value = value['_M_u']['_M_rest']['_M_first']['_M_storage'] # this is currently type void* so probably as PromiseId
 
-# class ThreadRegistry:
-#     def __init__(self, value):
-#        self.head = value["promise_head"]
+    def __str__(self):
+        return str(self.alternative) + ": " + str(self.value)
 
-#     def to_string(self):
-#         return self.head
-        
+class Promise:
+    def __init__(self, value_ptr):
+        self.id = value_ptr.address # TODO seems to be incorrect id
+        value = value_ptr.dereference()
+        self.thread = value["thread"] # TODO add type
+        self.source_location = value["source_location"] # TODO add type
+        self.requester = Requester(value["requester"]['_M_i']) # TODO add type
+        self.state = value["state"] # TODO add type
+
+    def __str__(self):
+        return str(self.id) + ": " + str(self.state) + " - " + str(self.requester)
+
+class PromiseList:
+    def __init__(self, value_ptr):
+        self.head_ptr = value_ptr
+
+    def __iter__(self):
+        current = self.head_ptr
+        next = current
+        while next != 0:
+            current = next
+            next = current.dereference()["next"]
+            yield Promise(current)
+
+class ThreadRegistry:
+    def __init__(self, value):
+       self.promises = PromiseList(value["promise_head"]["_M_b"]["_M_p"])
+
+    def __str__(self):
+        for promise in self.promises:
+            return str(promise)
     
-class ThreadRegistries:
+class ThreadRegistryList:
     def __init__(self, value):
         self.begin = value["_M_start"]
         self.end = value["_M_finish"]
@@ -24,10 +53,11 @@ class ThreadRegistries:
         counter = 0
         current = self.begin
         while current != self.end:
-            registry = ("[%d]" % counter, current.dereference()["_M_ptr"].dereference())
+            thread_registry = ThreadRegistry(current.dereference()["_M_ptr"].dereference())
+            output = ("[%d]" % counter, str(thread_registry))
             current += 1
             counter += 1
-            yield registry
+            yield output
 
 class AsyncRegistry:
     def __init__(self, value):
@@ -36,7 +66,7 @@ class AsyncRegistry:
 
     def to_string (self):
         count = 0
-        for registry in ThreadRegistries(self.thread_registries["_M_impl"]):
+        for registry in ThreadRegistryList(self.thread_registries["_M_impl"]):
             # TODO collect all promises in a forest
             count += 1
             if count % 2 == 0:
