@@ -241,7 +241,6 @@ class RocksDBAllIndexIterator final : public IndexIterator {
               ro.iterate_upper_bound = &_upperBound;
             }
             ro.readOwnWrites = static_cast<bool>(canReadOwnWrites());
-            // ro.readahead_size = 4 * 1024 * 1024;
           });
     }
 

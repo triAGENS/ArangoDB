@@ -1,0 +1,16 @@
+name: rocksdb_num_blob_files
+introducedIn: "3.12.2"
+help: |
+  Number of live RocksDB .blob files.
+unit: number
+type: gauge
+category: RocksDB
+complexity: advanced
+exposedBy:
+  - dbserver
+  - agent
+  - single
+description: |
+  This metric exhibits the RocksDB metric `rocksdb-num-blob-files`.
+  It shows the total number of .blob files belonging to the latest
+  LSM tree, summed over all column families that use blob files.

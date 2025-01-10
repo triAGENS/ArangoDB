@@ -81,11 +81,11 @@ class RocksDBBackgroundThread;
 class RocksDBDumpManager;
 class RocksDBKey;
 class RocksDBLogValue;
+class RocksDBRateLimiterThread;
 class RocksDBRecoveryHelper;
 class RocksDBReplicationManager;
 class RocksDBSettingsManager;
 class RocksDBSyncThread;
-class RocksDBThrottle;  // breaks tons if RocksDBThrottle.h included here
 class RocksDBWalAccess;
 class TransactionCollection;
 class TransactionState;
@@ -674,8 +674,8 @@ class RocksDBEngine final : public StorageEngine, public ICompactKeyRange {
   /// checks.
   uint64_t _requiredDiskFreeBytes;
 
-  // use write-throttling
-  bool _useThrottle;
+  // use rate limiting for RocksDB write operations
+  bool _useRateLimiter;
 
   /// @brief whether or not to use _releasedTick when determining the WAL files
   /// to prune
@@ -700,8 +700,8 @@ class RocksDBEngine final : public StorageEngine, public ICompactKeyRange {
 
   // code to pace ingest rate of writes to reduce chances of compactions getting
   // too far behind and blocking incoming writes
-  // (will only be set if _useThrottle is true)
-  std::shared_ptr<RocksDBThrottle> _throttleListener;
+  // (will only be set if _useRateLimiter is true)
+  std::shared_ptr<RocksDBRateLimiterThread> _rateLimiter;
 
   /// @brief background error listener. will be invoked by rocksdb in case of
   /// a non-recoverable error
@@ -743,24 +743,27 @@ class RocksDBEngine final : public StorageEngine, public ICompactKeyRange {
   containers::FlatHashSet<rocksdb::ColumnFamilyHandle*>
       _runningCompactionsColumnFamilies;
 
-  // frequency for throttle in milliseconds between iterations
-  uint64_t _throttleFrequency = 1000;
+  // frequency for rate limiter in milliseconds between iterations
+  uint64_t _rateLimiterFrequency = 1000;
 
-  // number of historic data slots to keep around for throttle
-  uint64_t _throttleSlots = 120;
-  // adaptiveness factor for throttle
+  // number of historic data slots to keep around for rate limiter
+  uint64_t _rateLimiterSlots = 128;
+  // adaptiveness factor for rate limiter:
   // following is a heuristic value, determined by trial and error.
   // its job is slow down the rate of change in the current throttle.
   // we do not want sudden changes in one or two intervals to swing
-  // the throttle value wildly. the goal is a nice, even throttle value.
-  uint64_t _throttleScalingFactor = 17;
-  // max write rate enforced by throttle
-  uint64_t _throttleMaxWriteRate = 0;
-  // trigger point where level-0 file is considered "too many pending"
-  // (from original Google leveldb db/dbformat.h)
-  uint64_t _throttleSlowdownWritesTrigger = 8;
-  // Lower bound for computed write bandwidth of throttle:
-  uint64_t _throttleLowerBoundBps = 10 * 1024 * 1024;
+  // the write rate value wildly. the goal is a nice, even value.
+  // note that the write rate is reduced by applying the reduction
+  // divided by the full scaling factor, and that the write rate is
+  // increased by applying the increase divided by half of the
+  // scaling factor, i.e.
+  // - write_rate = old_write_rate + increase / (scaling_factor / 2)
+  // - write_rate = old_write_rate - decrease / scaling_factor
+  uint64_t _rateLimiterScalingFactor = 192;
+  // min write rate enforced by rate limiter
+  uint64_t _rateLimiterMinWriteRate = 10 * 1024 * 1024;
+  // max write rate enforced by rate limiter (0 = unlimited)
+  uint64_t _rateLimiterMaxWriteRate = 0;
 
   // sequence number from which WAL recovery was started. used only
   // for testing

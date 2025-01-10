@@ -1,0 +1,15 @@
+name: rocksdb_block_cache_charge_per_entry
+introducedIn: "3.12.2"
+help: |
+  Average size of entries in RocksDB block cache.
+unit: bytes
+type: gauge
+category: RocksDB
+complexity: advanced
+exposedBy:
+  - dbserver
+  - agent
+  - single
+description: |
+  The metric shows the average size of cache entry value in the RocksDB
+  block cache.

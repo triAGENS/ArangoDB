@@ -1,0 +1,15 @@
+name: rocksdb_block_cache_entries
+introducedIn: "3.12.2"
+help: |
+  Number of entries in the RocksDB block cache.
+unit: number
+type: gauge
+category: RocksDB
+complexity: advanced
+exposedBy:
+  - dbserver
+  - agent
+  - single
+description: |
+  This metric shows the total number of entries present in the RocksDB block
+  cache.

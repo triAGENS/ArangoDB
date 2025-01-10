@@ -1,0 +1,17 @@
+name: rocksdb_live_blob_file_garbage_size
+introducedIn: "3.12.2"
+help: |
+  Size of garbage in live RocksDB .blob files.
+unit: bytes
+type: gauge
+category: RocksDB
+complexity: advanced
+exposedBy:
+  - dbserver
+  - agent
+  - single
+description: |
+  This metric exhibits the RocksDB metric `rocksdb-live-blob-file-garbage-size`.
+  It shows the total amount of garbage (obsolete, unreferenced blobs) in bytes
+  over in .blob files belonging to the latest LSM tree, summed over all
+  column families that use blob files.
