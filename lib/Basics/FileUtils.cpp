@@ -658,8 +658,79 @@ void makePathAbsolute(std::string& path) {
 
 namespace {
 
+// Check if path is safe (no relative paths, no special characters)
+bool isPathSafe(std::string const& path) {
+  // Reject empty paths
+  if (path.empty()) {
+    return false;
+  }
+
+  // Must be absolute path
+  if (path[0] != '/') {
+    return false;
+  }
+
+  // Check for dangerous characters
+  static const std::string dangerousChars = "|;&$<>\"'`\\";
+  if (path.find_first_of(dangerousChars) != std::string::npos) {
+    return false;
+  }
+
+  // No relative path components
+  if (path.find("..") != std::string::npos) {
+    return false;
+  }
+
+  return true;
+}
+
+// Check if argument is safe 
+bool isArgumentSafe(std::string const& arg) {
+  if (arg.empty()) {
+    return false;
+  }
+
+  // Check for dangerous characters
+  static const std::string dangerousChars = "|;&$<>\"'`\\";
+  if (arg.find_first_of(dangerousChars) != std::string::npos) {
+    return false;
+  }
+
+  return true;
+}
+
+// Add allowed programs whitelist
+const std::unordered_set<std::string> ALLOWED_PROGRAMS = {
+  "/usr/bin/id",
+  "/usr/bin/getent",
+  "/usr/bin/groups"
+};
+
 std::string slurpProgramInternal(std::string const& program,
-                                 std::vector<std::string> const& moreArgs) {
+                                std::vector<std::string> const& moreArgs) {
+  // Validate program path
+  if (!isPathSafe(program)) {
+    LOG_TOPIC("security", WARN, arangodb::Logger::FIXME)
+      << "Rejected unsafe program path: " << program;
+    THROW_ARANGO_EXCEPTION(TRI_ERROR_FORBIDDEN);
+  }
+
+  // Check against whitelist
+  if (ALLOWED_PROGRAMS.find(program) == ALLOWED_PROGRAMS.end()) {
+    LOG_TOPIC("security", WARN, arangodb::Logger::FIXME)
+      << "Program not in whitelist: " << program;
+    THROW_ARANGO_EXCEPTION(TRI_ERROR_FORBIDDEN);
+  }
+
+  // Validate all arguments
+  for (auto const& arg : moreArgs) {
+    if (!isArgumentSafe(arg)) {
+      LOG_TOPIC("security", WARN, arangodb::Logger::FIXME)
+        << "Rejected unsafe argument: " << arg;
+      THROW_ARANGO_EXCEPTION(TRI_ERROR_FORBIDDEN);
+    }
+  }
+
   ExternalProcess const* process;
   ExternalId external;
   ExternalProcessStatus res;
