@@ -20,37 +20,33 @@
 ///
 /// @author Julia Volmer
 ////////////////////////////////////////////////////////////////////////////////
-#include "Async/Registry/stacktrace.h"
+#include "AsyncRegistryServer/Stacktrace/forest.h"
+#include "AsyncRegistryServer/Stacktrace/depth_first.h"
 
 #include <gtest/gtest.h>
 
 using namespace arangodb::async_registry;
 
-// helper functions
-// auto create_forest({(id, waiter),(id,waiter),...}) -> WaiterForest;
-// auto create_indexed_forest({(id, waiter), (id,waiter), ...}) ->
-// IndexedWaiterForest;
-
-TEST(AsyncRegistryStacktraceTest, inserts_forest) {
-  WaiterForest<std::string> forest;
+TEST(AsyncRegistryStacktraceTest, insert_nodes_into_forest) {
+  Forest<std::string> forest;
 
   forest.insert((void*)32, (void*)1, "first");
   forest.insert((void*)4, (void*)32, "second");
   forest.insert((void*)8, (void*)1, "third");
   forest.insert((void*)4, (void*)2, "second_overwritten");
 
-  ASSERT_EQ(forest, (WaiterForest<std::string>{
-                        {{(void*)32, 0}, {(void*)4, 1}, {(void*)8, 2}},
+  ASSERT_EQ(forest, (Forest<std::string>{
                         {(void*)1, (void*)32, (void*)1},
-                        {"first", "second", "third"}}));
-  ASSERT_EQ(forest.data((void*)32), "first");
-  ASSERT_EQ(forest.data((void*)4), "second");
-  ASSERT_EQ(forest.data((void*)8), "third");
-  ASSERT_EQ(forest.data((void*)1), std::nullopt);
+                        {"first", "second", "third"},
+                        {{(void*)32, 0}, {(void*)4, 1}, {(void*)8, 2}}}));
+  ASSERT_EQ(forest.node((void*)32), "first");
+  ASSERT_EQ(forest.node((void*)4), "second");
+  ASSERT_EQ(forest.node((void*)8), "third");
+  ASSERT_EQ(forest.node((void*)1), std::nullopt);
 }
 
-TEST(AsyncRegistryStacktraceTest, indexes_forest) {
-  WaiterForest<std::string> forest;
+TEST(AsyncRegistryStacktraceTest, index_forest) {
+  Forest<std::string> forest;
   forest.insert((void*)1, (void*)2, "first");
   forest.insert((void*)2, (void*)4, "second");
   forest.insert((void*)3, (void*)2, "third");
@@ -67,11 +63,11 @@ TEST(AsyncRegistryStacktraceTest, indexes_forest) {
             std::vector<void*>{});  // exists as waiter but not as proper node
   ASSERT_EQ(indexed.children((void*)8),
             std::vector<void*>{});  // node does not exist at all
-  ASSERT_EQ(forest, (WaiterForest<std::string>{{}, {}, {}}));
+  ASSERT_EQ(forest, (Forest<std::string>{{}, {}, {}}));
 }
 
 TEST(AsyncRegistryStacktraceTest, executes_post_ordered_depth_first) {
-  WaiterForest<std::string> forest;
+  Forest<std::string> forest;
   forest.insert((void*)1, (void*)0, "root");
   forest.insert((void*)2, (void*)1, "node");
   forest.insert((void*)3, (void*)2, "node");

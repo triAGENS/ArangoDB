@@ -25,7 +25,8 @@
 #include <variant>
 
 #include "Async/Registry/promise.h"
-#include "Async/Registry/stacktrace.h"
+#include "AsyncRegistryServer/Stacktrace/depth_first.h"
+#include "AsyncRegistryServer/Stacktrace/forest.h"
 #include "ApplicationFeatures/ApplicationServer.h"
 #include "Async/Registry/promise.h"
 #include "Async/Registry/registry_variable.h"
@@ -65,7 +66,7 @@ namespace {
  the larger hierarchy promise.
  **/
 auto all_undeleted_promises() -> ForestWithRoots<PromiseSnapshot> {
-  WaiterForest<PromiseSnapshot> forest;
+  Forest<PromiseSnapshot> forest;
   std::vector<Id> roots;
   registry.for_promise([&](PromiseSnapshot promise) {
     if (promise.state != State::Deleted) {
@@ -108,7 +109,7 @@ auto getStacktraceData(IndexedForestWithRoots<PromiseSnapshot> const& promises)
         break;
       }
       auto [id, hierarchy] = next.value();
-      auto data = promises.data(id);
+      auto data = promises.node(id);
       if (data != std::nullopt) {
         auto entry = Entry{.hierarchy = hierarchy, .data = data.value()};
         velocypack::serialize(builder, entry);
