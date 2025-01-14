@@ -26,9 +26,7 @@
 const jsunity = require("jsunity");
 const pu = require('@arangodb/testutils/process-utils');
 const fs = require("fs");
-const {executeExternalAndWait} = require("internal");
-const tmpDirMngr = require('@arangodb/testutils/tmpDirManager').tmpDirManager;
-const {sanHandler} = require('@arangodb/testutils/san-file-handler');
+const { executeExternalAndWaitWithSanitizer } = require('@arangodb/test-helper');
 
 function UpgradeForceOneShardRegressionSuite() {
   'use strict';
@@ -46,8 +44,6 @@ function UpgradeForceOneShardRegressionSuite() {
       * The options we use here are the bare minimum to identify a server as
       * agent.
       */
-      let sh = new sanHandler(pu.ARANGOD_BIN, global.instanceManager.options);
-      let tmpMgr = new tmpDirMngr(fs.join('agency_oneshard_regression-noncluster'), global.instanceManager.options);
       const arangod = pu.ARANGOD_BIN;
       assertTrue(fs.isFile(arangod), "arangod not found!");
 
@@ -70,9 +66,7 @@ function UpgradeForceOneShardRegressionSuite() {
       const args = [];
       addConnectionArgs(args);
       require("console").warn(`Start arangod agency with args: ${JSON.stringify(args)}`);
-      sh.detectLogfiles(tmpMgr.tempDir, tmpMgr.tempDir);
-      const actualRc = executeExternalAndWait(arangod, args, false, 0, sh.getSanOptions());
-      sh.fetchSanFileAfterExit(actualRc.pid);
+      const actualRc = executeExternalAndWaitWithSanitizer(arangod, args, 'agency_oneshard_regression-noncluster');
       assertEqual(actualRc.exit, 0, `Instead process exited with ${JSON.stringify(actualRc)}`);
     }
   };

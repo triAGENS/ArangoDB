@@ -34,8 +34,7 @@ const isCluster = require("internal").isCluster();
 const dbs = ["_system", "maçã", "😀", "ﻚﻠﺑ ﻞﻄﻴﻓ", "testName"];
 const extendedName = "Десятую Международную Конференцию по 💩🍺🌧t⛈c🌩_⚡🔥💥🌨";
 const collectionToBeIgnored = ["UnitTestCollectionNoNoDumpA", "UnitTestCollectionNoNoDumpB"];
-const tmpDirMngr = require('@arangodb/testutils/tmpDirManager').tmpDirManager;
-const {sanHandler} = require('@arangodb/testutils/san-file-handler');
+const { executeExternalAndWaitWithSanitizer } = require('@arangodb/test-helper');
 
 const validatorJson = {
   "message": "",
@@ -92,10 +91,7 @@ function dumpIntegrationSuite() {
     args.push(path);
     addConnectionArgs(args);
 
-    let sh = new sanHandler(arangodump, global.instanceManager.options);
-    let tmpMgr = new tmpDirMngr(fs.join('shell-dump-integration'), global.instanceManager.options);
-    let actualRc = internal.executeExternalAndWait(arangodump, args, false, 0, sh.getSanOptions());
-    sh.fetchSanFileAfterExit(actualRc.pid);
+    const actualRc = executeExternalAndWaitWithSanitizer(arangodump, args, 'shell-dump-integration');
     assertTrue(actualRc.hasOwnProperty("exit"));
     assertEqual(expectRc, actualRc.exit);
     return fs.listTree(path);
