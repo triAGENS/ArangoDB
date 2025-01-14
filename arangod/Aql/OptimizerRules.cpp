@@ -7228,6 +7228,21 @@ static bool optimizeSortNode(ExecutionPlan* plan, SortNode* sort,
       // establish a cross-shard sortedness by distance.
       info.exesToModify.emplace(sort, expr);
       info.nodesToRemove.emplace(expr->node());
+    } else {
+      // In the cluster case, we want to leave the SORT node in - for now!
+      // This is to achieve that the GATHER node which is introduced to
+      // distribute the query in the cluster remembers to sort things
+      // using merge sort. However, later there will be a rule which
+      // moves the sorting to the dbserver. When this rule is triggered,
+      // we do not want to reinsert the SORT node on the dbserver, since
+      // there, the items are already sorted by means of the geo index.
+      // Therefore, we tell the sort node here, not to be reinserted
+      // on the dbserver later on.
+      // This is crucial to avoid that the SORT node remains and pulls
+      // the whole collection out of the geo index, on the grounds that
+      // the SORT node wants to sort the results, which is very bad for
+      // performance.
+      sort->_reinsertInCluster = false;
     }
     return true;
   }

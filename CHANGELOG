@@ -1,6 +1,10 @@
 v3.11.13 (XXXX-XX-XX)
 ---------------------
 
+* Improve geo index performance in the cluster with multiple shards. This
+  fixes BTS-2046. An unnecessary and bad SORT node is removed from the
+  query plan in the case that a geo index is used.
+
 * Rebuilt included rclone v1.62.2 with go1.22.10 and non-vulnerable
   dependencies.
 
