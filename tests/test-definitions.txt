@@ -95,8 +95,8 @@ shell_client priority=500 cluster size=medium+ buckets=20 -- --dumpAgencyOnError
 shell_client_transaction priority=500 cluster parallelity=5 size=small buckets=5 -- --dumpAgencyOnError true
 #shell_client_replication2_recovery priority=500 size=medium cluster -- --dumpAgencyOnError true
 
-rta_makedata cluster parallelity=6
-rta_makedata enterprise cluster name=rta_makedata_force_oneshard parallelity=5 --  --forceOneShard true
+rta_makedata cluster parallelity=6 --extraArgs:experimental-vector-index true 
+rta_makedata enterprise cluster name=rta_makedata_force_oneshard parallelity=5 --extraArgs:experimental-vector-index true --  --forceOneShard true
 
 # shell aql vector index tests
 shell_client_aql_vector priority=1000 size=medium+ cluster buckets=1 -- --dumpAgencyOnError true
@@ -105,8 +105,8 @@ shell_client_aql_vector priority=1000 size=medium+ cluster buckets=1 -- --dumpAg
 
 importing,export name=import_export parallelity=5 size=small cluster -- --dumpAgencyOnError true
 importing,export name=import_export parallelity=3 size=small single -- --dumpAgencyOnError true
-hot_backup enterprise single size=medium -- --dumpAgencyOnError true
-hot_backup enterprise cluster size=large parallelity=5 -- --dumpAgencyOnError true
+hot_backup enterprise single size=medium --extraArgs:experimental-vector-index true -- --dumpAgencyOnError true
+hot_backup enterprise cluster size=large parallelity=5 --extraArgs:experimental-vector-index true -- --dumpAgencyOnError true
 
 # frequent restarts impose more threats to the SUT, increase parallelity.
 server_parameters priority=1000 parallelity=3 buckets=3 single -- --dumpAgencyOnError true
@@ -115,27 +115,27 @@ server_permissions priority=1000 parallelity=5 size=small buckets=2 -- --dumpAge
 server_secrets priority=1000 parallelity=5 size=small -- --dumpAgencyOnError true
 
 # Dump Tests
-dump cluster size=medium parallelity=5 -- --dumpAgencyOnError true
-dump single size=medium -- --dumpAgencyOnError true
-dump cluster suffix=_vpack size=medium parallelity=5 -- --dumpAgencyOnError true --dumpVPack true
-dump single suffix=_vpack size=medium -- --dumpAgencyOnError true --dumpVPack true
+dump cluster size=medium parallelity=5 --extraArgs:experimental-vector-index true -- --dumpAgencyOnError true
+dump single size=medium --extraArgs:experimental-vector-index true -- --dumpAgencyOnError true
+dump cluster suffix=_vpack size=medium parallelity=5 --extraArgs:experimental-vector-index true -- --dumpAgencyOnError true --dumpVPack true
+dump single suffix=_vpack size=medium --extraArgs:experimental-vector-index true  -- --dumpAgencyOnError true --dumpVPack true
 # BTS-1852 enable after fix:
 # dump size=medium enterprise cluster name=dump_singleshard_cluster -- --forceOneShard true --cluster true --dumpAgencyOnError true
-dump_authentication size=medium -- --dumpAgencyOnError true
-dump_jwt size=medium -- --dumpAgencyOnError true
-dump_multiple single size=medium -- --dumpAgencyOnError true
-dump_multiple cluster size=medium parallelity=5 -- --dumpAgencyOnError true
-dump_non_parallel size=medium -- --dumpAgencyOnError true
-dump_maskings  enterprise size=medium -- --dumpAgencyOnError true
-dump_encrypted enterprise size=medium -- --dumpAgencyOnError true
-dump_mixed_cluster_single size=medium -- --dumpAgencyOnError true
-dump_mixed_single_cluster size=large -- --dumpAgencyOnError true
+dump_authentication size=medium --extraArgs:experimental-vector-index true -- --dumpAgencyOnError true
+dump_jwt size=medium --extraArgs:experimental-vector-index true  -- --dumpAgencyOnError true
+dump_multiple single size=medium --extraArgs:experimental-vector-index true  -- --dumpAgencyOnError true
+dump_multiple cluster size=medium parallelity=5 --extraArgs:experimental-vector-index true  -- --dumpAgencyOnError true
+dump_non_parallel size=medium --extraArgs:experimental-vector-index true -- --dumpAgencyOnError true
+dump_maskings  enterprise size=medium --extraArgs:experimental-vector-index true -- --dumpAgencyOnError true
+dump_encrypted enterprise size=medium --extraArgs:experimental-vector-index true -- --dumpAgencyOnError true
+dump_mixed_cluster_single size=medium --extraArgs:experimental-vector-index true -- --dumpAgencyOnError true
+dump_mixed_single_cluster size=large --extraArgs:experimental-vector-index true -- --dumpAgencyOnError true
 dump_mixed_cluster_single suffix=vpack size=medium -- --dumpAgencyOnError true --dumpVPack true
-dump_mixed_single_cluster suffix=vpack size=large -- --dumpAgencyOnError true --dumpVPack true
+dump_mixed_single_cluster suffix=vpack size=large --extraArgs:experimental-vector-index true -- --dumpAgencyOnError true --dumpVPack true
 # takes long, needs to go first. However, doesn't utilize the SUT hard.
-dump_with_crashes single size=medium parallelity=1 priority=2000 -- --dumpAgencyOnError true
-dump_with_crashes full cluster size=medium parallelity=1 priority=2000 -- --dumpAgencyOnError true
-dump_with_crashes_non_parallel size=medium parallelity=1 priority=2000 -- --dumpAgencyOnError true 
+dump_with_crashes single size=medium parallelity=1 priority=2000 --extraArgs:experimental-vector-index true -- --dumpAgencyOnError true
+dump_with_crashes full cluster size=medium parallelity=1 priority=2000 --extraArgs:experimental-vector-index true -- --dumpAgencyOnError true
+dump_with_crashes_non_parallel size=medium parallelity=1 priority=2000 --extraArgs:experimental-vector-index true -- --dumpAgencyOnError true 
 
 # Audit Tests
 audit_client,audit_server enterprise name=audit -- --dumpAgencyOnError true
