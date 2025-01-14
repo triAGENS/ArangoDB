@@ -113,6 +113,8 @@ class AsyncRegistry:
         count = 0
         for registry in ThreadRegistryList(self.thread_registries["_M_impl"]):
             # TODO collect all promises in a forest
+            # for promise in registry.promises:
+            #    TODO ...
             count += 1
             self.stacktraces.append(registry);
         return "async_registry on " + str(count) + " threads"
