@@ -114,6 +114,8 @@ template<typename Node>
 struct IndexedForestWithRoots : IndexedForest<Node> {
   IndexedForestWithRoots(IndexedForest<Node> forest, std::vector<Id> roots)
       : IndexedForest<Node>{std::move(forest)}, _roots{std::move(roots)} {}
+  auto roots() const -> std::vector<Id> const& { return _roots; }
+
   std::vector<Id> _roots;
 };
 

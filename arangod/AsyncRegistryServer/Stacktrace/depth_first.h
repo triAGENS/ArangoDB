@@ -68,8 +68,8 @@ struct DFS_PostOrder {
     return next();
   }
 
-  Forest& _forest;
-  Id _start;
+  Forest const& _forest;
+  const Id _start;
   std::stack<std::tuple<Id, TreeHierarchy, bool>> _stack;
 };
 

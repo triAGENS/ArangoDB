@@ -100,7 +100,7 @@ auto getStacktraceData(IndexedForestWithRoots<PromiseSnapshot> const& promises)
   builder.openObject();
   builder.add(VPackValue("promise_stacktraces"));
   builder.openArray();
-  for (auto const& root : promises._roots) {
+  for (auto const& root : promises.roots()) {
     builder.openArray();
     auto dfs = DFS_PostOrder{promises, root};
     do {
