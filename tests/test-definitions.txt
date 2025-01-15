@@ -57,7 +57,7 @@ gtest_arangodb !coverage priority=1000 parallelity=3 size=large single
 fuerte !coverage priority=500 single suffix=http
 fuerte !coverage priority=500 single suffix=ssl-http -- --protocol ssl
 
-rta_makedata single
+rta_makedata single -- --extraArgs:experimental-vector-index true
 
 
 # Cluster Tests
