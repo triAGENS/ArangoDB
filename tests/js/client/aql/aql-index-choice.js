@@ -617,7 +617,8 @@ function BaseTestConfig () {
         [`FOR doc IN ${cn} SORT doc.dt COLLECT dt = doc.dt RETURN dt`, "covering"],
         [`FOR doc IN ${cn} FILTER doc.dt == 1234 SORT doc.dt COLLECT dt = doc.dt RETURN dt`, "covering"],
       ].forEach((q) => {
-        let nodes = db._createStatement(q[0]).explain().plan.nodes;
+        const options = {optimizer: {rules: ["-use-index-for-collect"]}};
+        let nodes = db._createStatement({query: q[0], options}).explain().plan.nodes;
         assertEqual(1, nodes.filter((n) => n.type === 'IndexNode').length);
         assertEqual(0, nodes.filter((n) => n.type === 'SortNode').length);
         let indexNode = nodes.filter((n) => n.type === 'IndexNode')[0];
