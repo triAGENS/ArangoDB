@@ -33,8 +33,9 @@ const compareTicks = replication.compareTicks;
 const reconnectRetry = require('@arangodb/replication-common').reconnectRetry;
 const console = require("console");
 const internal = require("internal");
-const leaderEndpoint = arango.getEndpoint();
-const followerEndpoint = ARGUMENTS[ARGUMENTS.length - 1];
+let IM = global.instanceManager;
+const leaderEndpoint = IM.arangods[0].endpoint;
+const followerEndpoint = IM.arangods[1].endpoint;
 
 ////////////////////////////////////////////////////////////////////////////////
 /// @brief test suite

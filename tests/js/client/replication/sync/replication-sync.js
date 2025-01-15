@@ -35,20 +35,21 @@ const _ = require('lodash');
 
 const replication = require('@arangodb/replication');
 const internal = require('internal');
-const leaderEndpoint = arango.getEndpoint();
-const followerEndpoint = ARGUMENTS[ARGUMENTS.length - 1];
 
 const cn = 'UnitTestsReplication';
 const sysCn = '_UnitTestsReplication';
 const userManager = require("@arangodb/users");
+let IM = global.instanceManager;
+const leaderEndpoint = IM.arangods[0].endpoint;
+const followerEndpoint = IM.arangods[1].endpoint;
 
-const connectToLeader = function () {
-  reconnectRetry(leaderEndpoint, db._name(), 'root', '');
+const connectToLeader = function() {
+  reconnectRetry(IM.arangods[0].endpoint, db._name(), 'root', '');
   db._flushCache();
 };
 
-const connectToFollower = function () {
-  reconnectRetry(followerEndpoint, db._name(), 'root', '');
+const connectToFollower = function() {
+  reconnectRetry(IM.arangods[1].endpoint, db._name(), 'root', '');
   db._flushCache();
 };
 

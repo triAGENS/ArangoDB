@@ -93,7 +93,7 @@ function rtaMakeCheckDataSuite() {
       const fs = require('fs');
       let res = {'total':0, 'duration':0.0, 'status':true, message: '', 'failed': 0};
       let moreargv = ['--skip',
-                      '050_,051_,070_,071_,102_,570_,900_,950_']; // this replication doesn't spawn automatic per database
+                      '070_,071,107_']; // this replication doesn't spawn automatic per database
       
       const ct = require('@arangodb/testutils/client-tools');
       let count = 0;
@@ -139,6 +139,10 @@ function rtaMakeCheckDataSuite() {
             }
 
             if (!followerState.state.running) {
+              if (followerState.state.phase === "inactive") {
+                internal.sleep(1);
+                continue;
+              }
               throw new Error(`replication=error follower is not running: ${JSON.stringify(followerState)}`);
             }
 
