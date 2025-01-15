@@ -42,12 +42,12 @@ const cn = 'UnitTestsReplication';
 const docCount = versionHas('tsan') ? 10000 : 100000;
 
 const connectToLeader = function() {
-  reconnectRetry(IM.arangods[0].endpoint, db._name(), 'root', '');
+  reconnectRetry(leaderEndpoint, db._name(), 'root', '');
   db._flushCache();
 };
 
 const connectToFollower = function() {
-  reconnectRetry(IM.arangods[1].endpoint, db._name(), 'root', '');
+  reconnectRetry(followerEndpoint, db._name(), 'root', '');
   db._flushCache();
 };
 

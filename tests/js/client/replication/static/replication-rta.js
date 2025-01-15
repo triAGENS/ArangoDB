@@ -56,11 +56,11 @@ const leaderEndpoint = IM.arangods[0].endpoint;
 const followerEndpoint = IM.arangods[1].endpoint;
 
 const connectToLeader = function() {
-  reconnectRetry(IM.arangods[0].endpoint, db._name(), replicatorUser, replicatorPassword);
+  reconnectRetry(leaderEndpoint, db._name(), replicatorUser, replicatorPassword);
 };
 
 const connectToFollower = function() {
-  reconnectRetry(IM.arangods[1].endpoint, db._name(), 'root', '');
+  reconnectRetry(followerEndpoint, db._name(), 'root', '');
 };
 
 function rtaMakeCheckDataSuite() {
