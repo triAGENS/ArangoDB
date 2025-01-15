@@ -79,29 +79,7 @@ ClusterFeature::ClusterFeature(Server& server)
   startsAfter<application_features::DatabaseFeaturePhase>();
 }
 
-ClusterFeature::~ClusterFeature() {
-  if (_enableCluster) {
-    // force shutdown of Plan/Current syncers. under normal circumstances they
-    // have been shut down already when we get here, but there are rare cases in
-    // which ClusterFeature::stop() isn't called (e.g. during testing or if
-    // something goes very wrong at startup)
-    waitForSyncersToStop();
-
-    // force shutdown of AgencyCache. under normal circumstances the cache will
-    // have been shut down already when we get here, but there are rare cases in
-    // which ClusterFeature::stop() isn't called (e.g. during testing or if
-    // something goes very wrong at startup)
-    shutdownAgencyCache();
-
-    if (_asyncAgencyCommPool) {
-      _asyncAgencyCommPool->drainConnections();
-      _asyncAgencyCommPool->stop();
-    }
-  }
-  // must make sure that the HeartbeatThread is fully stopped before
-  // we destroy the AgencyCallbackRegistry.
-  _heartbeatThread.reset();
-}
+ClusterFeature::~ClusterFeature() { shutdown(); }
 
 void ClusterFeature::collectOptions(std::shared_ptr<ProgramOptions> options) {
   options->addSection("cluster", "cluster");
@@ -729,9 +707,11 @@ void ClusterFeature::prepare() {
   // This must remain here for proper function after hot restores
   auto role = ServerState::instance()->getRole();
   if (role != ServerState::ROLE_AGENT && role != ServerState::ROLE_UNDEFINED) {
-    _agencyCache->start();
-    LOG_TOPIC("bae31", DEBUG, Logger::CLUSTER)
-        << "Waiting for agency cache to become ready.";
+    if (!_agencyCache->start()) {
+      LOG_TOPIC("bae31", DEBUG, Logger::CLUSTER)
+          << "Waiting for agency cache to become ready.";
+      FATAL_ERROR_EXIT();
+    }
   }
 
   if (!ServerState::instance()->integrateIntoCluster(
@@ -967,60 +947,57 @@ void ClusterFeature::beginShutdown() {
 }
 
 void ClusterFeature::stop() {
-  if (!_enableCluster) {
-    shutdownHeartbeatThread();
-    return;
-  }
-
-  {
-    std::lock_guard<std::mutex> guard(_connectivityCheckMutex);
-    _connectivityCheck.reset();
-  }
-
-#ifdef USE_ENTERPRISE
-  if (_hotbackupRestoreCallback != nullptr) {
-    if (!_agencyCallbackRegistry->unregisterCallback(
-            _hotbackupRestoreCallback)) {
-      LOG_TOPIC("84152", DEBUG, Logger::BACKUP)
-          << "Strange, we could not "
-             "unregister the hotbackup restore callback.";
-    }
-  }
-#endif
-
   shutdownHeartbeatThread();
 
-  // change into shutdown state
-  ServerState::instance()->setState(ServerState::STATE_SHUTDOWN);
+  if (_enableCluster) {
+    {
+      std::lock_guard<std::mutex> guard(_connectivityCheckMutex);
+      _connectivityCheck.reset();
+    }
 
-  // wait only a few seconds to broadcast our "shut down" state.
-  // if we wait much longer, and the agency has already been shut
-  // down, we may cause our instance to hopelessly hang and try
-  // to write something into a non-existing agency.
-  AgencyComm comm(server());
-  // this will be stored in transient only
-  comm.sendServerState(4.0);
+#ifdef USE_ENTERPRISE
+    if (_hotbackupRestoreCallback != nullptr) {
+      if (!_agencyCallbackRegistry->unregisterCallback(
+              _hotbackupRestoreCallback)) {
+        LOG_TOPIC("84152", DEBUG, Logger::BACKUP)
+            << "Strange, we could not "
+               "unregister the hotbackup restore callback.";
+      }
+    }
+#endif
 
-  // the following ops will be stored in Plan/Current (for unregister) or
-  // Current (for logoff)
-  if (_unregisterOnShutdown) {
-    // also use a relatively short timeout here, for the same reason as above.
-    ServerState::instance()->unregister(30.0);
-  } else {
-    // log off the server from the agency, without permanently removing it from
-    // the cluster setup.
-    ServerState::instance()->logoff(10.0);
+    // change into shutdown state
+    ServerState::instance()->setState(ServerState::STATE_SHUTDOWN);
+
+    // wait only a few seconds to broadcast our "shut down" state.
+    // if we wait much longer, and the agency has already been shut
+    // down, we may cause our instance to hopelessly hang and try
+    // to write something into a non-existing agency.
+    AgencyComm comm(server());
+    // this will be stored in transient only
+    comm.sendServerState(4.0);
+
+    // the following ops will be stored in Plan/Current (for unregister) or
+    // Current (for logoff)
+    if (_unregisterOnShutdown) {
+      // also use a relatively short timeout here, for the same reason as above.
+      ServerState::instance()->unregister(30.0);
+    } else {
+      // log off the server from the agency, without permanently removing it
+      // from the cluster setup.
+      ServerState::instance()->logoff(10.0);
+    }
+
+    AsyncAgencyCommManager::INSTANCE->setStopping(true);
+
+    shutdown();
+
+    // We try to actively cancel all open requests that may still be in the
+    // Agency We cannot react to them anymore.
+    _asyncAgencyCommPool->shutdownConnections();
+    _asyncAgencyCommPool->drainConnections();
+    _asyncAgencyCommPool->stop();
   }
-
-  // Make sure ClusterInfo's syncer threads have stopped.
-  waitForSyncersToStop();
-
-  AsyncAgencyCommManager::INSTANCE->setStopping(true);
-  shutdownAgencyCache();
-
-  // We try to actively cancel all open requests that may still be in the Agency
-  // We cannot react to them anymore.
-  _asyncAgencyCommPool->shutdownConnections();
 }
 
 void ClusterFeature::unprepare() {
@@ -1028,10 +1005,44 @@ void ClusterFeature::unprepare() {
     return;
   }
   _clusterInfo->cleanup();
+}
+
+void ClusterFeature::shutdown() try {
+  if (!_enableCluster) {
+    shutdownHeartbeatThread();
+  }
+
+  if (_clusterInfo != nullptr) {
+    _clusterInfo->shutdownSyncers();
+  }
+
+  // force shutdown of AgencyCache. under normal circumstances the cache will
+  // have been shut down already when we get here, but there are rare cases in
+  // which ClusterFeature::stop() isn't called (e.g. during testing or if
+  // something goes very wrong at startup)
+  shutdownAgencyCache();
+
+  // force shutdown of Plan/Current syncers. under normal circumstances they
+  // have been shut down already when we get here, but there are rare cases in
+  // which ClusterFeature::stop() isn't called (e.g. during testing or if
+  // something goes very wrong at startup)
+  waitForSyncersToStop();
+
+  // make sure agency cache is unreachable now
+  _agencyCache.reset();
+
+  // must make sure that the HeartbeatThread is fully stopped before
+  // we destroy the AgencyCallbackRegistry.
+  _heartbeatThread.reset();
+
   if (_asyncAgencyCommPool) {
     _asyncAgencyCommPool->drainConnections();
     _asyncAgencyCommPool->stop();
   }
+} catch (...) {
+  // this is called from the dtor. not much we can do here except logging
+  LOG_TOPIC("9f538", WARN, Logger::CLUSTER)
+      << "caught exception during cluster shutdown";
 }
 
 void ClusterFeature::setUnregisterOnShutdown(bool unregisterOnShutdown) {
@@ -1065,24 +1076,23 @@ void ClusterFeature::pruneAsyncAgencyConnectionPool() {
 }
 
 void ClusterFeature::shutdownHeartbeatThread() {
-  if (_heartbeatThread == nullptr) {
-    return;
-  }
-  _heartbeatThread->beginShutdown();
-  auto start = std::chrono::steady_clock::now();
-  size_t counter = 0;
-  while (_heartbeatThread->isRunning()) {
-    if (std::chrono::steady_clock::now() - start > std::chrono::seconds(65)) {
-      LOG_TOPIC("d8a5b", FATAL, Logger::CLUSTER)
-          << "exiting prematurely as we failed terminating the heartbeat "
-             "thread";
-      FATAL_ERROR_EXIT();
+  if (_heartbeatThread != nullptr) {
+    _heartbeatThread->beginShutdown();
+    auto start = std::chrono::steady_clock::now();
+    size_t counter = 0;
+    while (_heartbeatThread->isRunning()) {
+      if (std::chrono::steady_clock::now() - start > std::chrono::seconds(65)) {
+        LOG_TOPIC("d8a5b", FATAL, Logger::CLUSTER)
+            << "exiting prematurely as we failed terminating the heartbeat "
+               "thread";
+        FATAL_ERROR_EXIT();
+      }
+      if (++counter % 50 == 0) {
+        LOG_TOPIC("acaa9", WARN, arangodb::Logger::CLUSTER)
+            << "waiting for heartbeat thread to finish";
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
-    if (++counter % 50 == 0) {
-      LOG_TOPIC("acaa9", WARN, arangodb::Logger::CLUSTER)
-          << "waiting for heartbeat thread to finish";
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
 }
 
@@ -1097,25 +1107,23 @@ void ClusterFeature::waitForSyncersToStop() {
 /// @brief wait for the AgencyCache to shut down
 /// note: this may be called multiple times during shutdown
 void ClusterFeature::shutdownAgencyCache() {
-  if (_agencyCache == nullptr) {
-    return;
-  }
-  _agencyCache->beginShutdown();
-  auto start = std::chrono::steady_clock::now();
-  size_t counter = 0;
-  while (_agencyCache != nullptr && _agencyCache->isRunning()) {
-    if (std::chrono::steady_clock::now() - start > std::chrono::seconds(65)) {
-      LOG_TOPIC("b5a8d", FATAL, Logger::CLUSTER)
-          << "exiting prematurely as we failed terminating the agency cache";
-      FATAL_ERROR_EXIT();
+  if (_agencyCache != nullptr) {
+    _agencyCache->beginShutdown();
+    auto start = std::chrono::steady_clock::now();
+    size_t counter = 0;
+    while (_agencyCache != nullptr && _agencyCache->isRunning()) {
+      if (std::chrono::steady_clock::now() - start > std::chrono::seconds(65)) {
+        LOG_TOPIC("b5a8d", FATAL, Logger::CLUSTER)
+            << "exiting prematurely as we failed terminating the agency cache";
+        FATAL_ERROR_EXIT();
+      }
+      if (++counter % 50 == 0) {
+        LOG_TOPIC("acab0", WARN, arangodb::Logger::CLUSTER)
+            << "waiting for agency cache thread to finish";
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
-    if (++counter % 50 == 0) {
-      LOG_TOPIC("acab0", WARN, arangodb::Logger::CLUSTER)
-          << "waiting for agency cache thread to finish";
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
-  _agencyCache.reset();
 }
 
 void ClusterFeature::notify() {
@@ -1136,7 +1144,7 @@ ClusterInfo& ClusterFeature::clusterInfo() {
 }
 
 AgencyCache& ClusterFeature::agencyCache() {
-  if (_agencyCache == nullptr) {
+  if (_agencyCache == nullptr) {  // previous read
     THROW_ARANGO_EXCEPTION(TRI_ERROR_SHUTTING_DOWN);
   }
   return *_agencyCache;

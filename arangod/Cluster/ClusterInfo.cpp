@@ -7296,14 +7296,14 @@ void ClusterInfo::drainSyncers() {
 }
 
 void ClusterInfo::shutdownSyncers() {
-  drainSyncers();
-
   if (_planSyncer != nullptr) {
     _planSyncer->beginShutdown();
   }
   if (_curSyncer != nullptr) {
     _curSyncer->beginShutdown();
   }
+
+  drainSyncers();
 }
 
 void ClusterInfo::waitForSyncersToStop() {
@@ -7326,6 +7326,10 @@ void ClusterInfo::waitForSyncersToStop() {
       FATAL_ERROR_EXIT();
     }
   }
+
+  // make sure syncers threads must be gone
+  _planSyncer.reset();
+  _curSyncer.reset();
 }
 
 VPackSlice PlanCollectionReader::indexes() {

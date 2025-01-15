@@ -389,9 +389,7 @@ MockV8Server::MockV8Server(bool start) : MockServer() {
 
 MockV8Server::~MockV8Server() {
   if (_server.hasFeature<ClusterFeature>()) {
-    _server.getFeature<ClusterFeature>().clusterInfo().shutdownSyncers();
-    _server.getFeature<ClusterFeature>().clusterInfo().waitForSyncersToStop();
-    _server.getFeature<ClusterFeature>().shutdownAgencyCache();
+    _server.getFeature<ClusterFeature>().shutdown();
   }
 }
 
@@ -406,9 +404,7 @@ MockAqlServer::MockAqlServer(bool start) : MockServer() {
 
 MockAqlServer::~MockAqlServer() {
   if (_server.hasFeature<ClusterFeature>()) {
-    _server.getFeature<ClusterFeature>().clusterInfo().shutdownSyncers();
-    _server.getFeature<ClusterFeature>().clusterInfo().waitForSyncersToStop();
-    _server.getFeature<ClusterFeature>().shutdownAgencyCache();
+    _server.getFeature<ClusterFeature>().shutdown();
   }
   AqlFeature(_server).stop();  // unset singleton instance
 }
@@ -520,10 +516,7 @@ MockClusterServer::MockClusterServer(bool useAgencyMockPool,
 }
 
 MockClusterServer::~MockClusterServer() {
-  auto& ci = _server.getFeature<ClusterFeature>().clusterInfo();
-  ci.shutdownSyncers();
-  ci.waitForSyncersToStop();
-  _server.getFeature<ClusterFeature>().shutdownAgencyCache();
+  _server.getFeature<ClusterFeature>().shutdown();
 }
 
 void MockClusterServer::startFeatures() {

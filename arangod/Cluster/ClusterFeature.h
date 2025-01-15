@@ -70,6 +70,7 @@ class ClusterFeature : public ArangodFeature {
   void unprepare() override final;
 
   void allocateMembers();
+  void shutdown();
 
   std::vector<std::string> agencyEndpoints() const { return _agencyEndpoints; }
 

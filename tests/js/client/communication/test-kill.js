@@ -45,7 +45,7 @@ let IM = global.instanceManager;
 let waitFor = 60;
 let factor = 1;
 if (versionHas('asan') || versionHas('tsan') || versionHas('coverage')) {
-  waitFor *= 15;
+  waitFor *= 20;
   factor = 5;
 }
 

@@ -29,6 +29,12 @@ const jsunity = require("jsunity");
 const internal = require("internal");
 const arango = internal.arango;
 const sleep = require('internal').sleep;
+const { getDBServerEndpoints } = require("@arangodb/test-helper");
+const isCluster = internal.isCluster();
+let { instanceRole } = require('@arangodb/testutils/instance');
+let IM = global.instanceManager;
+
+const filter = isCluster ? instanceRole.dbServer: instanceRole.single;
 
 ////////////////////////////////////////////////////////////////////////////////
 /// @brief test suite: basics
@@ -55,8 +61,8 @@ function IndexSuite() {
     },
 
     tearDown: function() {
-      internal.debugRemoveFailAt("fillIndex::pause");
-      internal.debugRemoveFailAt("fillIndex::unpause");
+      IM.debugRemoveFailAt("fillIndex::pause", filter);
+      IM.debugRemoveFailAt("fillIndex::unpause", filter);
       c.drop();
     },
 
@@ -65,7 +71,7 @@ function IndexSuite() {
 ////////////////////////////////////////////////////////////////////////////////
 
     testIndexProgressIsReported : function () {
-      internal.debugSetFailAt("fillIndex::pause");
+      IM.debugSetFailAt("fillIndex::pause", filter);
       let idxdesc = { name: "progress", type: "persistent", fields: ["name"], inBackground: true};
 
       let job = arango.POST_RAW(`/_api/index?collection=${cn}`, idxdesc,
@@ -105,7 +111,7 @@ function IndexSuite() {
           if (progress > 0 && !seenProgress) {
             // Only release index building once we have seen at least
             // once an isBuilding state with non-zero progress
-            internal.debugSetFailAt("fillIndex::unpause");
+            IM.debugSetFailAt("fillIndex::unpause", filter);
             seenProgress = true;
           }
         } else if (seenProgress) {
@@ -124,7 +130,7 @@ function IndexSuite() {
     },
     
     testIndexProgressIsNotReported : function () {
-      internal.debugSetFailAt("fillIndex::pause");
+      IM.debugSetFailAt("fillIndex::pause", filter);
       let idxdesc = { name: "progress", type: "persistent", fields: ["name"], inBackground: true};
 
       let job = arango.POST_RAW(`/_api/index?collection=${cn}`, idxdesc,
@@ -145,7 +151,7 @@ function IndexSuite() {
         }
       }
             
-      internal.debugSetFailAt("fillIndex::unpause");
+      IM.debugSetFailAt("fillIndex::unpause", filter);
       
       count = 0;
       // wait until index appears, at most 30 seconds
@@ -163,8 +169,5 @@ function IndexSuite() {
   };
 }
 
-if (internal.debugCanUseFailAt()) {
-  jsunity.run(IndexSuite);
-}
-
+jsunity.run(IndexSuite);
 return jsunity.done();
