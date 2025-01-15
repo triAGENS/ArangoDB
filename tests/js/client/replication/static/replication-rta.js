@@ -139,10 +139,10 @@ function rtaMakeCheckDataSuite() {
             }
 
             if (!followerState.state.running) {
-              if (followerState.state.phase === "inactive") {
-                internal.sleep(1);
-                continue;
-              }
+              //if (followerState.state.phase === "inactive") {
+              //  internal.sleep(1);
+              //  continue;
+              //}
               throw new Error(`replication=error follower is not running: ${JSON.stringify(followerState)}`);
             }
 
