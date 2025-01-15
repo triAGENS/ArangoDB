@@ -99,7 +99,7 @@ function shellClientReplicationApi (options) {
 }
 
 
-class replicationRunner extends trs.runInArangoshRunner {
+class replicationRunner extends trs.runLocalInArangoshRunner {
   constructor(options, testname, serverOptions, startReplication=false) {
     super(options, testname, serverOptions);
     this.options.singles = 2;

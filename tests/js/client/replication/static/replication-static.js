@@ -43,8 +43,6 @@ const deriveTestSuite = require('@arangodb/test-helper').deriveTestSuite;
 const console = require('console');
 const internal = require('internal');
 const arango = internal.arango;
-const leaderEndpoint = arango.getEndpoint();
-const followerEndpoint = ARGUMENTS[ARGUMENTS.length - 1];
 
 const cn = 'UnitTestsReplication';
 const cn2 = 'UnitTestsReplication2';
@@ -53,13 +51,16 @@ const systemCn = '_UnitTestsReplicationSys';
 // these must match the values in the Makefile!
 const replicatorUser = 'replicator-user';
 const replicatorPassword = 'replicator-password';
+let IM = global.instanceManager;
+const leaderEndpoint = IM.arangods[0].endpoint;
+const followerEndpoint = IM.arangods[1].endpoint;
 
 const connectToLeader = function() {
-  reconnectRetry(leaderEndpoint, db._name(), replicatorUser, replicatorPassword);
+  reconnectRetry(IM.arangods[0].endpoint, db._name(), replicatorUser, replicatorPassword);
 };
 
 const connectToFollower = function() {
-  reconnectRetry(followerEndpoint, db._name(), 'root', '');
+  reconnectRetry(IM.arangods[1].endpoint, db._name(), 'root', '');
 };
 
 const collectionChecksum = function(name) {
@@ -2232,8 +2233,12 @@ function ReplicationOtherDBExtendedNameSuite() {
   return ReplicationOtherDBSuiteBase("Десятую Международную Конференцию по 💩🍺🌧t⛈c🌩_⚡🔥💥🌨");
 }
 
+
+
 jsunity.run(ReplicationSuite);
 jsunity.run(ReplicationOtherDBTraditionalNameSuite);
 jsunity.run(ReplicationOtherDBExtendedNameSuite);
+
+
 
 return jsunity.done();
