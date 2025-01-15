@@ -32,7 +32,7 @@ struct BlackHoleStateMachineFeature : public ArangodFeature {
   }
 
   explicit BlackHoleStateMachineFeature(Server& server);
-  void prepare() override;
+  void start() override;
 };
 
 }  // namespace arangodb::replication2::replicated_state::black_hole

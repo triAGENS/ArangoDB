@@ -43,9 +43,6 @@ using namespace arangodb::replication2::replicated_log;
 
 ReplicatedLogFeature::ReplicatedLogFeature(Server& server)
     : ArangodFeature{server, *this},
-      _replicatedLogMetrics(
-          std::make_shared<ReplicatedLogMetricsIndirect<false>>(
-              &server.getFeature<metrics::MetricsFeature>())),
       _options(std::make_shared<ReplicatedLogGlobalSettings>()) {
   static_assert(
       Server::isCreatedAfter<ReplicatedLogFeature, metrics::MetricsFeature>());
@@ -58,6 +55,11 @@ ReplicatedLogFeature::ReplicatedLogFeature(Server& server)
 auto ReplicatedLogFeature::metrics() const noexcept -> std::shared_ptr<
     replication2::replicated_log::ReplicatedLogMetrics> const& {
   return _replicatedLogMetrics;
+}
+
+void ReplicatedLogFeature::start() {
+  _replicatedLogMetrics = std::make_shared<ReplicatedLogMetricsIndirect<false>>(
+      &this->server().getFeature<metrics::MetricsFeature>());
 }
 
 auto ReplicatedLogFeature::options() const noexcept

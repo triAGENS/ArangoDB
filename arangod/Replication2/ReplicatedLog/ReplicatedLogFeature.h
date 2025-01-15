@@ -40,6 +40,8 @@ class ReplicatedLogFeature final : public ArangodFeature {
   explicit ReplicatedLogFeature(Server& server);
   ~ReplicatedLogFeature() override;
 
+  void start() override;
+
   auto metrics() const noexcept -> std::shared_ptr<
       replication2::replicated_log::ReplicatedLogMetrics> const&;
   auto options() const noexcept

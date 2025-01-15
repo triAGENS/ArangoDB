@@ -32,6 +32,7 @@ struct DocumentStateMachineFeature : public ArangodFeature {
   }
 
   explicit DocumentStateMachineFeature(Server& server);
+  void start() override;
   void prepare() override;
 };
 
