@@ -74,6 +74,8 @@ function rtaMakeCheckDataSuite() {
         password: "",
         verbose: true,
         includeSystem: true,
+        incremental: true,
+        autoResync: true,
         //restrictType: restrictType,
         //restrictCollections: restrictCollections,
         waitForSyncTimeout: 120,
