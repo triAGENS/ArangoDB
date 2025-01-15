@@ -30,6 +30,7 @@ const fs = require('fs');
 const pu = require('@arangodb/testutils/process-utils');
 const db = arangodb.db;
 const isEnterprise = require("internal").isEnterprise();
+const { executeExternalAndWaitWithSanitizer } = require('@arangodb/test-helper');
 
 function verifySstSuite() {
   'use strict';
@@ -93,7 +94,7 @@ function verifySstSuite() {
         ];
 
         // call ArangoDB with `--rocksdb.verify-sst true` and check exit code
-        let actualRc = internal.executeExternalAndWait(arangod, args);
+        const actualRc = executeExternalAndWaitWithSanitizer(arangod, args, 'shell-verify-sst-noncluster');
         assertTrue(actualRc.hasOwnProperty("exit"), actualRc);
         assertEqual(0, actualRc.exit, actualRc);
       };

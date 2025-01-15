@@ -32,6 +32,7 @@ const db = arangodb.db;
 const isCluster = require("internal").isCluster();
 const dbs = ["_system", "maçã", "😀", "ﻚﻠﺑ ﻞﻄﻴﻓ", "testName"];
 const extendedName = "Десятую Международную Конференцию по 💩🍺🌧t⛈c🌩_⚡🔥💥🌨";
+const { executeExternalAndWaitWithSanitizer } = require('@arangodb/test-helper');
 
 const validatorJson = {
   "message": "",
@@ -88,7 +89,7 @@ function dumpIntegrationSuite() {
     args.push(path);
     addConnectionArgs(args);
 
-    let actualRc = internal.executeExternalAndWait(arangodump, args);
+    let actualRc = executeExternalAndWaitWithSanitizer(arangodump, args, 'shell-dump-integration');
     assertTrue(actualRc.hasOwnProperty("exit"));
     assertEqual(expectRc, actualRc.exit);
     return fs.listTree(path);

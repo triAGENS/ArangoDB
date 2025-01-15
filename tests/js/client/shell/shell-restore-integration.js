@@ -34,6 +34,7 @@ const fs = require('fs');
 const pu = require('@arangodb/testutils/process-utils');
 const db = arangodb.db;
 const isCluster = require("internal").isCluster();
+const { executeExternalAndWaitWithSanitizer } = require('@arangodb/test-helper');
 const dbs = [{"name": "maçã", "id": "9999994", "isUnicode": true}, {
   "name": "cachorro",
   "id": "9999995",
@@ -145,8 +146,7 @@ function restoreIntegrationSuite() {
     args.push('--input-directory');
     args.push(path);
     addConnectionArgs(args);
-
-    let actualRc = internal.executeExternalAndWait(arangorestore, args);
+    const actualRc = executeExternalAndWaitWithSanitizer(arangorestore, args, 'shell-restore-integration');
     assertTrue(actualRc.hasOwnProperty("exit"), actualRc);
     assertEqual(rc, actualRc.exit, actualRc);
   };
