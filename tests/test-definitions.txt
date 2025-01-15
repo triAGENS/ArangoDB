@@ -14,7 +14,7 @@ replication_ongoing priority=500 parallelity=3 size=small single -- --extraArgs:
 replication_ongoing_frompresent parallelity=3 size=small single -- --extraArgs:log.level replication=trace
 replication_ongoing_global priority=500 parallelity=3 size=small single -- --extraArgs:log.level replication=trace
 replication_ongoing_global_spec parallelity=3 size=small single -- --extraArgs:log.level replication=trace
-replication_static priority=500 parallelity=3 size=small single -- --extraArgs:log.level replication=trace
+replication_static priority=500 parallelity=3 size=small single -- --extraArgs:log.level replication=trace --extraArgs:experimental-vector-index true
 # TODO - we could actually use 4 buckets instead of 2, but ATM this causes issues with other tests on Jenkins
 # For CircleCI we have a special case in the generate_config script to override this. Once we can change the buckets
 # here, make sure to remove this special case!
