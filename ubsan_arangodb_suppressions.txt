@@ -27,6 +27,7 @@ vptr:s2cell.cc
 vptr:v8::Platform
 # TODO(MBkkt) Some issue in our version of V8, only in arangodbtests
 vptr:v8::internal::Isolate::~Isolate
+vptr:lib/ApplicationFeatures/V8PlatformFeature.cpp
 
 # Applying zero offset to null pointer not UB at least in C++20
 # https://github.com/libjpeg-turbo/libjpeg-turbo/issues/470
