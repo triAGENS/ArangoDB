@@ -122,19 +122,23 @@ class replicationRunner extends trs.runLocalInArangoshRunner {
     let state = true;
     this.addArgs['flatCommands'] = [this.instanceManager.arangods[1].endpoint];
     if (this.startReplication) {
-      let res = ct.run.arangoshCmd(this.options, this.instanceManager,
-                                   {}, [
-        '--javascript.execute-string',
-        `
+      [0, 1].forEach(which => {
+        this.instanceManager.endpoint = this.instanceManager.arangods[which].endpoint
+        this.instanceManager.arangods[which].connect();
+        let res = ct.run.arangoshCmd(this.options, this.instanceManager,
+                                     {}, [
+                                       '--javascript.execute-string',
+                                       `
           var users = require("@arangodb/users");
           users.save("replicator-user", "replicator-password", true);
           users.grantDatabase("replicator-user", "_system");
           users.grantCollection("replicator-user", "_system", "*", "rw");
           users.reload();
           `
-      ],
-                                   this.options.coreCheck);
-      state = res.status;
+                                     ],
+                                     this.options.coreCheck);
+        state = res.status;
+      });
     }
     return {
       message: message,

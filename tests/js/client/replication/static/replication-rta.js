@@ -76,8 +76,6 @@ function rtaMakeCheckDataSuite() {
         includeSystem: true,
         incremental: true,
         autoResync: true,
-        //restrictType: restrictType,
-        //restrictCollections: restrictCollections,
         waitForSyncTimeout: 120,
         keepBarrier: true
       });
@@ -91,7 +89,7 @@ function rtaMakeCheckDataSuite() {
       const fs = require('fs');
       let res = {'total':0, 'duration':0.0, 'status':true, message: '', 'failed': 0};
       let moreargv = ['--skip',
-                      '070_,071,107_']; // this replication doesn't spawn automatic per database
+                      '070_,071,107_']; // the follower doesn't spawn foxxes.
       
       const ct = require('@arangodb/testutils/client-tools');
       let count = 0;
@@ -124,7 +122,7 @@ function rtaMakeCheckDataSuite() {
         } else {
           fs.remove(logFile);
         }
-        if (count === 1) {
+        if (count === 1 || count == 4) {
           var state = {};
           let printed = false;
           connectToLeader();
