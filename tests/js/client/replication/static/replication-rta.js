@@ -68,7 +68,7 @@ function rtaMakeCheckDataSuite() {
     setUp: function() {
       connectToFollower();
       replication.applier.stop();
-      let opts={
+      var syncResult = replication.setupReplicationGlobal({
         endpoint: leaderEndpoint,
         username: "root",
         password: "",
@@ -80,11 +80,7 @@ function rtaMakeCheckDataSuite() {
         //restrictCollections: restrictCollections,
         waitForSyncTimeout: 120,
         keepBarrier: true
-      };
-      print(opts)
-      var syncResult = replication.setupReplicationGlobal(opts);
-      print(syncResult)
-      //print('eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeepu')
+      });
     },
 
     tearDown: function() {
@@ -95,8 +91,7 @@ function rtaMakeCheckDataSuite() {
       const fs = require('fs');
       let res = {'total':0, 'duration':0.0, 'status':true, message: '', 'failed': 0};
       let moreargv = ['--skip',
-                      '050_,070_,071_,102_,570_,107_']; // this replication doesn't spawn automatic per database
-//                      '070_,071,107_']; // this replication doesn't spawn automatic per database
+                      '070_,071,107_']; // this replication doesn't spawn automatic per database
       
       const ct = require('@arangodb/testutils/client-tools');
       let count = 0;
@@ -131,23 +126,19 @@ function rtaMakeCheckDataSuite() {
         }
         if (count === 1) {
           var state = {};
+          let printed = false;
           connectToLeader();
           state.lastLogTick = replication.logger.state().state.lastUncommittedLogTick;
           IM.arangods[1].connect();
           while (true) {
             connectToFollower();
-            var followerState = replication.applier.state();
-            print(followerState)
+            var followerState = replication.globalApplier.state();
             if (followerState.state.lastError.errorNum > 0) {
               console.topic("replication=error", "follower has errored:", JSON.stringify(followerState.state.lastError));
               throw JSON.stringify(followerState.state.lastError);
             }
 
             if (!followerState.state.running) {
-              //if (followerState.state.phase === "inactive") {
-              //  internal.sleep(1);
-              //  continue;
-              //}
               throw new Error(`replication=error follower is not running: ${JSON.stringify(followerState)}`);
             }
 
@@ -169,6 +160,7 @@ function rtaMakeCheckDataSuite() {
       if (res.failed > 0) {
         throw new Error(`test failed :\n${JSON.stringify(res)}`);
       }
+      connectToLeader();
     }
   };
 }
