@@ -113,6 +113,7 @@ bool isIndexNodeEligible(IndexNode const& in) {
              << " not eligible - sparse indexes not yet supported";
     return false;
   }
+  // TODO get rid
   if (index->unique()) {
     LOG_RULE << "IndexNode " << in.id()
              << " not eligible - optimization not feasible for unique indexes";
@@ -343,6 +344,7 @@ void arangodb::aql::useIndexForCollect(Optimizer* opt,
       continue;
     }
 
+    // TODO only call for non-aggregation
     if (not checkSelectivityFitsAlgorithm(*indexNode)) {
       continue;
     }

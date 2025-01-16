@@ -248,22 +248,22 @@ IndexAggregateScanExecutor::IndexAggregateScanExecutor(Fetcher& fetcher,
   _currentGroupKeySlices.resize(_infos.groups.size());
   _keySlices.resize(_infos.groups.size());
 
+  // create index iterator
   IndexStreamOptions streamOptions;
-
   streamOptions.usedKeyFields.reserve(infos.groups.size());
   std::transform(infos.groups.begin(), infos.groups.end(),
                  std::back_inserter(streamOptions.usedKeyFields),
                  [](auto const& i) { return i.indexField; });
-
   size_t offset = 0;
   for (auto const& [var, key] : _infos._expressionVariables) {
     streamOptions.projectedFields.emplace_back(key);
     _variablesToProjectionsRelative.emplace(var, offset++);
   }
-
-  _projectionSlices.resize(streamOptions.projectedFields.size());
   LOG_AGG_SCAN << "[SCAN] constructing stream with options " << streamOptions;
   _iterator = _infos.index->streamForCondition(&_trx, streamOptions);
+
+  // fill projection slices for
+  _projectionSlices.resize(streamOptions.projectedFields.size());
   bool hasMore = _iterator->reset(_currentGroupKeySlices, {});
   LOG_AGG_SCAN << "[SCAN] after reset at "
                << DumpVpackSpan{_currentGroupKeySlices}
