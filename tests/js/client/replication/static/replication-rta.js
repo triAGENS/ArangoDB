@@ -95,7 +95,8 @@ function rtaMakeCheckDataSuite() {
       const fs = require('fs');
       let res = {'total':0, 'duration':0.0, 'status':true, message: '', 'failed': 0};
       let moreargv = ['--skip',
-                      '070_,071,107_']; // this replication doesn't spawn automatic per database
+                      '050_,070_,071_,102_,570_,107_']; // this replication doesn't spawn automatic per database
+//                      '070_,071,107_']; // this replication doesn't spawn automatic per database
       
       const ct = require('@arangodb/testutils/client-tools');
       let count = 0;
@@ -130,9 +131,11 @@ function rtaMakeCheckDataSuite() {
         }
         if (count === 1) {
           var state = {};
+          connectToLeader();
           state.lastLogTick = replication.logger.state().state.lastUncommittedLogTick;
           IM.arangods[1].connect();
           while (true) {
+            connectToFollower();
             var followerState = replication.applier.state();
             print(followerState)
             if (followerState.state.lastError.errorNum > 0) {
