@@ -46,10 +46,10 @@ struct IndexStreamIterator {
   virtual ~IndexStreamIterator() = default;
   // load the current position into the span.
   // returns false if the end of the index range was reached.
-  virtual bool position(std::span<SliceType>) const = 0;
-  // seek to the given position. The span is updated with the actual new
+  virtual bool position(std::span<SliceType> position) const = 0;
+  // seek to the given position. The position is updated with the actual new
   // position. returns false if the end of the index range was reached.
-  virtual bool seek(std::span<SliceType>) = 0;
+  virtual bool seek(std::span<SliceType> position) = 0;
 
   // loads the document id and fills the projections (if any)
   virtual DocIdType load(std::span<SliceType> projections) const = 0;

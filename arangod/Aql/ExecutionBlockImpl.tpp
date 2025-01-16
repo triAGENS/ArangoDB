@@ -88,6 +88,7 @@ class MaterializeSearchExecutor;
 template<typename FetcherType, typename ModifierType>
 class ModificationExecutor;
 struct IndexDistinctScanExecutor;
+struct IndexAggregateScanExecutor;
 
 class LimitExecutor;
 class ReturnExecutor;
@@ -854,6 +855,7 @@ static SkipRowsRangeVariant constexpr skipRowsType() {
                   SingleRemoteModificationExecutor<Upsert>,
                   MultipleRemoteModificationExecutor, SortExecutor,
                   EnumerateNearVectorsExecutor, IndexDistinctScanExecutor,
+                  IndexAggregateScanExecutor,
                   // only available in Enterprise
                   arangodb::iresearch::OffsetMaterializeExecutor,
                   MaterializeSearchExecutor>) ||

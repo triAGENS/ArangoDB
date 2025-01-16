@@ -14,13 +14,14 @@ target_sources(arango_aql PRIVATE
   GroupedSortExecutor.cpp
   GroupedSortExecutorBackend.cpp
   HashedCollectExecutor.cpp
-  IdExecutor.cpp
-  IndexExecutor.cpp
-  IndexDistinctScanExecutor.cpp
   IResearchViewExecutor.cpp
   IResearchViewExecutorBase.cpp
   IResearchViewHeapSortExecutor.cpp
   IResearchViewMergeExecutor.cpp
+  IdExecutor.cpp
+  IndexAggregateScanExecutor.cpp
+  IndexDistinctScanExecutor.cpp
+  IndexExecutor.cpp
   JoinExecutor.cpp
   LimitExecutor.cpp
   MaterializeExecutor.cpp

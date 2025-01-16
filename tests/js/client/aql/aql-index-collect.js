@@ -75,7 +75,6 @@ function IndexCollectOptimizerTestSuite() {
         [`FOR doc IN ${collection} COLLECT a = doc.a INTO d RETURN [a, d]`, false],
         [`FOR doc IN ${collection} COLLECT a = doc.a INTO d = doc.d RETURN [a, d]`, false],
         [`FOR doc IN ${collection} COLLECT a = doc.a WITH COUNT INTO c RETURN [a, c]`, false],
-        [`FOR doc IN ${collection} COLLECT a = doc.a AGGREGATE c = SUM(doc.b) RETURN [a, c]`, false],
       ];
 
       for (const [query, optimized] of queries) {
@@ -84,6 +83,32 @@ function IndexCollectOptimizerTestSuite() {
         if (optimized) {
           const nodes = explain.plan.nodes.filter(x => x.type === "IndexCollectNode");
           assertEqual(nodes.length, 1, query);
+          const indexCollect = nodes[0];
+          assertEqual(indexCollect.aggregations.length, 0);
+        }
+      }
+    },
+
+    testSimpleAggregationScan: function () {
+      db[collection].ensureIndex({type: "persistent", fields: ["a", "b", "d"], storedValues: ["e", "f"]});
+      db[collection].ensureIndex({type: "persistent", fields: ["k"]});
+
+      const queries = [
+        [`FOR doc IN ${collection} COLLECT a = doc.a AGGREGATE b = MAX(doc.b) RETURN [a, b]`, true],
+        [`FOR doc IN ${collection} COLLECT a = doc.a AGGREGATE b = MAX(doc.b + doc.c) RETURN [a, b]`, false],
+        [`FOR doc IN ${collection} COLLECT a = doc.a AGGREGATE b = MAX(doc.b + doc.e) RETURN [a, b]`, true],
+        [`FOR doc IN ${collection} COLLECT a = doc.a AGGREGATE b = MAX(doc.b + doc.d) RETURN [a, b]`, true],
+        [`FOR doc IN ${collection} COLLECT a = doc.a AGGREGATE b = MAX(doc.b + doc.d), c = PUSH(doc.f) RETURN [a, b, c]`, true],
+      ];
+
+      for (const [query, optimized] of queries) {
+        const explain = db._createStatement(query).explain();
+        assertEqual(explain.plan.rules.indexOf(indexCollectOptimizerRule) !== -1, optimized, query);
+        if (optimized) {
+          const nodes = explain.plan.nodes.filter(x => x.type === "IndexCollectNode");
+          assertEqual(nodes.length, 1, query);
+          const indexCollect = nodes[0];
+          assertTrue(indexCollect.aggregations.length > 0);
         }
       }
     },
@@ -135,7 +160,7 @@ function IndexCollectExecutionTestSuite() {
       }
       c.save(docs);
       c.ensureIndex({type: "persistent", fields: ["k"]});
-      c.ensureIndex({type: "persistent", fields: ["a", "b"]});
+      c.ensureIndex({type: "persistent", fields: ["a", "b"], storedValues: ["c"]});
       c.ensureIndex({type: "persistent", fields: ["b"]});
       c.ensureIndex({type: "persistent", fields: ["c"]});
       c.ensureIndex({type: "persistent", fields: ["m", "a"]});
@@ -157,6 +182,12 @@ function IndexCollectExecutionTestSuite() {
         [`FOR doc IN ${collection} COLLECT a = doc.a, m = doc.m RETURN [a, m]`],
         [`LET as = (FOR doc IN ${collection} COLLECT a = doc.a RETURN a) LET bs = (FOR doc IN ${collection}
             COLLECT b = doc.b RETURN b) RETURN [as, bs]`],
+
+        [`FOR doc IN ${collection} COLLECT m = doc.m AGGREGATE a = SUM(doc.a) RETURN [m, a]`],
+        [`FOR doc IN ${collection} COLLECT a = doc.a AGGREGATE b = SUM(doc.b) RETURN [a, b]`],
+        [`FOR doc IN ${collection} COLLECT a = doc.a, b = doc.b AGGREGATE c = SUM(doc.c) RETURN [a, b, c]`],
+        [`FOR doc IN ${collection} COLLECT a = doc.a, b = doc.b
+            AGGREGATE c = BIT_XOR(doc.c), d = BIT_OR(doc.c), e = BIT_AND(doc.c) RETURN [a, b, c, d, e]`],
       ];
 
       for (const [query] of queries) {

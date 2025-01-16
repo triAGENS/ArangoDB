@@ -23,6 +23,7 @@
 
 #pragma once
 #include "CollectionAccessingNode.h"
+#include "Aql/Expression.h"
 #include "ExecutionNode.h"
 
 namespace arangodb {
@@ -34,7 +35,18 @@ struct IndexCollectGroup {
   Variable const* outVariable;
 };
 
+struct IndexCollectAggregation {
+  // aggregator type
+  std::string type;
+  // output variable
+  Variable const* outVariable;
+  // aggregation expression. It must only contain attribute accesses to the old
+  // document variable that are covered by the index.
+  std::unique_ptr<Expression> expression;
+};
+
 using IndexCollectGroups = std::vector<IndexCollectGroup>;
+using IndexCollectAggregations = std::vector<IndexCollectAggregation>;
 
 struct IndexCollectNode : ExecutionNode, CollectionAccessingNode {
   friend class ExecutionNode;
@@ -44,6 +56,7 @@ struct IndexCollectNode : ExecutionNode, CollectionAccessingNode {
                    aql::Collection const* collection,
                    std::shared_ptr<arangodb::Index> index,
                    Variable const* oldIndexVariable, IndexCollectGroups groups,
+                   IndexCollectAggregations aggregations,
                    CollectOptions collectOptions);
 
   IndexCollectNode(ExecutionPlan* plan, arangodb::velocypack::Slice slice);
@@ -73,9 +86,15 @@ struct IndexCollectNode : ExecutionNode, CollectionAccessingNode {
                       unsigned int flags) const override;
   CostEstimate estimateCost() const override;
 
+  std::unique_ptr<ExecutionBlock> createBlockDistinctScan(
+      ExecutionEngine& engine) const;
+  std::unique_ptr<ExecutionBlock> createBlockAggregationScan(
+      ExecutionEngine& engine) const;
+
  private:
   std::shared_ptr<arangodb::Index> _index;
   IndexCollectGroups _groups;
+  IndexCollectAggregations _aggregations;
   Variable const* _oldIndexVariable;
   CollectOptions _collectOptions;
 };
