@@ -218,6 +218,28 @@ function VectorIndexL2TestSuite() {
             );
         },
 
+        testApproxL2MutipleSortAttributes: function() {
+            const query =
+                "FOR d IN " +
+                collection.name() +
+                " SORT APPROX_NEAR_L2(d.vector, @qp), d.nonVector LIMIT 5" +
+                " RETURN {key: d._key}";
+
+            const bindVars = {
+                qp: randomPoint
+            };
+            const plan = db
+                ._createStatement({
+                    query,
+                    bindVars,
+                })
+                .explain().plan;
+            const indexNodes = plan.nodes.filter(function(n) {
+                return n.type === "EnumerateNearVectorNode";
+            });
+            assertEqual(0, indexNodes.length);
+        },
+
         testApproxL2MultipleTopK: function() {
             const query =
                 "FOR d IN " +
