@@ -77,9 +77,12 @@ function IndexSuite() {
                                 {"x-arango-async": "store"}).headers["x-arango-async-id"];
       let count = 0;
       let progress = 0.0;
+      let idxs = [];
       while (true) {
         // Wait until the index is there (with withHidden):
-        let idxs = arango.GET(`/_api/index?collection=${cn}&withHidden=true`).indexes;
+        idxs = arango.GET(`/_api/index?collection=${cn}&withHidden=true`);
+        assertTrue(idxs.hasOwnProperty("indexes"), idxs);
+        idxs = idxs.indexes;
         if (idxs.length > 1) {
           assertEqual(idxs[1].name, "progress", idxs);
           break;
@@ -89,11 +92,16 @@ function IndexSuite() {
           assertFalse(true, "Did not see hidden index in time!");
         }
       }
+      assertEqual(2, idxs.length, idxs);
 
       let seenProgress = false;
       count = 0;
       while (true) {
-        let idx = arango.GET(`/_api/index?collection=${cn}&withHidden=true`).indexes[1];
+        idxs = arango.GET(`/_api/index?collection=${cn}&withHidden=true`);
+        assertTrue(idxs.hasOwnProperty("indexes"), idxs);
+        idxs = idxs.indexes;
+        assertEqual(2, idxs.length, idxs);
+        let idx = idxs[1];
         assertEqual(idx.name, "progress", idx); // Check we have the right one!
         if (idx.hasOwnProperty("progress")) {
           assertTrue(idx.progress >= progress, {idx, progress});
