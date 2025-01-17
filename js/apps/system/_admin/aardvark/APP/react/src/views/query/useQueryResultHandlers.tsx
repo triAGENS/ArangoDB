@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useCallback } from "react";
 import { getCurrentDB } from "../../utils/arangoClient";
 import { QueryResultType } from "./ArangoQuery.types";
 
 export const useQueryResultHandlers = () => {
   const [queryResults, setQueryResults] = React.useState<QueryResultType[]>([]);
-  const setQueryResultById = (queryResult: QueryResultType) => {
+
+  const setQueryResultById = useCallback((queryResult: QueryResultType) => {
     setQueryResults(prev => {
       const newResults = prev.map(prevQueryResult => {
         if (prevQueryResult.asyncJobId === queryResult.asyncJobId) {
@@ -14,7 +15,8 @@ export const useQueryResultHandlers = () => {
       });
       return newResults;
     });
-  };
+  }, []);
+
   const appendQueryResultById = ({
     asyncJobId,
     result,

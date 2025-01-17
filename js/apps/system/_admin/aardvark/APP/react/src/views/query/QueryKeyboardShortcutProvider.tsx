@@ -1,6 +1,4 @@
-import { usePrevious } from "@chakra-ui/react";
 import hotkeys from "hotkeys-js";
-import { isEqual } from "lodash";
 import React from "react";
 import { useQueryContext } from "./QueryContextProvider";
 
@@ -18,10 +16,6 @@ export const QueryKeyboardShortcutProvider = ({
     queryOptions,
     disabledRules
   } = useQueryContext();
-  const prevQueryBindParams = usePrevious(queryBindParams);
-  const areParamsEqual = prevQueryBindParams
-    ? isEqual(queryBindParams, prevQueryBindParams)
-    : true;
   React.useEffect(() => {
     hotkeys.filter = function (event) {
       var target = event.target;
@@ -46,7 +40,14 @@ export const QueryKeyboardShortcutProvider = ({
     return () => {
       hotkeys.unbind();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onExecute, queryValue, areParamsEqual]);
+  }, [
+    onExecute,
+    onExplain,
+    queryValue,
+    queryOptions,
+    queryBindParams,
+    disabledRules,
+    onOpenSpotlight
+  ]);
   return <>{children}</>;
 };
