@@ -1,6 +1,8 @@
 devel
 -----
 
+* FE-489: fix undefined check at Query Editor UI > Options tab > disabled rules and improve type safety.
+
 * update iresearch 3rd party for clang-19 build
 
 * Let `arangorestore` restore vector indexes **after** data import. This

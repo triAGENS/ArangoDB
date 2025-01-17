@@ -13,16 +13,26 @@ const useResetSchema = ({ schema, ajv }: { schema: any; ajv?: any }) => {
   }, [schema, ajv]);
 };
 
-type ControlledJSONEditorProps = Omit<JsonEditorProps, "value"> & {
-  value?: any;
+type ControlledJSONEditorProps<T> = Omit<JsonEditorProps<T>, "value"> & {
+  value?: T;
   isDisabled?: boolean;
-  mainMenuBar?: boolean;
   isReadOnly?: boolean;
-  defaultValue?: any;
+  defaultValue?: T;
 };
 
+/**
+ * This declaration extends React type definitions to properly handle generic types with forwardRef.
+ * It's necessary because the default type definitions don't fully support combining generic type parameters
+ * with forwarded refs. This allows us to maintain type safety while forwarding refs to the JSONEditor component.
+ */
+declare module "react" {
+  function forwardRef<T, P = {}>(
+    render: (props: P, ref: React.Ref<T>) => React.ReactElement | null
+  ): (props: P & React.RefAttributes<T>) => React.ReactElement | null;
+}
+
 export const ControlledJSONEditor = React.forwardRef(
-  (
+  <T,>(
     {
       value,
       onChange,
@@ -33,7 +43,7 @@ export const ControlledJSONEditor = React.forwardRef(
       mainMenuBar,
       defaultValue,
       ...rest
-    }: ControlledJSONEditorProps,
+    }: ControlledJSONEditorProps<T>,
     ref: React.ForwardedRef<JsonEditor>
   ) => {
     const jsonEditorRef = useRef<JsonEditor | undefined>();
@@ -68,8 +78,6 @@ export const ControlledJSONEditor = React.forwardRef(
                 : ""
             }}
             {...rest}
-            // need to ts-ignore as the interface is controlled by jsoneditor-react
-            // @ts-ignore
             mainMenuBar={mainMenuBar}
           />
         )}

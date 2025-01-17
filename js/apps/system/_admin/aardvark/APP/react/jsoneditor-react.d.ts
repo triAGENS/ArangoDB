@@ -5,8 +5,8 @@ declare module "jsoneditor-react" {
 
   type Mode = "tree" | "view" | "form" | "code" | "text";
 
-  export interface JsonEditorProps {
-    value: any;
+  export interface JsonEditorProps<T = any> {
+    value: T;
     /** Set the editor mode. Default 'tree' */
     mode?: Mode;
     /** Initial field name for root node */
@@ -26,7 +26,7 @@ declare module "jsoneditor-react" {
     /** Set a callback function triggered when json in the JSONEditor change */
     onChangeText?: (value: any) => void;
     /** Set a callback function triggered when json in the JSONEditor change */
-    onChange?: (value: any) => void;
+    onChange?: (value: T) => void;
     /**
      * Set a callback function triggered when an error occurs.
      * Invoked with the error as first argument.
@@ -37,7 +37,7 @@ declare module "jsoneditor-react" {
     onError?: (error: any) => void;
     /** Set a callback function triggered right after the mode is changed by the user. */
     onModeChange?: (mode: Mode) => void;
-    onClassName?: (args: { path: any; field: str; value: any }) => void;
+    onClassName?: (args: { path: any; field: string; value: any }) => void;
 
     /** Provide a version of the Ace editor. Only applicable when mode is code */
     ace?: object;
@@ -75,6 +75,8 @@ declare module "jsoneditor-react" {
     innerRef?: (ref: any) => void;
     /** called on schema validation errors */
     onValidationError?: (errors: ValidationError[]) => void;
+    /** Adds main menu bar - Contains format, sort, transform, search etc. functionality. true by default. Applicable in all types of mode. */
+    mainMenuBar?: boolean;
   }
   export interface ValidationError {
     type: "validation" | "customValidation" | "error";
