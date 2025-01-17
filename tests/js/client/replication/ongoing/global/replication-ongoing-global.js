@@ -36,18 +36,19 @@ const compareTicks = replication.compareTicks;
 const console = require('console');
 const internal = require('internal');
 
-const leaderEndpoint = arango.getEndpoint();
-const followerEndpoint = ARGUMENTS[ARGUMENTS.length - 1];
-
 const cn = 'UnitTestsReplication';
 const cn2 = 'UnitTestsReplication2';
 
-const connectToLeader = function () {
+let IM = global.instanceManager;
+const leaderEndpoint = IM.arangods[0].endpoint;
+const followerEndpoint = IM.arangods[1].endpoint;
+
+const connectToLeader = function() {
   reconnectRetry(leaderEndpoint, db._name(), 'root', '');
   db._flushCache();
 };
 
-const connectToFollower = function () {
+const connectToFollower = function() {
   reconnectRetry(followerEndpoint, db._name(), 'root', '');
   db._flushCache();
 };

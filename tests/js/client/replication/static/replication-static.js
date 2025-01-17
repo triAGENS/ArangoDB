@@ -43,8 +43,6 @@ const deriveTestSuite = require('@arangodb/test-helper').deriveTestSuite;
 const console = require('console');
 const internal = require('internal');
 const arango = internal.arango;
-const leaderEndpoint = arango.getEndpoint();
-const followerEndpoint = ARGUMENTS[ARGUMENTS.length - 1];
 
 const cn = 'UnitTestsReplication';
 const cn2 = 'UnitTestsReplication2';
@@ -53,6 +51,9 @@ const systemCn = '_UnitTestsReplicationSys';
 // these must match the values in the Makefile!
 const replicatorUser = 'replicator-user';
 const replicatorPassword = 'replicator-password';
+let IM = global.instanceManager;
+const leaderEndpoint = IM.arangods[0].endpoint;
+const followerEndpoint = IM.arangods[1].endpoint;
 
 const connectToLeader = function() {
   reconnectRetry(leaderEndpoint, db._name(), replicatorUser, replicatorPassword);
@@ -69,6 +70,37 @@ const collectionChecksum = function(name) {
 
 const collectionCount = function(name) {
   return db._collection(name).count();
+};
+
+const waitForSync = function() {
+  let state = {};
+  let printed = false;
+  connectToLeader();
+  state.lastLogTick = replication.logger.state().state.lastUncommittedLogTick;
+  IM.arangods[1].connect();
+  while (true) {
+    connectToFollower();
+    var followerState = replication.applier.state();
+    if (followerState.state.lastError.errorNum > 0) {
+      console.topic("replication=error", "follower has errored:", JSON.stringify(followerState.state.lastError));
+      throw JSON.stringify(followerState.state.lastError);
+    }
+
+    if (!followerState.state.running) {
+      throw new Error(`replication=error follower is not running: ${JSON.stringify(followerState)}`);
+    }
+
+    if (compareTicks(followerState.state.lastAppliedContinuousTick, state.lastLogTick) >= 0 ||
+        compareTicks(followerState.state.lastProcessedContinuousTick, state.lastLogTick) >= 0) { // ||
+      console.topic("replication=debug", "follower has caught up. state.lastLogTick:", state.lastLogTick, "followerState.lastAppliedContinuousTick:", followerState.state.lastAppliedContinuousTick, "followerState.lastProcessedContinuousTick:", followerState.state.lastProcessedContinuousTick);
+      break;
+    }
+    if (!printed) {
+      console.topic("replication=debug", "waiting for follower to catch up");
+      printed = true;
+    }
+    internal.wait(0.5, false);
+  }
 };
 
 const compare = function(leaderFunc, followerFunc, applierConfiguration) {
@@ -323,6 +355,11 @@ function BaseTestConfig() {
           assertEqual(state.checksum, collectionChecksum(cn));
         }
       );
+      // shoot me again, I ain't dead yet.
+      waitForSync();
+      db._drop(cn);
+      waitForSync();
+      internal.sleep(10);
     },
 
     // /////////////////////////////////////////////////////////////////////////////
@@ -2232,8 +2269,12 @@ function ReplicationOtherDBExtendedNameSuite() {
   return ReplicationOtherDBSuiteBase("Десятую Международную Конференцию по 💩🍺🌧t⛈c🌩_⚡🔥💥🌨");
 }
 
+
+
 jsunity.run(ReplicationSuite);
 jsunity.run(ReplicationOtherDBTraditionalNameSuite);
 jsunity.run(ReplicationOtherDBExtendedNameSuite);
+
+
 
 return jsunity.done();

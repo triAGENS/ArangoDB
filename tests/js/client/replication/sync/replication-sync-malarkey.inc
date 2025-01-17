@@ -30,26 +30,27 @@ const arangodb = require('@arangodb');
 const reconnectRetry = require('@arangodb/replication-common').reconnectRetry;
 const db = arangodb.db;
 const replication = require('@arangodb/replication');
-const leaderEndpoint = arango.getEndpoint();
-const followerEndpoint = ARGUMENTS[ARGUMENTS.length - 1];
 const errors = require("internal").errors;
 const { deriveTestSuite, compareStringIds, versionHas } = require('@arangodb/test-helper');
 const _ = require('lodash');
+let IM = global.instanceManager;
+const leaderEndpoint = IM.arangods[0].endpoint;
+const followerEndpoint = IM.arangods[1].endpoint;
 
 const cn = 'UnitTestsReplication';
 
 const docCount = versionHas('tsan') ? 10000 : 100000;
 
-const connectToLeader = function () {
+const connectToLeader = function() {
   reconnectRetry(leaderEndpoint, db._name(), 'root', '');
   db._flushCache();
 };
 
-const connectToFollower = function () {
+const connectToFollower = function() {
   reconnectRetry(followerEndpoint, db._name(), 'root', '');
   db._flushCache();
 };
-  
+
 const setFailurePoint = function(which) {
   let res = arango.PUT("/_admin/debug/failat/" + encodeURIComponent(which), {});
   if (res !== true) {

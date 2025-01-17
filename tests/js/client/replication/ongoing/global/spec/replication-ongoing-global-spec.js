@@ -36,8 +36,9 @@ const db = arangodb.db;
 const internal = require("internal");
 const time = internal.time;
 
-const leaderEndpoint = arango.getEndpoint();
-const followerEndpoint = ARGUMENTS[ARGUMENTS.length - 1];
+let IM = global.instanceManager;
+const leaderEndpoint = IM.arangods[0].endpoint;
+const followerEndpoint = IM.arangods[1].endpoint;
 
 const username = "root";
 const password = "";
