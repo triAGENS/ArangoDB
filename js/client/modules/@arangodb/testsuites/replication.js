@@ -123,7 +123,7 @@ class replicationRunner extends trs.runLocalInArangoshRunner {
     this.addArgs['flatCommands'] = [this.instanceManager.arangods[1].endpoint];
     if (this.startReplication) {
       [0, 1].forEach(which => {
-        this.instanceManager.endpoint = this.instanceManager.arangods[which].endpoint
+        this.instanceManager.endpoint = this.instanceManager.arangods[which].endpoint;
         this.instanceManager.arangods[which].connect();
         let res = ct.run.arangoshCmd(this.options, this.instanceManager,
                                      {}, [

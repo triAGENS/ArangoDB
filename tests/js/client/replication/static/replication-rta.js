@@ -122,7 +122,7 @@ function rtaMakeCheckDataSuite() {
         } else {
           fs.remove(logFile);
         }
-        if (count === 1 || count == 4) {
+        if (count === 1 || count === 4) {
           var state = {};
           let printed = false;
           connectToLeader();
